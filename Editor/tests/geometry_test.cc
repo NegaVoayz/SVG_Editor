@@ -72,18 +72,41 @@ int main() {
     CHECK(to_text(std::get<Shape::Line>(shape_of(stroke).specific).x2) == "6");
     CHECK(to_text(std::get<Shape::Line>(shape_of(stroke).specific).y2) == "7");
 
-    // what the unit table does and does not convert
-    Node in_metres = rect(mm(1), mm(1));
-    CHECK(!moved(in_metres, Length{1.0F, Length::Unit::In}, mm(0), problem));
-    CHECK(problem.find("only mm and cm convert") != std::string::npos);
+    // what the unit table does and does not convert: within a system, everything, and
+    // across systems, nothing
+    Node pixels = rect(Length{96.0F, Length::Unit::Px}, Length{0.0F, Length::Unit::Px});
+    CHECK(moved(pixels, Length{1.0F, Length::Unit::In}, Length{0.0F, Length::Unit::Px}, problem));
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(pixels).specific).x) == "192px");
+
+    Node points = rect(Length{72.0F, Length::Unit::Pt}, Length{0.0F, Length::Unit::Pt});
+    CHECK(moved(points, Length{1.0F, Length::Unit::In}, Length{0.0F, Length::Unit::Pt}, problem));
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(points).specific).x) == "144pt");
+
+    // an inch is exactly 25.4mm, and that is still not a sum: mixing the two systems
+    // would leave the value in a system nobody chose
+    Node metric = rect(mm(1), mm(1));
+    CHECK(!moved(metric, Length{1.0F, Length::Unit::In}, mm(0), problem));
+    CHECK(problem.find("the two systems are not mixed") != std::string::npos);
 
     Node relative = rect(Percentage{50.0F}, Percentage{0.0F});
     CHECK(!moved(relative, mm(10), mm(0), problem));
     CHECK(problem.find("a percentage has no sum with a length") != std::string::npos);
 
-    Node plain = rect(user_units(0), user_units(0));
+    Node plain = rect(user_units(1), user_units(1));
     CHECK(!moved(plain, Length{5.0F, Length::Unit::Px}, user_units(0), problem));
-    CHECK(problem.find("only mm and cm convert") != std::string::npos);
+    CHECK(problem.find("only add within one system") != std::string::npos);
+
+    // zero is zero in every unit: a coordinate of 0 takes an offset in any unit, and a
+    // zero offset leaves any coordinate alone
+    Node fresh = rect(user_units(0), user_units(0));
+    CHECK(moved(fresh, Length{5.0F, Length::Unit::Px}, Length{7.0F, Length::Unit::In}, problem));
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(fresh).specific).x) == "5px");
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(fresh).specific).y) == "7in");
+
+    Node kept = rect(Length{10.0F, Length::Unit::Mm}, Length{10.0F, Length::Unit::Mm});
+    CHECK(moved(kept, user_units(0), Length{0.0F, Length::Unit::In}, problem));
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(kept).specific).x) == "10mm");
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(kept).specific).y) == "10mm");
 
     // a container has no coordinates, so it gets a transform instead
     Node layer = group();

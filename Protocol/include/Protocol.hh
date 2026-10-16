@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -74,9 +75,30 @@ inline std::string_view kind_name(Kind kind) {
     return "unknown";
 }
 
-// What comes back: a message for the user, and which branch produced it.
+// What a view hands back: the document as data rather than as a sentence. The ui
+// layer is what turns it into text, because text is its business in both directions
+// of the boundary - it parses what a user wrote, and it writes what a user reads.
+//
+// The payloads are copies. A view is a snapshot of the tree as it stands, and a
+// payload moves between slots as soon as anything is edited, so nothing here could be
+// a reference into the arena.
+struct TreeRow {
+    std::size_t depth;
+    Id node;
+    Node payload;
+};
+struct TreeView { std::vector<TreeRow> rows; };
+struct NodeView { Id node; Node payload; };
+
+// One of the two reads, or nothing: an outcome that is a change or a failure carries
+// its sentence instead of a view.
+using View = std::variant<std::monostate, TreeView, NodeView>;
+
+// What comes back: whether it worked, which branch produced it, a sentence about what
+// happened, and what a view read.
 struct Outcome {
     bool ok = true;
     Kind kind = Kind::Unknown;
     std::string message;
+    View view{};
 };

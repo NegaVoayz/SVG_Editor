@@ -109,14 +109,17 @@ a percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, `none` or `currentCol
 A bracketed value counts as one word, spaces and all, and quotes and escapes are
 not parsed yet, so an SVG id cannot hold a space.
 
-Adding two lengths of different units is refused unless the model can convert them
-exactly on its own, and only mm and cm can: they are a power of ten apart, so
-1cm + 5mm is 1.5cm in the unit the value was already written in. px, pt and in are
-pinned to each other by CSS but not by a power of ten, and a user unit, an em and
-an ex are defined by the viewport or by font metrics, so nothing in the model can
-say how big one is. A user unit is deliberately not a px: "1 user unit + 1 px =
-2px" only holds in a viewport whose user coordinate system happens to be one pixel
-wide, which is a property of the viewport and not of the value.
+A length converts only inside its own system, and the two systems are never mixed.
+mm and cm are metric, a power of ten apart, so 2cm + 5mm is 2.5cm - written in the
+unit the value already had. in, pt and px are the lengths CSS defines against the
+inch, 96px and 72pt to it, so they convert exactly among themselves. An inch is also
+exactly 25.4mm, and 1mm + 1in is refused all the same: a document that allowed it
+would hold 26.4mm, and whoever reads that value next cannot tell it was written in
+two systems. A user unit, an em and an ex are in neither system - a user unit is
+whatever the viewport's user coordinate system says, and an em or an ex is font
+metrics - and a user unit is deliberately not a px: "1 user unit + 1 px = 2px" only
+holds in a viewport whose user coordinate system happens to be one pixel wide, which
+is a property of the viewport and not of the value.
 
 ## What happens inside
 
@@ -294,10 +297,6 @@ is `50%` cannot be moved by a length, and a transform could.
 - the transform is in the model, but only `move` writes it: there is no `set
   transform` instruction, the parser does not read a `transform` attribute yet, and
   the serializer writes none of it.
-- the CSS absolute units: px, pt and in could join the conversion table (96px and
-  72pt to the inch are exact), and mm and cm are the pair that is in it. Whether in
-  and mm belong together is a decision to take, not a fact of the model - CSS says
-  25.4mm to the inch, which is not a factor a float holds exactly.
 - a `find()` index: the view walks the tree on every call, which cannot go stale
   and is cheap enough while the tree is small.
 - the identity attributes: `NodeRecord` holds `parent` and `last_child_edge`,

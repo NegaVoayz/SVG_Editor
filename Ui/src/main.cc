@@ -15,6 +15,7 @@
 #include "IntentParser.hh"
 #include "Planner.hh"
 #include "Protocol.hh"
+#include "Rendering.hh"
 
 namespace {
 
@@ -32,7 +33,7 @@ struct RunInstruction {
         try {
             const Outcome outcome = planner.dispatch(intent);
             std::cout << "[" << kind_name(outcome.kind) << "] " << (outcome.ok ? "" : "failed: ")
-                      << outcome.message << "\n";
+                      << text_of(outcome) << "\n";
             return outcome.ok;
         } catch (const std::exception& error) {
             // The front end is the boundary: whatever a lower layer throws comes out
@@ -40,6 +41,14 @@ struct RunInstruction {
             std::cout << "[failed] " << error.what() << "\n";
             return false;
         }
+    }
+
+    // A view arrives as data and is written out here; a change or a failure arrives as
+    // the sentence it already is.
+    std::string text_of(const Outcome& outcome) const {
+        if (std::holds_alternative<TreeView>(outcome.view)) return render(std::get<TreeView>(outcome.view));
+        if (std::holds_alternative<NodeView>(outcome.view)) return render(std::get<NodeView>(outcome.view));
+        return outcome.message;
     }
 };
 

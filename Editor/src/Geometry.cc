@@ -13,26 +13,79 @@ namespace {
 
 // --- units ---
 
-// The length units the model converts on its own, and only those. mm and cm are a
-// power of ten apart, so that conversion is exact and needs nothing outside the
-// document. Everything else stays apart: px, pt and in are pinned to each other by
-// CSS but not by a power of ten, and a user unit, an em and an ex are defined by the
-// viewport or by font metrics, so nothing here can say how big one is.
+// Lengths come in two systems here, and nothing adds up across them.
 //
-// A user unit is deliberately not a px. "1 user unit + 1 px = 2px" only holds in a
-// viewport whose user coordinate system happens to be one pixel wide, which is a
-// property of the viewport and not of the value.
+// The metric one is mm and cm, a power of ten apart. The other is the one CSS defines
+// against the inch - 1in, 72pt, 96px - which is exact within itself. An inch is also
+// exactly 25.4mm by definition, and yet 1mm + 1in is refused: a document that allowed
+// it would hold 26.4mm, and whoever reads that value next cannot tell it was written
+// in two systems. The table stops at the edge of each system for that reason, not
+// because the arithmetic is impossible.
+//
+// A user unit, an em and an ex are in neither system. A user unit's size is whatever
+// the viewport's user coordinate system says it is, and an em or an ex is font
+// metrics, so none of the three has a size this could know. A user unit is
+// deliberately not a px either: "1 user unit + 1 px = 2px" only holds in a viewport
+// whose user coordinate system happens to be one pixel wide.
+enum class System { Metric, Imperial };
+
+std::optional<System> system_of(Length::Unit unit) {
+    switch (unit) {
+        case Length::Unit::Mm:
+        case Length::Unit::Cm: return System::Metric;
+        case Length::Unit::In:
+        case Length::Unit::Pt:
+        case Length::Unit::Px: return System::Imperial;
+        case Length::Unit::UserUnit:
+        case Length::Unit::Em:
+        case Length::Unit::Ex: return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+// How many of one unit there are in the unit its system is anchored at: a cm for the
+// metric system, an inch for the other.
+std::optional<float> per_anchor(Length::Unit unit) {
+    switch (unit) {
+        case Length::Unit::Mm: return 10.0F;
+        case Length::Unit::Cm: return 1.0F;
+        case Length::Unit::In: return 1.0F;
+        case Length::Unit::Pt: return 72.0F;
+        case Length::Unit::Px: return 96.0F;
+        case Length::Unit::UserUnit:
+        case Length::Unit::Em:
+        case Length::Unit::Ex: return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+// The factor that turns a value in one unit into the same length in another. It is
+// only ever asked about two units of one system, so both have an anchor.
 std::optional<float> factor_between(Length::Unit from, Length::Unit to) {
     if (from == to) return 1.0F;
-    if (from == Length::Unit::Cm && to == Length::Unit::Mm) return 10.0F;
-    if (from == Length::Unit::Mm && to == Length::Unit::Cm) return 0.1F;
-    return std::nullopt;
+    const std::optional<System> from_system = system_of(from);
+    const std::optional<System> to_system = system_of(to);
+    if (!from_system || from_system != to_system) return std::nullopt;
+    return *per_anchor(to) / *per_anchor(from);
+}
+
+// Zero is exactly zero in every unit, so it neither needs a conversion nor blocks one:
+// a coordinate of 0 can take an offset in any unit, and a zero offset leaves any
+// coordinate alone. Without this, "move r 5px 5px" on a rect whose x and y are zero
+// user units would be refused, which would make the first move of a fresh element
+// depend on how it was written.
+bool is_zero(LengthPercentage value) {
+    if (std::holds_alternative<Percentage>(value)) return std::get<Percentage>(value).value == 0.0F;
+    return std::get<Length>(value).value == 0.0F;
 }
 
 // One side of an addition: the same kind of value, in a unit the model can convert,
 // or nothing. The sum is written in the unit the value already had, so an element
-// keeps the units it was written with.
+// keeps the units it was written with - except where one side is zero and the other
+// brings its own unit.
 std::optional<LengthPercentage> sum(LengthPercentage left, LengthPercentage right) {
+    if (is_zero(right)) return left;
+    if (is_zero(left)) return right;
     if (std::holds_alternative<Percentage>(left)) {
         if (!std::holds_alternative<Percentage>(right)) return std::nullopt;
         return Percentage{std::get<Percentage>(left).value + std::get<Percentage>(right).value};
@@ -40,6 +93,7 @@ std::optional<LengthPercentage> sum(LengthPercentage left, LengthPercentage righ
     const Length& a = std::get<Length>(left);
     if (std::holds_alternative<Percentage>(right)) return std::nullopt;
     const Length& b = std::get<Length>(right);
+    if (a.unit == b.unit) return Length{a.value + b.value, a.unit};
     const std::optional<float> factor = factor_between(b.unit, a.unit);
     if (!factor) return std::nullopt;
     return Length{a.value + b.value * *factor, a.unit};
@@ -47,7 +101,8 @@ std::optional<LengthPercentage> sum(LengthPercentage left, LengthPercentage righ
 
 std::string no_sum(std::string_view offset, std::string_view value) {
     return "the offset " + std::string{offset} + " does not add up with " + std::string{value} +
-           ": of the length units only mm and cm convert, and a percentage has no sum with a length";
+           ": a percentage has no sum with a length, and lengths only add within one system - mm and cm are "
+           "metric, in, pt and px are defined against the inch, and the two systems are not mixed";
 }
 
 // Adds the offset to both coordinates of one point, and leaves both of them alone

@@ -3,6 +3,7 @@
 # executable is the loop around it.
 add_library(Ui
     src/IntentParser.cc
+    src/Rendering.cc
     src/SvgValue.cc)
 add_library(SvgEditor::Ui ALIAS Ui)
 

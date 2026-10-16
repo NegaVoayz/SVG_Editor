@@ -63,8 +63,8 @@ The instructions are `tree`, `find <svg-id>`,
 `create rect <id> <x> <y> <w> <h> [fill]`, `create g <id>`, `delete <id>`,
 `move <id> <dx> <dy>`, `addto <gid> <id>`, `undo`, `redo`, `open <path>` and
 `save <path>`. `move` translates a shape's own coordinates and adds a transform to
-a container, and two lengths of different units only add up where the model can
-convert them exactly - mm and cm do, everything else is refused.
+a container. Two lengths only add up inside one system: mm and cm are metric, in, pt
+and px are defined against the inch, and the two are never mixed.
 
 ## Modules and dependency rules
 
