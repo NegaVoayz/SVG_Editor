@@ -1,0 +1,21 @@
+#pragma once
+
+#include <optional>
+#include <string_view>
+
+#include "SVGNode.hh"
+
+// The values SVG writes, read from the text that spells them. It is the front
+// end's business: Model deals in LengthPercentage and Color and never sees the
+// text they came from.
+namespace SvgValue {
+
+// "10" (a user unit), "10px", "1.5em", "50%". A unit SVG knows but this does not
+// spell out reads as nothing.
+std::optional<LengthPercentage> parse_length(std::string_view text);
+
+// "none", "currentColor", "#rgb", "#rrggbb" and "rgb(r,g,b)". Named colours are
+// not in the model yet, so they read as nothing here.
+std::optional<Color> parse_color(std::string_view text);
+
+}  // namespace SvgValue
