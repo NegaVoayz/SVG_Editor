@@ -1,12 +1,18 @@
+// The text front end and its boundary: one line in, one structured instruction out. The
+// line is split into words, the first of them picks a reader out of the table at the end of
+// this file, and that reader turns the rest of the words into an instruction. Every piece
+// of syntax lives on this side of the boundary - what a length looks like, what a fill
+// looks like, which words make an instruction - so nothing above the ui layer ever sees the
+// text a user typed.
 #include "IntentParser.hh"
 
+#include <array>
 #include <cctype>
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "SvgValue.hh"
@@ -20,6 +26,24 @@ struct ParseFailed {
     std::string message;
 };
 
+// One line, or the values after an element kind, split into the words an instruction is
+// made of.
+using Words = std::vector<std::string>;
+
+// One instruction read from the words of one line. Most verbs answer with a type out of
+// Intent, and `help` answers with the command list of this layer, which is why a reader
+// gives back a whole request rather than an instruction.
+using Reader = Request (*)(const Words&);
+
+// One verb: the word that names it, and the reader the rest of the words go to. A table of
+// these is the whole vocabulary of the front end, so an instruction is a row rather than a
+// branch of a chain, and a word that is in no row is the one complaint this file makes on
+// its own.
+struct Verb {
+    std::string_view name;
+    Reader read;
+};
+
 constexpr std::string_view length_syntax =
     "a length is a number, optionally with px, pt, cm, mm, in, em, ex, or a percentage";
 constexpr std::string_view color_syntax =
@@ -30,8 +54,8 @@ constexpr std::string_view factor_syntax = "a scale is a plain number greater th
 // space inside a word: a quoted run, and an open bracket - "rgb(0, 255, 0)" is one
 // word. A bracket left open runs to the end of the line, which the value parser then
 // refuses with a sentence of its own.
-std::vector<std::string> words_of(std::string_view line) {
-    std::vector<std::string> words;
+Words words_of(std::string_view line) {
+    Words words;
     std::size_t index = 0;
     while (index < line.size()) {
         if (std::isspace(static_cast<unsigned char>(line[index])) != 0) {
@@ -58,15 +82,19 @@ std::vector<std::string> words_of(std::string_view line) {
     return words;
 }
 
-void expect(const std::vector<std::string>& words, std::size_t count, std::string_view syntax) {
-    if (words.size() == count) return;
-    throw ParseFailed{words.front() + " takes " + std::string{syntax}};
+// What an instruction's words have to be, or the sentence saying what it takes. The
+// sentence names the instruction itself, so it reads the same whether the words counted are
+// a whole line or the values that followed an element kind.
+void expect(std::size_t count, std::size_t wanted, std::string_view sentence) {
+    if (count != wanted) throw ParseFailed{std::string{sentence}};
 }
 
-void expect_between(const std::vector<std::string>& words, std::size_t least, std::size_t most,
-                    std::string_view syntax) {
-    if (words.size() >= least && words.size() <= most) return;
-    throw ParseFailed{words.front() + " takes " + std::string{syntax}};
+void expect_between(std::size_t count, std::size_t least, std::size_t most, std::string_view sentence) {
+    if (count < least || count > most) throw ParseFailed{std::string{sentence}};
+}
+
+void expect_least(std::size_t count, std::size_t least, std::string_view sentence) {
+    if (count < least) throw ParseFailed{std::string{sentence}};
 }
 
 LengthPercentage length_of(const std::string& word) {
@@ -110,17 +138,18 @@ NodeRef reference_of(const std::string& word) {
     return SvgIdRef{word};
 }
 
+// --- the readers: one per verb, each of them the words in and the instruction out ---
+
 // create <kind> <id> [values] [in <gid>]
-Intent create_of(const std::vector<std::string>& words) {
-    if (words.size() < 3) {
-        throw ParseFailed{"create takes an element kind and an id: 'create rect box 0 0 10 10', or 'create g layer'"};
-    }
+Request parse_create(const Words& words) {
+    expect_least(words.size(), 3,
+                 "create takes an element kind and an id: 'create rect box 0 0 10 10', or 'create g layer'");
     const std::string& kind = words[1];
     const std::string& id = words[2];
 
     // Where the element goes comes off the end first, so the rest of the line is
     // exactly the values the kind asks for and nothing counts words twice.
-    std::vector<std::string> values{words.begin() + 3, words.end()};
+    Words values{words.begin() + 3, words.end()};
     NodeRef parent = RootRef{};
     if (values.size() >= 2 && values[values.size() - 2] == "in") {
         parent = reference_of(values.back());
@@ -128,13 +157,11 @@ Intent create_of(const std::vector<std::string>& words) {
     }
 
     if (kind == "g") {
-        if (!values.empty()) throw ParseFailed{"create g takes '<id> [in <gid>]'"};
+        expect(values.size(), 0, "create g takes '<id> [in <gid>]'");
         return CreateGroup{id, parent};
     }
     if (kind == "rect") {
-        if (values.size() != 4 && values.size() != 5) {
-            throw ParseFailed{"create rect takes '<id> <x> <y> <w> <h> [fill] [in <gid>]'"};
-        }
+        expect_between(values.size(), 4, 5, "create rect takes '<id> <x> <y> <w> <h> [fill] [in <gid>]'");
         CreateRect intent{id, length_of(values[0]), length_of(values[1]), length_of(values[2]), length_of(values[3]),
                           std::nullopt};
         if (values.size() == 5) intent.fill = color_of(values[4]);
@@ -142,18 +169,14 @@ Intent create_of(const std::vector<std::string>& words) {
         return intent;
     }
     if (kind == "circle") {
-        if (values.size() != 3 && values.size() != 4) {
-            throw ParseFailed{"create circle takes '<id> <cx> <cy> <r> [fill] [in <gid>]'"};
-        }
+        expect_between(values.size(), 3, 4, "create circle takes '<id> <cx> <cy> <r> [fill] [in <gid>]'");
         CreateCircle intent{id, length_of(values[0]), length_of(values[1]), length_of(values[2]), std::nullopt};
         if (values.size() == 4) intent.fill = color_of(values[3]);
         intent.parent = parent;
         return intent;
     }
     if (kind == "ellipse") {
-        if (values.size() != 4 && values.size() != 5) {
-            throw ParseFailed{"create ellipse takes '<id> <cx> <cy> <rx> <ry> [fill] [in <gid>]'"};
-        }
+        expect_between(values.size(), 4, 5, "create ellipse takes '<id> <cx> <cy> <rx> <ry> [fill] [in <gid>]'");
         CreateEllipse intent{id,  length_of(values[0]), length_of(values[1]), length_of(values[2]),
                              length_of(values[3]), std::nullopt};
         if (values.size() == 5) intent.fill = color_of(values[4]);
@@ -161,9 +184,7 @@ Intent create_of(const std::vector<std::string>& words) {
         return intent;
     }
     if (kind == "line") {
-        if (values.size() != 4 && values.size() != 5) {
-            throw ParseFailed{"create line takes '<id> <x1> <y1> <x2> <y2> [stroke] [in <gid>]'"};
-        }
+        expect_between(values.size(), 4, 5, "create line takes '<id> <x1> <y1> <x2> <y2> [stroke] [in <gid>]'");
         CreateLine intent{id,  length_of(values[0]), length_of(values[1]), length_of(values[2]),
                           length_of(values[3]), std::nullopt};
         if (values.size() == 5) intent.stroke = color_of(values[4]);
@@ -171,9 +192,7 @@ Intent create_of(const std::vector<std::string>& words) {
         return intent;
     }
     if (kind == "text") {
-        if (values.size() != 3) {
-            throw ParseFailed{"create text takes '<id> <x> <y> \"content\" [in <gid>]'"};
-        }
+        expect(values.size(), 3, "create text takes '<id> <x> <y> \"content\" [in <gid>]'");
         CreateText intent{id, length_of(values[0]), length_of(values[1]), values[2]};
         intent.parent = parent;
         return intent;
@@ -182,93 +201,132 @@ Intent create_of(const std::vector<std::string>& words) {
     throw ParseFailed{"create can build rect, circle, ellipse, line, text or g, not '" + kind + "'"};
 }
 
-Intent parse_words(const std::vector<std::string>& words) {
-    const std::string& verb = words.front();
-
-    if (verb == "create") return create_of(words);
-    if (verb == "delete") {
-        expect(words, 2, "'<id>'");
-        return Delete{reference_of(words[1])};
-    }
-    if (verb == "move") {
-        expect(words, 4, "'<id> <dx> <dy>'");
-        return Move{reference_of(words[1]), length_of(words[2]), length_of(words[3])};
-    }
-    if (verb == "scale") {
-        expect(words, 3, "'<id> <factor>'");
-        return ScaleBy{reference_of(words[1]), factor_of(words[2])};
-    }
-    if (verb == "group") {
-        if (words.size() < 3) throw ParseFailed{"group takes '<newGid> <id> <id> ...': at least one node to put inside"};
-        Group intent;
-        intent.id = words[1];
-        for (std::size_t index = 2; index < words.size(); ++index) intent.nodes.push_back(reference_of(words[index]));
-        return intent;
-    }
-    if (verb == "ungroup") {
-        expect(words, 2, "'<gid>'");
-        return Ungroup{reference_of(words[1])};
-    }
-    if (verb == "addto") {
-        expect(words, 3, "'<gid> <id>'");
-        return AddTo{reference_of(words[1]), reference_of(words[2])};
-    }
-    if (verb == "front") {
-        expect(words, 2, "'<id>'");
-        return Front{reference_of(words[1])};
-    }
-    if (verb == "back") {
-        expect(words, 2, "'<id>'");
-        return Back{reference_of(words[1])};
-    }
-    if (verb == "undo") {
-        expect(words, 1, "no operand");
-        return Undo{};
-    }
-    if (verb == "redo") {
-        expect(words, 1, "no operand");
-        return Redo{};
-    }
-    if (verb == "tree") {
-        expect_between(words, 1, 2, "an optional '<id>'");
-        ShowTree intent;
-        if (words.size() == 2) intent.node = reference_of(words[1]);
-        return intent;
-    }
-    if (verb == "show") {
-        expect(words, 2, "'<id>'");
-        return Show{reference_of(words[1])};
-    }
-    if (verb == "canvas") {
-        // With no operand this is the same read as `show /`: the canvas is the root
-        // element's own size, so there is nothing here for the front end to make up.
-        if (words.size() == 1) return Show{RootRef{}};
-        expect_between(words, 2, 3, "a new width, with an optional height");
-        SetCanvas intent;
-        intent.width = length_of(words[1]);
-        if (words.size() == 3) intent.height = length_of(words[2]);
-        return intent;
-    }
-    if (verb == "init") {
-        expect_between(words, 1, 3, "an optional width and height, 800x600 by default");
-        Init intent;
-        if (words.size() >= 2) intent.width = length_of(words[1]);
-        if (words.size() == 3) intent.height = length_of(words[2]);
-        return intent;
-    }
-    if (verb == "read") {
-        expect(words, 2, "'<file.svg>'");
-        return Read{words[1]};
-    }
-    if (verb == "save") {
-        expect_between(words, 1, 2, "an optional '<file.svg>', and none means the file it was read from");
-        Save intent;
-        if (words.size() == 2) intent.path = words[1];
-        return intent;
-    }
-
-    throw ParseFailed{"unknown instruction '" + verb + "'; the instructions are\n" + std::string{usage()}};
+Request parse_delete(const Words& words) {
+    expect(words.size(), 2, "delete takes '<id>'");
+    return Delete{reference_of(words[1])};
 }
+
+Request parse_move(const Words& words) {
+    expect(words.size(), 4, "move takes '<id> <dx> <dy>'");
+    return Move{reference_of(words[1]), length_of(words[2]), length_of(words[3])};
+}
+
+Request parse_scale(const Words& words) {
+    expect(words.size(), 3, "scale takes '<id> <factor>'");
+    return ScaleBy{reference_of(words[1]), factor_of(words[2])};
+}
+
+Request parse_group(const Words& words) {
+    expect_least(words.size(), 3, "group takes '<newGid> <id> <id> ...': at least one node to put inside");
+    Group intent;
+    intent.id = words[1];
+    for (std::size_t index = 2; index < words.size(); ++index) intent.nodes.push_back(reference_of(words[index]));
+    return intent;
+}
+
+Request parse_ungroup(const Words& words) {
+    expect(words.size(), 2, "ungroup takes '<gid>'");
+    return Ungroup{reference_of(words[1])};
+}
+
+Request parse_addto(const Words& words) {
+    expect(words.size(), 3, "addto takes '<gid> <id>'");
+    return AddTo{reference_of(words[1]), reference_of(words[2])};
+}
+
+Request parse_front(const Words& words) {
+    expect(words.size(), 2, "front takes '<id>'");
+    return Front{reference_of(words[1])};
+}
+
+Request parse_back(const Words& words) {
+    expect(words.size(), 2, "back takes '<id>'");
+    return Back{reference_of(words[1])};
+}
+
+Request parse_undo(const Words& words) {
+    expect(words.size(), 1, "undo takes no operand");
+    return Undo{};
+}
+
+Request parse_redo(const Words& words) {
+    expect(words.size(), 1, "redo takes no operand");
+    return Redo{};
+}
+
+Request parse_tree(const Words& words) {
+    expect_between(words.size(), 1, 2, "tree takes an optional '<id>'");
+    ShowTree intent;
+    if (words.size() == 2) intent.node = reference_of(words[1]);
+    return intent;
+}
+
+Request parse_show(const Words& words) {
+    expect(words.size(), 2, "show takes '<id>'");
+    return Show{reference_of(words[1])};
+}
+
+// One word answers two ways here: with nothing after it this is the same read as `show /`,
+// because the canvas is the root element's own size, and with a size it is a change.
+Request parse_canvas(const Words& words) {
+    if (words.size() == 1) return Show{RootRef{}};
+    expect_between(words.size(), 2, 3, "canvas takes a new width, with an optional height");
+    SetCanvas intent;
+    intent.width = length_of(words[1]);
+    if (words.size() == 3) intent.height = length_of(words[2]);
+    return intent;
+}
+
+Request parse_init(const Words& words) {
+    expect_between(words.size(), 1, 3, "init takes an optional width and height, 800x600 by default");
+    Init intent;
+    if (words.size() >= 2) intent.width = length_of(words[1]);
+    if (words.size() == 3) intent.height = length_of(words[2]);
+    return intent;
+}
+
+Request parse_read(const Words& words) {
+    expect(words.size(), 2, "read takes '<file.svg>'");
+    return Read{words[1]};
+}
+
+Request parse_save(const Words& words) {
+    expect_between(words.size(), 1, 2, "save takes an optional '<file.svg>', and none means the file it was read from");
+    Save intent;
+    if (words.size() == 2) intent.path = words[1];
+    return intent;
+}
+
+// The one instruction that never leaves this layer: what the commands are is the text of
+// usage(), and no other layer knows it.
+Request parse_help(const Words& words) {
+    expect(words.size(), 1, "help takes no operand");
+    return Help{};
+}
+
+// The vocabulary itself: one row per verb, in the order the help lists them - `canvas` is
+// the one row that answers both of the forms the help gives it. Eighteen names to compare
+// one word against is a scan, not a lookup structure.
+constexpr std::array<Verb, 18> verbs{{
+    {"help", parse_help},
+    {"tree", parse_tree},
+    {"show", parse_show},
+    {"canvas", parse_canvas},
+    {"create", parse_create},
+    {"delete", parse_delete},
+    {"move", parse_move},
+    {"scale", parse_scale},
+    {"group", parse_group},
+    {"ungroup", parse_ungroup},
+    {"addto", parse_addto},
+    {"front", parse_front},
+    {"back", parse_back},
+    {"undo", parse_undo},
+    {"redo", parse_redo},
+    {"init", parse_init},
+    {"read", parse_read},
+    {"save", parse_save},
+}};
 
 }  // namespace
 
@@ -295,13 +353,12 @@ std::string_view usage() {
 
 Request parse(std::string_view line) {
     try {
-        const std::vector<std::string> words = words_of(line);
+        const Words words = words_of(line);
         if (words.empty()) throw ParseFailed{"an empty instruction"};
-        if (words.front() == "help") {
-            expect(words, 1, "no operand");
-            return Help{};
+        for (const Verb& verb : verbs) {
+            if (verb.name == words.front()) return verb.read(words);
         }
-        return parse_words(words);
+        throw ParseFailed{"unknown instruction '" + words.front() + "'; the instructions are\n" + std::string{usage()}};
     } catch (const ParseFailed& failure) {
         return ParseError{failure.message};
     }
