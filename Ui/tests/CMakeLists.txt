@@ -3,3 +3,9 @@
 add_executable(intent_parser_test intent_parser_test.cc)
 target_link_libraries(intent_parser_test PRIVATE SvgEditor::Ui SvgEditor::Warnings)
 add_test(NAME intent_parser COMMAND intent_parser_test)
+
+# The other direction of the same boundary, without a terminal or a document in the way:
+# a view of rows in, the lines a user reads out.
+add_executable(rendering_test rendering_test.cc)
+target_link_libraries(rendering_test PRIVATE SvgEditor::Ui SvgEditor::Warnings)
+add_test(NAME rendering COMMAND rendering_test)

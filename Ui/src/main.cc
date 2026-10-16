@@ -1,6 +1,6 @@
-// The text front end, and the composition root: it owns the document and hands it
-// to the Editor and the Planner. It gathers a line, asks the parser for one
-// structured instruction, hands that to the Planner and prints what comes back. It
+// The text front end, and the composition root: it owns the document and hands it to the
+// Editor and the Planner. It gathers a line at the `svg> ` prompt, asks the parser for
+// one structured instruction, hands that to the Planner and prints what comes back. It
 // never decides what an instruction means, and it never reaches for Model.
 #include <cstddef>
 #include <exception>
@@ -39,8 +39,18 @@ struct RunInstruction {
     bool operator()(const Intent& intent) const {
         try {
             const Outcome outcome = planner.dispatch(intent);
-            std::cout << "[" << kind_name(outcome.kind) << "] " << (outcome.ok ? "" : "failed: ")
-                      << text_of(outcome) << "\n";
+            // A view is what it describes, printed as that and nothing else, which is what
+            // makes a tree look like a tree. Anything else is the sentence it already is,
+            // with the branch that answered it in front: whether an instruction was read,
+            // edited or asked of the file layer is the interesting part of it.
+            if (std::holds_alternative<TreeView>(outcome.view)) {
+                std::cout << render(std::get<TreeView>(outcome.view)) << "\n";
+            } else if (std::holds_alternative<NodeView>(outcome.view)) {
+                std::cout << render(std::get<NodeView>(outcome.view)) << "\n";
+            } else {
+                std::cout << "[" << kind_name(outcome.kind) << "] " << (outcome.ok ? "" : "failed: ") << outcome.message
+                          << "\n";
+            }
             return outcome.ok;
         } catch (const std::exception& error) {
             // The front end is the boundary: whatever a lower layer throws comes out
@@ -48,14 +58,6 @@ struct RunInstruction {
             std::cout << "[failed] " << error.what() << "\n";
             return false;
         }
-    }
-
-    // A view arrives as data and is written out here; a change or a failure arrives as
-    // the sentence it already is.
-    std::string text_of(const Outcome& outcome) const {
-        if (std::holds_alternative<TreeView>(outcome.view)) return render(std::get<TreeView>(outcome.view));
-        if (std::holds_alternative<NodeView>(outcome.view)) return render(std::get<NodeView>(outcome.view));
-        return outcome.message;
     }
 };
 
@@ -95,8 +97,12 @@ int main(int argc, char** argv) {
         return run_instructions(planner, instructions) ? 0 : 1;
     }
 
-    std::cout << "svg-editor - one instruction per line, 'quit' to leave\n\n" << usage();
-    for (std::string line; std::getline(std::cin, line); ) {
+    // The loop: a prompt, one line, one answer. Instructions are separated by ';', so one
+    // line may carry a whole session's worth of them.
+    for (;;) {
+        std::cout << "svg> " << std::flush;
+        std::string line;
+        if (!std::getline(std::cin, line)) break;
         if (line == "quit" || line == "exit") break;
         run_instructions(planner, line);
     }

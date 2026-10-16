@@ -31,25 +31,32 @@ inline std::string number_text(float value) {
     return std::string(buffer, written.ptr);
 }
 
-// The text form of a length, as SVG writes it: the unit spelled out, except for a
-// user unit, which is the bare number. The view prints values with this and the
-// serializer will write them with it, so it belongs next to the type.
+// The text a unit is written with, and nothing at all for a user unit: SVG writes that
+// one as the bare number. A value needs it, and so does a pair of values that share one
+// unit - a canvas of 800x600 pixels is "(800x600)px" and not "800pxx600px".
+inline std::string_view unit_text(Length::Unit unit) {
+    switch (unit) {
+        case Length::Unit::UserUnit: return "";
+        case Length::Unit::Em: return "em";
+        case Length::Unit::Ex: return "ex";
+        case Length::Unit::Px: return "px";
+        case Length::Unit::Pt: return "pt";
+        case Length::Unit::Mm: return "mm";
+        case Length::Unit::Cm: return "cm";
+        case Length::Unit::In: return "in";
+    }
+    return "";
+}
+
+// The text form of a length, as SVG writes it: the unit spelled out, except for a user
+// unit, which is the bare number. The view prints values with this and the serializer
+// will write them with it, so it belongs next to the type.
 inline std::string to_text(const LengthPercentage& value) {
     if (std::holds_alternative<Percentage>(value)) {
         return number_text(std::get<Percentage>(value).value) + "%";
     }
     const Length& length = std::get<Length>(value);
-    switch (length.unit) {
-        case Length::Unit::UserUnit: return number_text(length.value);
-        case Length::Unit::Em: return number_text(length.value) + "em";
-        case Length::Unit::Ex: return number_text(length.value) + "ex";
-        case Length::Unit::Px: return number_text(length.value) + "px";
-        case Length::Unit::Pt: return number_text(length.value) + "pt";
-        case Length::Unit::Mm: return number_text(length.value) + "mm";
-        case Length::Unit::Cm: return number_text(length.value) + "cm";
-        case Length::Unit::In: return number_text(length.value) + "in";
-    }
-    return number_text(length.value);
+    return number_text(length.value) + std::string{unit_text(length.unit)};
 }
 
 struct Color {

@@ -16,14 +16,34 @@ add_test(NAME layering
 # The cli on its own: every run starts from a fresh document, so a chain of
 # instructions has to be handed over in one argument.
 add_test(NAME cli_tree COMMAND $<TARGET_FILE:Cli> "tree")
-set_tests_properties(cli_tree PROPERTIES PASS_REGULAR_EXPRESSION "svg")
+set_tests_properties(cli_tree PROPERTIES PASS_REGULAR_EXPRESSION "svg .800x600.")
 
 add_test(NAME cli_chain COMMAND $<TARGET_FILE:Cli> "create g layer; tree")
-set_tests_properties(cli_chain PROPERTIES PASS_REGULAR_EXPRESSION "id=\"layer\"")
+set_tests_properties(cli_chain PROPERTIES PASS_REGULAR_EXPRESSION "g#layer")
 
 add_test(NAME cli_shape
     COMMAND $<TARGET_FILE:Cli> "create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5; tree")
-set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "x=\"5\" y=\"5\"")
+set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +x=5 y=5 w=10 h=10 fill=#ff0000")
+
+# the drawing is what a text element's content is printed in the line of, and the line
+# under a last child hangs from spaces rather than bars
+add_test(NAME cli_text COMMAND $<TARGET_FILE:Cli> "create text title 20 40 \"My Diagram\"; tree")
+set_tests_properties(cli_text PROPERTIES PASS_REGULAR_EXPRESSION "\\(20,40\\) \"My Diagram\"")
+
+add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>
+    "create g layer; create rect box 0 0 10 10 in layer; create circle dot 1 1 1 in layer; tree")
+set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION
+    "    ├── rect#box +x=0 y=0 w=10 h=10\n    └── circle#dot +cx=1 cy=1 r=1")
+
+# The unit systems are never mixed: an inch does not add up with a centimetre, and the
+# answer says which of the two is which. WILL_FAIL cannot stand next to a pattern here -
+# ctest inverts the pattern when it is set - and the exit code of a refused instruction is
+# what the unknown-verb case below covers.
+add_test(NAME cli_units COMMAND $<TARGET_FILE:Cli> "create rect r 1cm 0 10mm 10mm; move r 1in 0")
+set_tests_properties(cli_units PROPERTIES PASS_REGULAR_EXPRESSION "1in is imperial and 1cm is metric")
+
+add_test(NAME cli_help COMMAND $<TARGET_FILE:Cli> "help")
+set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "create <kind> <id>")
 
 add_test(NAME cli_unknown_verb COMMAND $<TARGET_FILE:Cli> "frobnicate")
 set_tests_properties(cli_unknown_verb PROPERTIES WILL_FAIL TRUE)
