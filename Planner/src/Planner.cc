@@ -51,7 +51,7 @@ Planner::Planner(Document& document, Editor& editor) : document_(document), edit
 // where it is routed, so there is no second place to look for what one of them does.
 template<> Outcome Planner::handle<ShowTree>(const ShowTree& intent) {
     const std::optional<Id> node = look_up(document_, intent.node);
-    if (!node) return Outcome{false, Kind::View, "there is no node at " + describe(intent.node)};
+    if (!node) return refusal(Kind::View, "there is no node at " + describe(intent.node));
 
     // The root of the view is the row the front end prints first, and its children are
     // the rows under it - which is why the walk starts at depth 0.
@@ -62,10 +62,10 @@ template<> Outcome Planner::handle<ShowTree>(const ShowTree& intent) {
 
 template<> Outcome Planner::handle<Show>(const Show& intent) {
     const std::optional<Id> node = look_up(document_, intent.node);
-    if (!node) return Outcome{false, Kind::View, "there is no node at " + describe(intent.node)};
+    if (!node) return refusal(Kind::View, "there is no node at " + describe(intent.node));
 
     const std::optional<Node> payload = document_.node(*node);
-    if (!payload) return Outcome{false, Kind::View, "the node went missing"};  // cannot happen: look_up
+    if (!payload) return refusal(Kind::View, "the node went missing");  // cannot happen: look_up
     return Outcome{true, Kind::View, {}, NodeView{*node, *payload, content_of(document_, *node)}};
 }
 

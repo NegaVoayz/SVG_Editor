@@ -176,6 +176,11 @@ struct Outcome {
     View view{};
 };
 
+// The one shape a refusal takes: which kind of instruction it was, and the sentence for
+// the user. A view and a change both refuse this way, so the layers that can write a
+// sentence build the struct here instead of each in its own words.
+inline Outcome refusal(Kind kind, std::string message) { return Outcome{false, kind, std::move(message)}; }
+
 // --- what a reference names ---
 
 inline std::optional<Id> look_up(const Document& document, const NodeRef& reference) {

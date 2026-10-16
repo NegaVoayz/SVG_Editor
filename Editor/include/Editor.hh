@@ -18,6 +18,12 @@
 //
 // A request that cannot be carried out leaves the document untouched: the
 // transaction is destroyed without a commit and the Model rolls it back.
+//
+// The translations are written in the sources next to this one, one file per thing an
+// edit changes - building an element, where a node sits, what a node holds, the history -
+// and the list of them is in `Editor/src/Translations.hh`. It is a header of
+// declarations and nothing else, because a specialization the compiler has not met
+// before the point where std::visit asks for it is not a specialization at all.
 class Editor {
 public:
     explicit Editor(Document& document);
@@ -40,7 +46,7 @@ private:
             return create(intent);
         } else {
             static_assert(always_false<T>, "the Editor has no translation for this intent");
-            return Outcome{false, Kind::Change, "no translation"};
+            return refusal(Kind::Change, "no translation");
         }
     }
 
@@ -70,18 +76,6 @@ private:
     // instantiations at the end of the source are the list of kinds this can build.
     template<typename T>
     Outcome create(const T& intent);
-
-    Outcome remove(const Delete& intent);
-    Outcome move(const Move& intent);
-    Outcome scale(const ScaleBy& intent);
-    Outcome group(const Group& intent);
-    Outcome ungroup(const Ungroup& intent);
-    Outcome addto(const AddTo& intent);
-    Outcome front(const Front& intent);
-    Outcome back(const Back& intent);
-    Outcome canvas(const SetCanvas& intent);
-    Outcome undo();
-    Outcome redo();
 
     Document& document_;
 };

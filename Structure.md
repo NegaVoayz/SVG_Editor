@@ -111,6 +111,13 @@ Outcome handle(const T& intent) {
   written for the compiler. A kind with a builder is routed; a kind without one, or an
   instruction that brings no element at all and has no translation of its own, is a
   build error naming its type.
+- The other eleven translations are written where they are routed, one file per thing an
+  edit changes: `Editor/src/Create.cc` builds elements, `Structure.cc` moves nodes and
+  levels around, `Payload.cc` changes what one node holds, and `History.cc` is undo and
+  redo. `Editor/src/Translations.hh` declares them and defines nothing, because that
+  declaration is load-bearing: a specialization the compiler has not met before the point
+  where `std::visit` instantiates `handle<T>` is not a specialization at all, and the
+  primary template's build error is what comes out instead.
 - the visitors that name things - a node kind, a shape, a colour - are overload
   sets, so a new kind in the model is a build error until it is named too.
 

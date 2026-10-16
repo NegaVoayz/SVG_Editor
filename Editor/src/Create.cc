@@ -1,0 +1,113 @@
+// Building an element. Six kinds share one body, because what differs between them is
+// only what they bring: the element itself, the tag a message names it by, and the words
+// to put inside it when the element is a text.
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+
+#include "Translations.hh"
+
+namespace {
+
+// One element with an id and a body: every kind builds its own body and comes here for
+// the two fields they all share.
+Node element(std::string svg_id, std::variant<Shape, Container, Text> body) {
+    SVGNode node;
+    node.identity_attr = IdentityAttr{std::move(svg_id), "", no_id};
+    node.data = std::move(body);
+    return Node{std::move(node)};
+}
+
+// The character data inside a text element. It is a node of its own, which is why a text
+// element is written in two steps and why its words stay where SVG keeps them - inside
+// the element, rather than in a string field of it.
+Node characters(std::string content) { return Node{PlainText{std::move(content)}}; }
+
+void fill(Node& payload, const std::optional<Color>& color) {
+    if (!color) return;
+    std::get<SVGNode>(payload).paint_attr.fill = Paint{*color};
+}
+
+// A line has no inside to fill, so the one colour it takes is its stroke.
+void stroke(Node& payload, const std::optional<Color>& color) {
+    if (!color) return;
+    std::get<SVGNode>(payload).paint_attr.stroke = Paint{*color};
+}
+
+}  // namespace
+
+// The one element that is built for an edit rather than for a command: `group` takes
+// nodes that already exist and needs somewhere to put them.
+Node make_group(std::string svg_id) {
+    return element(std::move(svg_id), Container{ChildAttr{no_id}, Container::Group{}});
+}
+
+Editor::NewElement Editor::new_element(const CreateGroup& intent) const {
+    return NewElement{"g", make_group(intent.id), std::nullopt};
+}
+
+Editor::NewElement Editor::new_element(const CreateRect& intent) const {
+    Node payload = element(intent.id, Shape{Shape::Rect{intent.x, intent.y, intent.width, intent.height}});
+    fill(payload, intent.fill);
+    return NewElement{"rect", std::move(payload), std::nullopt};
+}
+
+Editor::NewElement Editor::new_element(const CreateCircle& intent) const {
+    Node payload = element(intent.id, Shape{Shape::Circle{intent.cx, intent.cy, intent.r}});
+    fill(payload, intent.fill);
+    return NewElement{"circle", std::move(payload), std::nullopt};
+}
+
+Editor::NewElement Editor::new_element(const CreateEllipse& intent) const {
+    Node payload = element(intent.id, Shape{Shape::Ellipse{intent.cx, intent.cy, intent.rx, intent.ry}});
+    fill(payload, intent.fill);
+    return NewElement{"ellipse", std::move(payload), std::nullopt};
+}
+
+Editor::NewElement Editor::new_element(const CreateLine& intent) const {
+    Node payload = element(intent.id, Shape{Shape::Line{intent.x1, intent.y1, intent.x2, intent.y2}});
+    stroke(payload, intent.stroke);
+    return NewElement{"line", std::move(payload), std::nullopt};
+}
+
+Editor::NewElement Editor::new_element(const CreateText& intent) const {
+    Text text;
+    text.common.x = intent.x;
+    text.common.y = intent.y;
+    text.child_attr = ChildAttr{no_id};
+    return NewElement{"text", element(intent.id, std::move(text)), intent.content};
+}
+
+template<typename T>
+Outcome Editor::create(const T& intent) {
+    NewElement built = new_element(intent);
+    if (document_.find(intent.id)) {
+        return refusal(Kind::Change, "an element is already called \"" + intent.id + "\"");
+    }
+    const std::optional<Id> parent = look_up(document_, intent.parent);
+    if (!parent) {
+        return refusal(Kind::Change, "there is nothing to put the new element in: " + describe(intent.parent));
+    }
+
+    // The element and its content are two nodes, and one instruction is one
+    // transaction, so either both are written or neither is.
+    Transaction edit = document_.transaction();
+    const Id node = edit.append_child(*parent, std::move(built.payload));
+    if (built.content) edit.append_child(node, characters(std::move(*built.content)));
+    edit.commit();
+    return Outcome{true, Kind::Change, "created #" + std::to_string(node) + " <" + std::string{built.kind} + "> id=\"" +
+                                           intent.id + "\" in " + describe(intent.parent)};
+}
+
+// One create per element kind: the six bodies are written from the one above, and this is
+// where the compiler is asked for them. A kind with a builder and no line here is still
+// built - the overloads of new_element() are what makes an instruction a create - so the
+// two lists say the same thing, and both are short.
+template Outcome Editor::create<CreateRect>(const CreateRect&);
+template Outcome Editor::create<CreateCircle>(const CreateCircle&);
+template Outcome Editor::create<CreateEllipse>(const CreateEllipse&);
+template Outcome Editor::create<CreateLine>(const CreateLine&);
+template Outcome Editor::create<CreateText>(const CreateText&);
+template Outcome Editor::create<CreateGroup>(const CreateGroup&);
