@@ -1,8 +1,16 @@
 # The text front end. The library holds everything that is worth testing without a
 # terminal - the instruction syntax, the value syntax and the printing - and the
 # executable is the loop around it.
+#
+# One source per question the front end answers: the boundary and the command list in
+# IntentParser.cc, the verbs and their readers in Command.cc, the element kinds `create`
+# builds in Create.cc, the shape a reader is written in and what one word spells in
+# Syntax.cc, and the other direction of the boundary in Rendering.cc and SvgValue.cc.
 add_library(Ui
     src/IntentParser.cc
+    src/Command.cc
+    src/Create.cc
+    src/Syntax.cc
     src/Rendering.cc
     src/SvgValue.cc)
 add_library(SvgEditor::Ui ALIAS Ui)
