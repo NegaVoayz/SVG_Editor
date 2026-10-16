@@ -7,12 +7,19 @@
 # node sits in Structure.cc, what a node holds in Payload.cc, and the history in
 # History.cc. Translations.hh is what holds them together, and it declares rather than
 # defines: a specialization has to be seen before the visitor asks for it.
+#
+# The arithmetic underneath all of that is three sources of its own, because each of them
+# answers a different question: what a length is worth (Units.cc), what a transform does
+# with a value it has to carry (Transform.cc), and what a move or a scale does to one node
+# (Geometry.cc).
 add_library(Editor
     src/Editor.cc
     src/Create.cc
     src/Structure.cc
     src/Payload.cc
     src/History.cc
+    src/Units.cc
+    src/Transform.cc
     src/Geometry.cc)
 add_library(SvgEditor::Editor ALIAS Editor)
 
