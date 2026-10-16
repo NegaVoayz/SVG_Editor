@@ -187,6 +187,19 @@ would be unreachable and unreclaimable. `help` is the one instruction that never
 leaves the front end: what the commands are is the syntax of that layer, and no other
 layer knows it or needs to.
 
+The verbs themselves are a table rather than a chain of tests: `Ui/src/Command.cc` holds one
+reader per verb - the words of a line in, the instruction out - and the table of them is the
+whole vocabulary of the front end. The first word of a line picks a row, so a new instruction
+is a row and a reader and nothing else, and a word that is in no row is refused in the one
+place that knows the table. `create`'s element kinds are a second table of that same shape in
+`Ui/src/Create.cc`, and it is what builds the list in "create can build rect, circle, ellipse,
+line, text or g, not 'poly'": the sentence is read out of the table, so it cannot fall behind
+the kinds it names. The rest of the front end is one source per question it answers -
+`IntentParser.cc` is the boundary and the command list, `Syntax.cc` is the shape a reader is
+written in and what one word spells, `Rendering.cc` is the other direction of the boundary -
+and the one pair that can still drift is the table and the help, so a test reads the table and
+fails if the help does not name a verb in it.
+
 `front` and `back` are the two ends of the child order, and the first child is what this
 calls the front - the order the tree prints in is the order they move a node through.
 That is the one place where the vocabulary and SVG disagree: SVG paints what comes later
