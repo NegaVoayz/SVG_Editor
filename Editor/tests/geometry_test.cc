@@ -47,7 +47,15 @@ bool moved(Node& payload, LengthPercentage dx, LengthPercentage dy, std::string&
     return Geometry::translate(payload, dx, dy, problem);
 }
 
+bool resized(Node& payload, float factor, std::string& problem) {
+    return Geometry::scale(payload, factor, problem);
+}
+
 const Shape& shape_of(const Node& payload) { return std::get<Shape>(std::get<SVGNode>(payload).data); }
+
+const std::optional<Transform>& transform_of(const Node& payload) {
+    return std::get<SVGNode>(payload).transform_attr.transform;
+}
 
 }  // namespace
 
@@ -156,6 +164,107 @@ int main() {
     Node words = text_node();
     CHECK(!moved(words, user_units(1), user_units(1), problem));
     CHECK(problem.find("no coordinates and no transform") != std::string::npos);
+
+    // --- scale ---
+
+    // A shape's own values all grow: a rect's corner and its sides, and each one in
+    // the unit it was written in, so a scale never has to convert anything
+    Node grown_rect = rect(cm(1), cm(2));
+    CHECK(resized(grown_rect, 2.0F, problem));
+    {
+        const Shape::Rect& geometry = std::get<Shape::Rect>(shape_of(grown_rect).specific);
+        CHECK(to_text(geometry.x) == "2cm");
+        CHECK(to_text(geometry.y) == "4cm");
+        CHECK(to_text(geometry.w) == "20mm");
+        CHECK(to_text(geometry.h) == "20mm");
+    }
+
+    // a circle moves its centre and grows, a line grows at both ends
+    Node grown_dot = circle();
+    CHECK(resized(grown_dot, 3.0F, problem));
+    CHECK(to_text(std::get<Shape::Circle>(shape_of(grown_dot).specific).r) == "15");
+
+    Node grown_line = line();
+    CHECK(resized(grown_line, 2.0F, problem));
+    {
+        const Shape::Line& ends = std::get<Shape::Line>(shape_of(grown_line).specific);
+        CHECK(to_text(ends.x2) == "10");
+        CHECK(to_text(ends.y2) == "10");
+    }
+
+    // a percentage is a percentage at any size
+    Node grown_percent = rect(Percentage{50.0F}, Percentage{0.0F});
+    CHECK(resized(grown_percent, 2.0F, problem));
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(grown_percent).specific).x) == "100%");
+
+    // a container has no values of its own, so the scale becomes its transform - and
+    // a scale stays a scale
+    Node grown_group = group();
+    CHECK(resized(grown_group, 2.0F, problem));
+    CHECK(transform_of(grown_group).has_value());
+    CHECK(std::holds_alternative<Scale>(*transform_of(grown_group)));
+    CHECK(std::get<Scale>(*transform_of(grown_group)).x == 2.0F);
+    CHECK(std::get<Scale>(*transform_of(grown_group)).y == 2.0F);
+    CHECK(resized(grown_group, 3.0F, problem));
+    CHECK(std::get<Scale>(*transform_of(grown_group)).y == 6.0F);
+
+    // A matrix takes the scale in its four linear entries and keeps its translation:
+    // this is a scale about the node's own origin, so the node stays where it was
+    // put.
+    Node stretched = group();
+    std::get<SVGNode>(stretched).transform_attr.transform = Matrix{1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F};
+    CHECK(resized(stretched, 2.0F, problem));
+    {
+        const Matrix& matrix = std::get<Matrix>(*transform_of(stretched));
+        CHECK(matrix.a == 2.0F && matrix.b == 4.0F && matrix.c == 6.0F && matrix.d == 8.0F);
+        CHECK(matrix.e == 5.0F && matrix.f == 6.0F);
+    }
+
+    // A translation goes in front of the scale, which is the matrix form of
+    // translate(...) scale(...): the node keeps the place a move gave it and what is
+    // drawn under it grows from the node's own origin.
+    Node shifted = group();
+    std::get<SVGNode>(shifted).transform_attr.transform = Translate{user_units(5), user_units(7)};
+    CHECK(resized(shifted, 2.0F, problem));
+    {
+        const Matrix& matrix = std::get<Matrix>(*transform_of(shifted));
+        CHECK(matrix.a == 2.0F && matrix.d == 2.0F);
+        CHECK(matrix.e == 5.0F && matrix.f == 7.0F);
+        CHECK(matrix.b == 0.0F && matrix.c == 0.0F);
+    }
+
+    // a rotation needs its cosine and sine to take a scale, which is where a matrix
+    // stops being exact
+    Node turned_scaled = group();
+    std::get<SVGNode>(turned_scaled).transform_attr.transform = Rotate{90.0F};
+    CHECK(resized(turned_scaled, 2.0F, problem));
+    {
+        const Matrix& matrix = std::get<Matrix>(*transform_of(turned_scaled));
+        CHECK(std::fabs(matrix.a) < 1e-6F);
+        CHECK(std::fabs(matrix.b - 2.0F) < 1e-6F);
+        CHECK(std::fabs(matrix.c + 2.0F) < 1e-6F);
+        CHECK(std::fabs(matrix.d) < 1e-6F);
+    }
+
+    // and a translation in a unit cannot go into a matrix at all, so it is refused
+    // rather than approximated
+    Node metric_shift = group();
+    std::get<SVGNode>(metric_shift).transform_attr.transform = Translate{mm(5), mm(7)};
+    CHECK(!resized(metric_shift, 2.0F, problem));
+    CHECK(problem.find("counts in user units") != std::string::npos);
+
+    // a text node has no values to multiply
+    Node characters = text_node();
+    CHECK(!resized(characters, 2.0F, problem));
+    CHECK(problem.find("no coordinates and no transform to scale") != std::string::npos);
+
+    // a factor of nothing, or a negative one, is not written yet: SVG can mirror and
+    // collapse, and this cannot
+    Node kept_factor = rect(user_units(1), user_units(1));
+    CHECK(!resized(kept_factor, 0.0F, problem));
+    CHECK(problem.find("has to be greater than zero") != std::string::npos);
+    CHECK(!resized(kept_factor, -1.0F, problem));
+    CHECK(to_text(std::get<Shape::Rect>(shape_of(kept_factor).specific).x) == "1");
 
     if (failures != 0) {
         std::printf("geometry: %d check(s) failed\n", failures);

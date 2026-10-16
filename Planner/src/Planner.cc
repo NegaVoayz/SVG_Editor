@@ -33,12 +33,32 @@ template<> Outcome Planner::handle<Find>(const Find& intent) { return show_find(
 template<> Outcome Planner::handle<CreateRect>(const CreateRect& intent) {
     return editor_.translate(ChangeIntent{intent});
 }
+template<> Outcome Planner::handle<CreateCircle>(const CreateCircle& intent) {
+    return editor_.translate(ChangeIntent{intent});
+}
+template<> Outcome Planner::handle<CreateEllipse>(const CreateEllipse& intent) {
+    return editor_.translate(ChangeIntent{intent});
+}
+template<> Outcome Planner::handle<CreateLine>(const CreateLine& intent) {
+    return editor_.translate(ChangeIntent{intent});
+}
+template<> Outcome Planner::handle<CreateText>(const CreateText& intent) {
+    return editor_.translate(ChangeIntent{intent});
+}
 template<> Outcome Planner::handle<CreateGroup>(const CreateGroup& intent) {
     return editor_.translate(ChangeIntent{intent});
 }
 template<> Outcome Planner::handle<Delete>(const Delete& intent) { return editor_.translate(ChangeIntent{intent}); }
 template<> Outcome Planner::handle<Move>(const Move& intent) { return editor_.translate(ChangeIntent{intent}); }
+template<> Outcome Planner::handle<ScaleBy>(const ScaleBy& intent) { return editor_.translate(ChangeIntent{intent}); }
+template<> Outcome Planner::handle<Group>(const Group& intent) { return editor_.translate(ChangeIntent{intent}); }
+template<> Outcome Planner::handle<Ungroup>(const Ungroup& intent) { return editor_.translate(ChangeIntent{intent}); }
 template<> Outcome Planner::handle<AddTo>(const AddTo& intent) { return editor_.translate(ChangeIntent{intent}); }
+template<> Outcome Planner::handle<Front>(const Front& intent) { return editor_.translate(ChangeIntent{intent}); }
+template<> Outcome Planner::handle<Back>(const Back& intent) { return editor_.translate(ChangeIntent{intent}); }
+template<> Outcome Planner::handle<SetCanvas>(const SetCanvas& intent) {
+    return editor_.translate(ChangeIntent{intent});
+}
 template<> Outcome Planner::handle<Undo>(const Undo&) { return editor_.translate(ChangeIntent{Undo{}}); }
 template<> Outcome Planner::handle<Redo>(const Redo&) { return editor_.translate(ChangeIntent{Redo{}}); }
 

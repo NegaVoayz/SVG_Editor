@@ -260,6 +260,186 @@ int main() {
     CHECK(!into_percentage.ok);
     CHECK(into_percentage.message.find("a percentage has no sum with a length") != std::string::npos);
 
+    // --- the rest of the editing vocabulary ---
+
+    const std::optional<Id> layer = document.find("layer");
+
+    // A create says where the element goes, so a tree is built where it belongs
+    // rather than moved there afterwards.
+    const Outcome round = planner.dispatch(CreateCircle{"c1", units(10), units(10), units(5),
+                                                        Color{Color::RGB{0, 0, 255}}, SvgIdRef{"layer"}});
+    CHECK(round.ok);
+    const std::optional<Id> dot = document.find("c1");
+    CHECK(dot.has_value());
+    if (dot && layer) CHECK(document.parent(*dot) == layer);
+
+    // a text element and the character data inside it are two nodes, and one
+    // instruction is still one transaction
+    CHECK(planner.dispatch(CreateText{"title", units(20), units(40), "hello world"}).ok);
+    const std::optional<Id> title = document.find("title");
+    CHECK(title.has_value());
+    if (title) {
+        const std::vector<Id> inside = document.children(*title);
+        CHECK(inside.size() == 1);
+        if (inside.size() == 1) {
+            const std::optional<Node> content = document.node(inside.front());
+            CHECK(content.has_value());
+            if (content) {
+                CHECK(std::holds_alternative<PlainText>(*content));
+                if (std::holds_alternative<PlainText>(*content)) {
+                    CHECK(std::get<PlainText>(*content).content == "hello world");
+                }
+            }
+        }
+    }
+
+    // a line has no inside to fill, so the one colour it is given is a stroke
+    CHECK(planner.dispatch(CreateLine{"edge", units(0), units(0), units(10), units(10),
+                                      Color{Color::RGB{255, 0, 0}}})
+              .ok);
+    if (const std::optional<Id> edge = document.find("edge")) {
+        const std::optional<Node> payload = document.node(*edge);
+        CHECK(payload.has_value());
+        if (payload) {
+            const SVGNode& line_element = std::get<SVGNode>(*payload);
+            CHECK(line_element.paint_attr.stroke.has_value());
+            CHECK(!line_element.paint_attr.fill.has_value());
+        }
+    }
+
+    // an ellipse is its own kind, and its radii are its own values
+    CHECK(planner.dispatch(CreateEllipse{"oval", units(0), units(0), units(30), units(10), std::nullopt}).ok);
+    CHECK(document.find("oval").has_value());
+
+    // A scale of a container is its transform: the group had no transform left after
+    // the two moves above were undone, so this is where a plain scale lands.
+    CHECK(planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F}).ok);
+    const Outcome after_scale = planner.dispatch(ShowTree{});
+    const std::optional<Node> grown_layer = node_in(after_scale, "layer");
+    CHECK(grown_layer.has_value());
+    if (grown_layer) {
+        const std::optional<Transform> transform = transform_of(*grown_layer);
+        CHECK(transform.has_value());
+        if (transform) {
+            CHECK(std::holds_alternative<Scale>(*transform));
+            if (std::holds_alternative<Scale>(*transform)) {
+                CHECK(std::get<Scale>(*transform).x == 2.0F);
+                CHECK(std::get<Scale>(*transform).y == 2.0F);
+            }
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok);
+    {
+        const Outcome back = planner.dispatch(ShowTree{});
+        const std::optional<Node> plain_layer = node_in(back, "layer");
+        CHECK(plain_layer.has_value());
+        if (plain_layer) CHECK(!transform_of(*plain_layer).has_value());
+    }
+
+    // A scale of a shape is its own values, and the whole instruction is one undo
+    if (dot) {
+        CHECK(planner.dispatch(ScaleBy{SvgIdRef{"c1"}, 3.0F}).ok);
+        const Outcome after_growth = planner.dispatch(ShowTree{});
+        const std::optional<Node> grown_dot = node_in(after_growth, "c1");
+        CHECK(grown_dot.has_value());
+        if (grown_dot && std::holds_alternative<SVGNode>(*grown_dot)) {
+            const Shape& shape = std::get<Shape>(std::get<SVGNode>(*grown_dot).data);
+            CHECK(std::holds_alternative<Shape::Circle>(shape.specific));
+            if (std::holds_alternative<Shape::Circle>(shape.specific)) {
+                const Shape::Circle& geometry = std::get<Shape::Circle>(shape.specific);
+                CHECK(to_text(geometry.r) == "15");
+                CHECK(to_text(geometry.cx) == "30");
+            }
+        }
+        CHECK(planner.dispatch(Undo{}).ok);
+    }
+
+    // A group takes the place of the first node it takes - standing where that node
+    // stood, in front of the first sibling after it that is not taken itself - and
+    // holds the rest in the order the command wrote them.
+    const std::optional<Id> box_node = document.find("box");
+    const std::optional<Id> ruler_node = document.find("ruler");
+    CHECK(box_node.has_value());
+    CHECK(ruler_node.has_value());
+    std::optional<Id> level;  // the tree the two of them stand in
+    if (box_node) level = document.parent(*box_node);
+    CHECK(level.has_value());
+    if (box_node && ruler_node && level) {
+        const std::vector<Id> before = document.children(*level);
+        CHECK(planner.dispatch(Group{"pair", {SvgIdRef{"box"}, SvgIdRef{"ruler"}}}).ok);
+        const std::optional<Id> pair = document.find("pair");
+        CHECK(pair.has_value());
+        if (pair) {
+            CHECK(document.parent(*pair) == level);
+            CHECK(document.children(*pair) == std::vector<Id>({*box_node, *ruler_node}));
+            CHECK(document.parent(*box_node) == pair);
+            CHECK(document.parent(*ruler_node) == pair);
+
+            // the group stands in the place the first node had, and the nodes that
+            // were not taken keep their order around it
+            std::vector<Id> with_group;
+            for (const Id sibling : before) {
+                if (sibling == *box_node) {
+                    with_group.push_back(*pair);
+                    continue;
+                }
+                if (sibling == *ruler_node) continue;
+                with_group.push_back(sibling);
+            }
+            CHECK(document.children(*level) == with_group);
+
+            // ungroup gives the members back the group's place, keeping their own
+            // order, and the node that stood after the group still stands after them
+            CHECK(planner.dispatch(Ungroup{SvgIdRef{"pair"}}).ok);
+            CHECK(document.find("pair") == std::nullopt);
+            std::vector<Id> released;
+            for (const Id sibling : with_group) {
+                if (sibling == *pair) {
+                    released.push_back(*box_node);
+                    released.push_back(*ruler_node);
+                    continue;
+                }
+                released.push_back(sibling);
+            }
+            CHECK(document.children(*level) == released);
+        }
+    }
+
+    // `back` and `front` are the two ends of the child list: first child is front
+    if (box_node && level) {
+        CHECK(planner.dispatch(Back{SvgIdRef{"box"}}).ok);
+        CHECK(document.children(*level).back() == *box_node);
+        CHECK(planner.dispatch(Front{SvgIdRef{"box"}}).ok);
+        CHECK(document.children(*level).front() == *box_node);
+    }
+    const Outcome rootless_order = planner.dispatch(Back{RootRef{}});
+    CHECK(!rootless_order.ok);
+    CHECK(rootless_order.message.find("no siblings") != std::string::npos);
+
+    // A group of nothing, and a name that is taken, are both refused
+    CHECK(!planner.dispatch(Group{"empty", {}}).ok);
+    CHECK(!planner.dispatch(Group{"box", {SvgIdRef{"box"}}}).ok);
+    CHECK(!planner.dispatch(CreateCircle{"box", units(0), units(0), units(1), std::nullopt}).ok);
+
+    // The canvas is the root element's own size, and setting it is a checkpoint: the
+    // frame behind the drawing is what the document is now, so nothing before it can
+    // be undone.
+    CHECK(planner.dispatch(SetCanvas{Length{1024.0F, Length::Unit::UserUnit}, std::nullopt}).ok);
+    CHECK(document.depth() == 0);
+    CHECK(!document.can_undo());
+    const std::optional<Node> root_payload = document.node(document.root());
+    CHECK(root_payload.has_value());
+    if (root_payload && std::holds_alternative<SVGNode>(*root_payload)) {
+        const Container& container = std::get<Container>(std::get<SVGNode>(*root_payload).data);
+        CHECK(std::holds_alternative<Container::SVG>(container.specific));
+        if (std::holds_alternative<Container::SVG>(container.specific)) {
+            const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
+            CHECK(canvas.width.has_value() && canvas.height.has_value());
+            if (canvas.width) CHECK(to_text(*canvas.width) == "1024");
+            if (canvas.height) CHECK(to_text(*canvas.height) == "600");
+        }
+    }
+
     if (failures != 0) {
         std::printf("pipeline: %d check(s) failed\n", failures);
         return 1;

@@ -153,6 +153,16 @@ bool move_point(LengthPercentage& x, LengthPercentage dx, LengthPercentage& y, L
 
 // --- transforms ---
 
+// The matrix a rotation stands for: its cosine and sine, which is where a matrix
+// stops being exact.
+Matrix rotation_matrix(float degrees) {
+    constexpr float pi = 3.14159265358979323846F;
+    const float radians = degrees * pi / 180.0F;
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    return Matrix{cosine, sine, -sine, cosine, 0.0F, 0.0F};
+}
+
 // A translation a matrix can hold: a matrix counts in user units, so an offset in any
 // other unit, or a percentage, cannot be written into one.
 std::optional<float> user_units_of(LengthPercentage value) {
@@ -170,13 +180,7 @@ struct ToMatrix {
         throw std::logic_error("Geometry: a translate is never promoted to a matrix");
     }
     Matrix operator()(const Scale& scale) const { return Matrix{scale.x, 0.0F, 0.0F, scale.y, 0.0F, 0.0F}; }
-    Matrix operator()(const Rotate& rotate) const {
-        constexpr float pi = 3.14159265358979323846F;
-        const float radians = rotate.degrees * pi / 180.0F;
-        const float cosine = std::cos(radians);
-        const float sine = std::sin(radians);
-        return Matrix{cosine, sine, -sine, cosine, 0.0F, 0.0F};
-    }
+    Matrix operator()(const Rotate& rotate) const { return rotation_matrix(rotate.degrees); }
     Matrix operator()(const Matrix& matrix) const { return matrix; }
 };
 
@@ -224,6 +228,99 @@ bool move_transform(SVGNode& element, LengthPercentage dx, LengthPercentage dy, 
     return true;
 }
 
+// --- scale ---
+
+// One value, times the factor. A percentage stays a percentage and a length stays in
+// its own unit: a scale is a multiplication and no addition, so there is nothing here
+// for the unit table to convert and nothing that could mix two systems.
+LengthPercentage scaled(LengthPercentage value, float factor) {
+    if (std::holds_alternative<Percentage>(value)) return Percentage{std::get<Percentage>(value).value * factor};
+    const Length& length = std::get<Length>(value);
+    return Length{length.value * factor, length.unit};
+}
+
+// Every value a shape owns: a rect's corner and sides, a circle's centre and radius,
+// an ellipse's two radii, and both ends of a line. A shape has no transform of its
+// own here for the same reason a translation does not touch one: the values are what
+// it is made of.
+struct ScaleShape {
+    float factor;
+
+    void operator()(Shape::Rect& rect) const {
+        rect.x = scaled(rect.x, factor);
+        rect.y = scaled(rect.y, factor);
+        rect.w = scaled(rect.w, factor);
+        rect.h = scaled(rect.h, factor);
+    }
+    void operator()(Shape::Circle& circle) const {
+        circle.cx = scaled(circle.cx, factor);
+        circle.cy = scaled(circle.cy, factor);
+        circle.r = scaled(circle.r, factor);
+    }
+    void operator()(Shape::Ellipse& ellipse) const {
+        ellipse.cx = scaled(ellipse.cx, factor);
+        ellipse.cy = scaled(ellipse.cy, factor);
+        ellipse.rx = scaled(ellipse.rx, factor);
+        ellipse.ry = scaled(ellipse.ry, factor);
+    }
+    void operator()(Shape::Line& line) const {
+        line.x1 = scaled(line.x1, factor);
+        line.y1 = scaled(line.y1, factor);
+        line.x2 = scaled(line.x2, factor);
+        line.y2 = scaled(line.y2, factor);
+    }
+};
+
+// A node with no values of its own takes the scale in its transform. The scale goes
+// *behind* whatever the node already carries - transform="translate(...) scale(k)"
+// - so the node keeps the place a move gave it and what is inside it grows from the
+// node's own origin. That is the same place a scale of every coordinate under the
+// node would leave the drawing in, in one payload instead of every one of them.
+bool scale_transform(SVGNode& element, float factor, std::string& problem) {
+    std::optional<Transform>& transform = element.transform_attr.transform;
+
+    if (!transform) {
+        transform = Scale{factor, factor};  // a scale stays a scale
+        return true;
+    }
+    if (std::holds_alternative<Scale>(*transform)) {
+        Scale& scale = std::get<Scale>(*transform);
+        scale.x *= factor;
+        scale.y *= factor;
+        return true;
+    }
+    if (std::holds_alternative<Rotate>(*transform)) {
+        const Matrix turned = rotation_matrix(std::get<Rotate>(*transform).degrees);
+        transform = Matrix{turned.a * factor, turned.b * factor, turned.c * factor, turned.d * factor, 0.0F, 0.0F};
+        return true;
+    }
+    if (std::holds_alternative<Matrix>(*transform)) {
+        Matrix& matrix = std::get<Matrix>(*transform);
+        // the two translation columns stay where they are: this is a scale about the
+        // node's own origin, not about wherever the matrix moves it to
+        matrix.a *= factor;
+        matrix.b *= factor;
+        matrix.c *= factor;
+        matrix.d *= factor;
+        return true;
+    }
+
+    // A translation has to become a matrix to take a scale in front of it, and a
+    // matrix counts in user units, so a translation written in a unit cannot be part
+    // of one.
+    const Translate& translation = std::get<Translate>(*transform);
+    const std::optional<float> x = user_units_of(translation.x);
+    const std::optional<float> y = user_units_of(translation.y);
+    if (!x || !y) {
+        problem = "this node was moved by " + to_text(translation.x) + " " + to_text(translation.y) +
+                  ", which has to become a matrix to take a scale behind it, and a matrix counts in user units: "
+                  "write the offset as a plain number";
+        return false;
+    }
+    transform = Matrix{factor, 0.0F, 0.0F, factor, *x, *y};
+    return true;
+}
+
 }  // namespace
 
 bool translate(Node& payload, LengthPercentage dx, LengthPercentage dy, std::string& problem) {
@@ -255,6 +352,27 @@ bool translate(Node& payload, LengthPercentage dx, LengthPercentage dy, std::str
     Shape::Line& line = std::get<Shape::Line>(shape.specific);
     if (!move_point(line.x1, dx, line.y1, dy, problem)) return false;
     return move_point(line.x2, dx, line.y2, dy, problem);
+}
+
+bool scale(Node& payload, float factor, std::string& problem) {
+    // A factor of nothing collapses the node and a negative one mirrors it. Both are
+    // things SVG can write, and neither is written here yet, so they are refused
+    // rather than approximated - and a factor that is not a number at all lands here
+    // too, because "not greater than zero" is what both cases are.
+    if (!(factor > 0.0F)) {
+        problem = "a scale of " + number_text(factor) + " is not written yet: a factor has to be greater than zero";
+        return false;
+    }
+    if (!std::holds_alternative<SVGNode>(payload)) {
+        problem = "a text node has no coordinates and no transform to scale";
+        return false;
+    }
+
+    SVGNode& element = std::get<SVGNode>(payload);
+    if (!std::holds_alternative<Shape>(element.data)) return scale_transform(element, factor, problem);
+
+    std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific);
+    return true;
 }
 
 }  // namespace Geometry

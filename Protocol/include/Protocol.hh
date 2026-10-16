@@ -13,6 +13,7 @@
 // that parses a string, and nothing below it needs to know how the instruction was
 // written.
 
+#include "Document.hh"
 #include "SVGNode.hh"
 
 // What a template that is meant to be specialized says when a case is missing: the
@@ -28,19 +29,74 @@ struct HandleRef { Id id; };
 struct SvgIdRef { std::string name; };
 using NodeRef = std::variant<RootRef, HandleRef, SvgIdRef>;
 
+// The answer to what a reference names, or nothing when nothing is called that.
+// Asking is the same question in both directions of the pipeline - the Editor writes
+// to the node a reference names and the Planner reads it - so the answer is written
+// once, next to the vocabulary that defines what a reference is. What to do about
+// "nothing" is not: the Editor refuses the edit, and the Planner reports the miss.
+std::optional<Id> look_up(const Document& document, const NodeRef& reference);
+
+// How a reference reads in a sentence back to the user: the root, a handle, or the
+// quoted name, which is what the user wrote either way.
+std::string describe(const NodeRef& reference);
+
 // --- the instructions ---
 
+// Every create names the element it makes and where to put it: `parent` is where the
+// command's `in <gid>` points, and the root when it said nothing, so a fresh element
+// is never a node that nothing can reach.
 struct CreateRect {
     std::string id;
     LengthPercentage x, y, width, height;
     std::optional<Color> fill;
+    NodeRef parent = RootRef{};
 };
-struct CreateGroup { std::string id; };
+struct CreateCircle {
+    std::string id;
+    LengthPercentage cx, cy, r;
+    std::optional<Color> fill;
+    NodeRef parent = RootRef{};
+};
+struct CreateEllipse {
+    std::string id;
+    LengthPercentage cx, cy, rx, ry;
+    std::optional<Color> fill;
+    NodeRef parent = RootRef{};
+};
+// A line has no inside to fill, so what it may carry is a stroke.
+struct CreateLine {
+    std::string id;
+    LengthPercentage x1, y1, x2, y2;
+    std::optional<Color> stroke;
+    NodeRef parent = RootRef{};
+};
+// A text element and the character data inside it are two nodes, which is why the
+// content travels here as its own string and becomes a child: a <text> holds text
+// the way a group holds elements.
+struct CreateText {
+    std::string id;
+    LengthPercentage x, y;
+    std::string content;
+    NodeRef parent = RootRef{};
+};
+struct CreateGroup {
+    std::string id;
+    NodeRef parent = RootRef{};
+};
 struct Delete { NodeRef node; };
 struct Move { NodeRef node; LengthPercentage dx, dy; };
+struct ScaleBy { NodeRef node; float factor; };
+// A group comes into being where the first node it takes used to stand, and takes
+// the rest of them in the order they were written.
+struct Group { std::string id; std::vector<NodeRef> nodes; };
+struct Ungroup { NodeRef node; };
 struct AddTo { NodeRef parent, node; };
+// The child chain is the z-order, first child in front.
+struct Front { NodeRef node; };
+struct Back { NodeRef node; };
 struct Undo {};
 struct Redo {};
+struct SetCanvas { std::optional<LengthPercentage> width, height; };
 struct ShowTree {};
 struct Find { std::string svg_id; };
 struct Open { std::string path; };
@@ -49,13 +105,15 @@ struct Save { std::string path; };
 // One instruction, of exactly one of those types: the front end produces it and
 // both the Planner and the Editor dispatch on it with std::visit, so every case is
 // answered by a specialization rather than by a chain over verbs.
-using Intent =
-    std::variant<CreateRect, CreateGroup, Delete, Move, AddTo, Undo, Redo, ShowTree, Find, Open, Save>;
+using Intent = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup, Delete,
+                            Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Undo, Redo, SetCanvas, ShowTree, Find,
+                            Open, Save>;
 
 // The change instructions on their own: the Editor is typed to these, so a view or
 // a context instruction reaching the write path is not a runtime branch it has to
 // refuse, it is a type it does not accept.
-using ChangeIntent = std::variant<CreateRect, CreateGroup, Delete, Move, AddTo, Undo, Redo>;
+using ChangeIntent = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup,
+                                  Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, SetCanvas, Undo, Redo>;
 
 // What the Planner decided a request is.
 enum class Kind {
@@ -102,3 +160,21 @@ struct Outcome {
     std::string message;
     View view{};
 };
+
+// --- what a reference names ---
+
+inline std::optional<Id> look_up(const Document& document, const NodeRef& reference) {
+    if (std::holds_alternative<RootRef>(reference)) return document.root();
+    if (std::holds_alternative<HandleRef>(reference)) {
+        const Id id = std::get<HandleRef>(reference).id;
+        if (!document.node(id)) return std::nullopt;
+        return id;
+    }
+    return document.find(std::get<SvgIdRef>(reference).name);
+}
+
+inline std::string describe(const NodeRef& reference) {
+    if (std::holds_alternative<RootRef>(reference)) return "the root";
+    if (std::holds_alternative<HandleRef>(reference)) return "#" + std::to_string(std::get<HandleRef>(reference).id);
+    return "\"" + std::get<SvgIdRef>(reference).name + "\"";
+}

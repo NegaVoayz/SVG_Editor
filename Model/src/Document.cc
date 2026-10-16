@@ -38,6 +38,13 @@ std::optional<Node> Document::node(Id id) const {
 
 std::vector<Id> Document::children(Id parent) const { return store_.children(parent); }
 
+std::optional<Id> Document::parent(Id node) const {
+    if (!store_.has_node(node)) return std::nullopt;
+    const Id above = store_.record(node).parent;
+    if (above == no_id) return std::nullopt;
+    return above;
+}
+
 std::optional<Id> Document::find(std::string_view svg_id) const {
     if (svg_id.empty()) return std::nullopt;
 

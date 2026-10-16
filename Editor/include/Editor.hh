@@ -34,18 +34,29 @@ private:
         return Outcome{false, Kind::Change, "no translation"};
     }
 
-    // How an intent names a node, turned into a node: which of the three it is, is
-    // a type, so this is an overload set rather than a tag this would have to test.
-    Id look_up(const RootRef& reference) const;
-    Id look_up(const HandleRef& reference) const;
-    Id look_up(const SvgIdRef& reference) const;
+    // A reference turned into a node, or the refusal for one that names nothing.
     Id resolve(const NodeRef& reference) const;
 
+    // One new element inside a parent, which is what every create does: the id has to
+    // be free, the body is already built, and the element goes last among the
+    // children of the parent the command named.
+    Outcome add(const std::string& id, std::string_view kind, const NodeRef& parent, Node payload);
+
     Outcome create(const CreateRect& intent);
+    Outcome create(const CreateCircle& intent);
+    Outcome create(const CreateEllipse& intent);
+    Outcome create(const CreateLine& intent);
+    Outcome create(const CreateText& intent);
     Outcome create(const CreateGroup& intent);
     Outcome remove(const Delete& intent);
     Outcome move(const Move& intent);
+    Outcome scale(const ScaleBy& intent);
+    Outcome group(const Group& intent);
+    Outcome ungroup(const Ungroup& intent);
     Outcome addto(const AddTo& intent);
+    Outcome front(const Front& intent);
+    Outcome back(const Back& intent);
+    Outcome canvas(const SetCanvas& intent);
     Outcome undo();
     Outcome redo();
 

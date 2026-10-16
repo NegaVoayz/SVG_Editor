@@ -49,6 +49,11 @@ public:
     // no node.
     std::vector<Id> children(Id parent) const;
 
+    // The node a node sits inside, or nothing for the root, which sits inside
+    // nothing. A command about order or about a level needs this: what `front` moves
+    // a node to the front of, and what `ungroup` releases children into.
+    std::optional<Id> parent(Id node) const;
+
     // The node whose SVG id attribute is this string. An empty id names nothing.
     std::optional<Id> find(std::string_view svg_id) const;
 
