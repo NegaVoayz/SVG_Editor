@@ -203,6 +203,18 @@ struct Line {
     std::string attrs;
 };
 
+// How wide a line is where it is read. The box drawing is what makes this a function:
+// every character of it is one place and three bytes, so counting bytes would line the
+// column up two places too far for every bar in front of it.
+std::size_t width_of(std::string_view text) {
+    std::size_t width = 0;
+    for (const char piece : text) {
+        // a continuation byte is part of the character before it, not a place of its own
+        if ((static_cast<unsigned char>(piece) & 0xC0) != 0x80) ++width;
+    }
+    return width;
+}
+
 }  // namespace
 
 std::string render(const TreeView& view) {
@@ -231,7 +243,7 @@ std::string render(const TreeView& view) {
     // which is why a deeper line starts further right and the column is still one column.
     std::size_t column = 0;
     for (std::size_t index = 1; index < lines.size(); ++index) {
-        column = std::max(column, lines[index].prefix.size() + lines[index].name.size() + 2);
+        column = std::max(column, width_of(lines[index].prefix) + lines[index].name.size() + 2);
     }
 
     std::string out;
@@ -242,7 +254,7 @@ std::string render(const TreeView& view) {
         if (!line.attrs.empty()) {
             // The first line is not padded: it is what everything else hangs from, so
             // there is no column in front of it to line up with.
-            out.append(index > 0 ? column - (line.prefix.size() + line.name.size()) : 1, ' ');
+            out.append(index > 0 ? column - (width_of(line.prefix) + line.name.size()) : 1, ' ');
             out += line.attrs;
         }
     }

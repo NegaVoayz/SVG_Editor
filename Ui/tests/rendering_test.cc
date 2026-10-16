@@ -113,6 +113,21 @@ int main() {
                                              "└── rect#box   x=200 y=80 w=60 h=60",
                                          }));
 
+    // A line under an ancestor that is not the last child of its own parent hangs from a
+    // bar, and the bar counts as one place even though it is more than one byte: the
+    // column is where a reader sees it, not where the bytes end.
+    std::vector<TreeRow> under_a_bar;
+    under_a_bar.push_back(row(0, true, root_with(units(800), units(600))));
+    under_a_bar.push_back(row(1, false, group("markers")));
+    under_a_bar.push_back(row(2, true, rect("box", 0, 0, 10, 10, Color{Color::RGB{255, 0, 0}})));
+    under_a_bar.push_back(row(1, true, text_element("title", 20, 40), "My Diagram"));
+    CHECK(render(TreeView{under_a_bar}) == join({
+                                                   "svg (800x600)",
+                                                   "├── g#markers",
+                                                   "│   └── rect#box  x=0 y=0 w=10 h=10 fill=#ff0000",
+                                                   "└── text#title    (20,40) \"My Diagram\"",
+                                               }));
+
     // A single node is one line, and it is the same line the tree would print for it
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {}}) ==
           "rect#box x=200 y=80 w=60 h=60 fill=#3366ff");
