@@ -135,16 +135,20 @@ void Transaction::require_open() const {
     if (closed_) throw std::logic_error("Transaction: this edit is already closed");
 }
 
-Id Transaction::append_child(Id parent, Node payload) {
+Id Transaction::append_child(Id parent, Node payload) { return insert_at(parent, no_id, std::move(payload)); }
+
+void Transaction::attach_last(Id parent, Id node) { attach_at(parent, no_id, node); }
+
+Id Transaction::insert_at(Id parent, Id before, Node payload) {
     require_open();
-    const Id child = document_.store_.append_child(parent, std::move(payload));
+    const Id child = document_.store_.insert_at(parent, before, std::move(payload));
     wrote_ = true;
     return child;
 }
 
-void Transaction::attach_last(Id parent, Id node) {
+void Transaction::attach_at(Id parent, Id before, Id node) {
     require_open();
-    document_.store_.attach_last(parent, node);
+    document_.store_.attach_at(parent, before, node);
     wrote_ = true;
 }
 

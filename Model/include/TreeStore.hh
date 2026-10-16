@@ -70,6 +70,13 @@ public:
     // children of this parent.
     void attach_last(Id parent, Id node);
 
+    // The same two edits, placed in front of a sibling instead of at the end: the
+    // node lands immediately before `before` among that parent's children, and no_id
+    // is the last place again. append_child() and attach_last() are the two calls
+    // that always ask for the end, which is the cheap one to write.
+    Id insert_at(Id parent, Id before, Node payload);
+    void attach_at(Id parent, Id before, Id node);
+
     // A node's payload, with its place in the tree untouched.
     void update(Id node, Node payload);
 
@@ -91,6 +98,8 @@ public:
 private:
     void require_transaction() const;
     void link_last(Id parent, Id child);
+    void link_before(Id parent, Id before, Id child);
+    Id edge_of(Id parent, Id child) const;
     void unlink(Id node);
     void patch_edge(Id edge, Edge replacement);
     bool has_edge(Id edge) const;

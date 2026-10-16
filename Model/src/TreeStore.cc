@@ -123,19 +123,28 @@ std::vector<Id> TreeStore::children(Id parent) const {
 }
 
 Id TreeStore::append_child(Id parent, Node payload) {
+    return insert_at(parent, no_id, std::move(payload));
+}
+
+void TreeStore::attach_last(Id parent, Id node) {
+    attach_at(parent, no_id, node);
+}
+
+Id TreeStore::insert_at(Id parent, Id before, Node payload) {
     require_transaction();
     if (!can_hold_children(record(parent).payload)) {
         throw std::logic_error("TreeStore: this node cannot hold children");
     }
     const Id child = nodes_.insert(NodeRecord{std::move(payload), parent, no_id});
-    link_last(parent, child);
+    link_before(parent, before, child);
     return child;
 }
 
-void TreeStore::attach_last(Id parent, Id node) {
+void TreeStore::attach_at(Id parent, Id before, Id node) {
     require_transaction();
     if (node == root_) throw std::logic_error("TreeStore: the root cannot be attached to anything");
     if (parent == node) throw std::logic_error("TreeStore: a node cannot hold itself");
+    if (before == node) throw std::logic_error("TreeStore: a node cannot be placed in front of itself");
     if (!can_hold_children(record(parent).payload)) {
         throw std::logic_error("TreeStore: this node cannot hold children");
     }
@@ -147,7 +156,7 @@ void TreeStore::attach_last(Id parent, Id node) {
     }
 
     if (record(node).parent != no_id) unlink(node);
-    link_last(parent, node);
+    link_before(parent, before, node);
     patch_node(node, [parent](NodeRecord& record) { record.parent = parent; });
 }
 
@@ -171,6 +180,36 @@ void TreeStore::link_last(Id parent, Id child) {
     const Id previous_last_edge = record(parent).last_child_edge;
     const Id edge = edges_.insert(Edge{child, previous_last_edge});
     patch_node(parent, [edge](NodeRecord& record) { record.last_child_edge = edge; });
+}
+
+// The link that holds one child under its parent. The chain runs from the last child
+// backwards, so this reads the whole list; it is asked once per placed node, and a
+// list is as long as the element has children.
+Id TreeStore::edge_of(Id parent, Id child) const {
+    for (Id edge = record(parent).last_child_edge; edge != no_id; edge = edges_.at(edge).prev) {
+        if (edges_.at(edge).child_id == child) return edge;
+    }
+    throw std::invalid_argument("TreeStore: the node to place in front of is not a child of that parent");
+}
+
+// Puts a node in front of a sibling in the link chain. The node must not be linked
+// yet: there is one link per child, so the caller takes the old one away first.
+//
+// Inserting in front of a sibling is the same splice wherever the sibling sits,
+// because the chain runs backwards: the new link takes the anchor's place in the
+// backwards walk and points at what the anchor pointed at. Only the end is cheaper,
+// and that is what append_child() asks for.
+void TreeStore::link_before(Id parent, Id before, Id child) {
+    if (before == no_id) {
+        link_last(parent, child);
+        return;
+    }
+    // The anchor keeps its own link slot - patching what that link points at is
+    // what moves the new node in front of it - and the node's own link is fresh.
+    const Id anchor = edge_of(parent, before);
+    const Id previous = edges_.at(anchor).prev;
+    const Id placed = edges_.insert(Edge{child, previous});
+    patch_edge(anchor, Edge{before, placed});
 }
 
 void TreeStore::unlink(Id node) {

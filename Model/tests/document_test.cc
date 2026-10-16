@@ -290,6 +290,59 @@ int main() {
     // the shape is still under the root, and the leaf still under the holder
     CHECK(document.children(root).size() == before + 2);
 
+    // --- placing a child in front of a sibling ---
+
+    // A new node in front of the first child is a splice at the other end of the
+    // chain than an append: the same list, walked from its oldest link.
+    Id frontmost = no_id;
+    {
+        Transaction edit = document.transaction();
+        frontmost = edit.insert_at(root, document.children(root)[0], group("frontmost"));
+        edit.commit();
+    }
+    CHECK(document.children(root)[0] == frontmost);
+    CHECK(document.find("frontmost") == frontmost);
+    document.undo();
+    CHECK(document.find("frontmost") == std::nullopt);
+    CHECK(document.children(root)[0] != frontmost);
+    document.redo();
+    CHECK(document.children(root)[0] == frontmost);
+
+    // A node moved in front of one of its own siblings keeps its handle and its
+    // subtree, and it lands where it was asked to.
+    const std::vector<Id> order = document.children(root);
+    const Id last_child = order.back();
+    {
+        Transaction edit = document.transaction();
+        edit.attach_at(root, order[0], last_child);
+        edit.commit();
+    }
+    const std::vector<Id> reordered = document.children(root);
+    CHECK(reordered.front() == last_child);
+    CHECK(reordered.size() == order.size());
+    {
+    CHECK(document.node(last_child).has_value());
+        std::vector<Id> expected{last_child};
+        expected.insert(expected.end(), order.begin(), order.end() - 1);
+        CHECK(reordered == expected);
+    }
+    document.undo();
+    CHECK(document.children(root) == order);
+    document.redo();
+    CHECK(document.children(root) == reordered);
+
+    // an anchor that is not a child of the parent, and a node asked to sit in front
+    // of itself, are both refused
+    {
+        Transaction edit = document.transaction();
+        CHECK(throws([&] { edit.attach_at(holder, root, leaf); }));
+        CHECK(throws([&] { edit.insert_at(holder, root, group("misplaced")); }));
+        CHECK(throws([&] { edit.attach_at(root, leaf, leaf); }));
+    }
+    CHECK(document.children(root) == reordered);
+    CHECK(document.find("misplaced") == std::nullopt);
+    CHECK(document.children(holder) == std::vector<Id>({leaf}));
+
     // --- the context: the canvas, the reset, and the checkpoint ---
 
     // A reset is a fresh document: an empty tree, the canvas it was given for
