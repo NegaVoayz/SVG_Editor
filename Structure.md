@@ -60,15 +60,13 @@ The vocabulary is one thing to the layers that speak it, and four things to a re
 | header       | what it is                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------------ |
 | `NodeRef.hh` | how an instruction names a node - a handle, the root, an SVG id - and what that name turns out to be |
-| `Intent.hh`  | the instructions, the two variants they form, and `always_false`                            |
+| `Intent.hh`  | the instructions and the two variants they form                                             |
 | `View.hh`    | what a read hands back: the rows of a tree, or one node                                     |
 | `Outcome.hh` | `Kind`, `Outcome`, and the one shape a refusal takes                                        |
 
 The parts depend on each other in that order, so there is no loop in the graph, and a file
 includes the part it uses rather than the whole protocol: the umbrella is left for the two
 places that drive the pipeline end to end, the cli and the test that drives it the same way.
-`always_false` sits in `Intent.hh` because it is the idiom every layer that answers an
-instruction is built with, and an instruction is what those layers answer.
 
 ### How an intent is dispatched
 
@@ -85,7 +83,7 @@ Outcome handle(const T& intent) {
     if constexpr (std::is_constructible_v<ChangeIntent, T>) {
         return editor_.translate(ChangeIntent{intent});
     } else {
-        static_assert(always_false<T>, "the Planner has no route for this intent");
+        static_assert(false, "the Planner has no route for this intent");
     }
 }
 
@@ -104,8 +102,16 @@ template<> Outcome handle<Init>(const Init& intent) { ... }
 The point is what happens when an instruction is added, and it is the same in both
 layers: the variant grows, the visitor has to answer the new alternative, and what it
 finds is either a route that already answers it by type or the build error above -
-`[with T = TheNewIntent]` and the sentence written next to the `static_assert`.
+`In instantiation of 'handle(const T&) [with T = TheNewIntent]'` and the sentence
+written next to the `static_assert`, which is what says whose case is missing.
 Nothing is left to a `default:` branch, and a case cannot be forgotten quietly.
+
+The `static_assert(false, ...)` in a discarded branch of an `if constexpr` is C++23
+(P2593): before it, a false assertion in a template definition was ill-formed whether or
+not the branch it sat in was ever taken, and a dependent `always_false<T>` was the way to
+get around that. Both layers here want the same thing - a branch that cannot be reached by
+a case that has a route, and that a case without one must take - so neither of them needs
+the workaround now, and neither of them has one.
 
 The Editor is the same shape with a different question asked of the type:
 
@@ -115,7 +121,7 @@ Outcome handle(const T& intent) {
     if constexpr (requires { new_element(intent); }) {
         return create(intent);   // every element kind, one body
     } else {
-        static_assert(always_false<T>, "the Editor has no translation for this intent");
+        static_assert(false, "the Editor has no translation for this intent");
     }
 }
 ```

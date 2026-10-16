@@ -10,6 +10,10 @@ design document, and the module table at its top is the map of the build.
 - A C++23 toolchain. That is the language this project is written in;
   [SwapDiffHive](https://github.com/NegaVoayz/SwapDiffHive) is written in C++23
   too, so the one dependency asks nothing extra of the toolchain.
+  P2593 - a `static_assert(false, ...)` in a discarded branch of an `if constexpr`,
+  which is what makes an instruction with no handler a build error here - is one of the
+  C++23 features the code relies on rather than merely benefits from, so the floor is
+  GCC 13 or Clang 17 and up.
 - CMake 3.24 or newer. The dependency needs 3.20 on its own; the extra is for what
   this build does with it, `FIND_PACKAGE_ARGS` in the fetch.
 

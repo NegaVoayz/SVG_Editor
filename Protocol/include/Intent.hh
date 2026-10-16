@@ -13,13 +13,6 @@
 // CreateRect by the time it leaves the ui layer, so nothing above that parses a string, and
 // nothing below it needs to know how an instruction was written.
 
-// What a template that is meant to be specialized says when a case is missing: the primary
-// template fails the build, so an intent with no handler is a compile error rather than a
-// silent nothing. Every layer that answers an instruction is built this way, which is why
-// it lives next to the instructions themselves.
-template<typename T>
-inline constexpr bool always_false = false;
-
 // --- the instructions ---
 
 // Every create names the element it makes and where to put it: `parent` is where the

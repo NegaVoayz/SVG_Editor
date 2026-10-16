@@ -34,7 +34,7 @@ private:
         if constexpr (std::is_constructible_v<ChangeIntent, T>) {
             return editor_.translate(ChangeIntent{intent});
         } else {
-            static_assert(always_false<T>, "the Planner has no route for this intent");
+            static_assert(false, "the Planner has no route for this intent");
             return Outcome{false, Kind::Unknown, "no route"};
         }
     }

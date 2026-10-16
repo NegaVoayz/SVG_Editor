@@ -47,7 +47,10 @@ private:
         if constexpr (requires { new_element(intent); }) {
             return create(intent);
         } else {
-            static_assert(always_false<T>, "the Editor has no translation for this intent");
+            // A plain false, not a dependent one: the branch is only ever reached for a
+            // specialization that is not a create, and a static_assert that is false in a
+            // discarded branch is what C++23 allows here.
+            static_assert(false, "the Editor has no translation for this intent");
             return refusal(Kind::Change, "no translation");
         }
     }
