@@ -88,13 +88,20 @@ int main() {
     CHECK(!moved(metric, Length{1.0F, Length::Unit::In}, mm(0), problem));
     CHECK(problem.find("the two systems are not mixed") != std::string::npos);
 
+    // and the boundary is the system, not the unit: a centimetre and an inch are no
+    // more a sum than a millimetre and an inch are, even though 1in is exactly 2.54cm
+    Node centimetres = rect(cm(1), cm(0));
+    CHECK(!moved(centimetres, Length{1.0F, Length::Unit::In}, cm(0), problem));
+    CHECK(problem.find("1in is imperial and 1cm is metric") != std::string::npos);
+
     Node relative = rect(Percentage{50.0F}, Percentage{0.0F});
     CHECK(!moved(relative, mm(10), mm(0), problem));
     CHECK(problem.find("a percentage has no sum with a length") != std::string::npos);
 
     Node plain = rect(user_units(1), user_units(1));
     CHECK(!moved(plain, Length{5.0F, Length::Unit::Px}, user_units(0), problem));
-    CHECK(problem.find("only add within one system") != std::string::npos);
+    CHECK(problem.find("5px is imperial") != std::string::npos);
+    CHECK(problem.find("a user unit") != std::string::npos);
 
     // zero is zero in every unit: a coordinate of 0 takes an offset in any unit, and a
     // zero offset leaves any coordinate alone

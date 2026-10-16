@@ -251,7 +251,7 @@ int main() {
     const Outcome px_into_user_unit =
         planner.dispatch(Move{SvgIdRef{"box"}, Length{1.0F, Length::Unit::Px}, units(0)});
     CHECK(!px_into_user_unit.ok);
-    CHECK(px_into_user_unit.message.find("only add within one system") != std::string::npos);
+    CHECK(px_into_user_unit.message.find("1px is imperial") != std::string::npos);
 
     const Outcome relative = planner.dispatch(CreateRect{"relative", Percentage{50.0F}, Percentage{0.0F},
                                                          units(1), units(1), std::nullopt});

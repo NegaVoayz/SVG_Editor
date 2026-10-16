@@ -99,10 +99,37 @@ std::optional<LengthPercentage> sum(LengthPercentage left, LengthPercentage righ
     return Length{a.value + b.value * *factor, a.unit};
 }
 
-std::string no_sum(std::string_view offset, std::string_view value) {
-    return "the offset " + std::string{offset} + " does not add up with " + std::string{value} +
-           ": a percentage has no sum with a length, and lengths only add within one system - mm and cm are "
-           "metric, in, pt and px are defined against the inch, and the two systems are not mixed";
+// What a length counts in, in words. An offset that does not add up is the one
+// refusal a user is most likely to have written by mistake - "1cm + 1in" - and what
+// went wrong there is not visible in the two numbers, so the sentence says which
+// system each side is in rather than only that they differ.
+std::string_view system_name(Length::Unit unit) {
+    switch (unit) {
+        case Length::Unit::Mm:
+        case Length::Unit::Cm: return "metric";
+        case Length::Unit::In:
+        case Length::Unit::Pt:
+        case Length::Unit::Px: return "imperial";
+        case Length::Unit::UserUnit: return "a user unit, which is whatever the viewport says";
+        case Length::Unit::Em: return "an em, which is a font metric";
+        case Length::Unit::Ex: return "an ex, which is a font metric";
+    }
+    return "no system";
+}
+
+// The sentence for an addition that has no sum: which two things were added, and
+// why they do not add up.
+std::string no_sum(std::string_view offset, LengthPercentage offset_value, std::string_view value,
+                   LengthPercentage value_value) {
+    std::string message = "the offset " + std::string{offset} + " does not add up with " + std::string{value};
+    if (std::holds_alternative<Percentage>(offset_value) || std::holds_alternative<Percentage>(value_value)) {
+        message += ": a percentage has no sum with a length";
+    } else {
+        message += ": " + std::string{offset} + " is " + std::string{system_name(std::get<Length>(offset_value).unit)} +
+                   " and " + std::string{value} + " is " + std::string{system_name(std::get<Length>(value_value).unit)};
+    }
+    return message +
+           " - mm and cm are metric, in, pt and px are defined against the inch, and the two systems are not mixed";
 }
 
 // Adds the offset to both coordinates of one point, and leaves both of them alone
@@ -111,12 +138,12 @@ bool move_point(LengthPercentage& x, LengthPercentage dx, LengthPercentage& y, L
                 std::string& problem) {
     const std::optional<LengthPercentage> moved_x = sum(x, dx);
     if (!moved_x) {
-        problem = no_sum(to_text(dx), to_text(x));
+        problem = no_sum(to_text(dx), dx, to_text(x), x);
         return false;
     }
     const std::optional<LengthPercentage> moved_y = sum(y, dy);
     if (!moved_y) {
-        problem = no_sum(to_text(dy), to_text(y));
+        problem = no_sum(to_text(dy), dy, to_text(y), y);
         return false;
     }
     x = *moved_x;
@@ -167,12 +194,12 @@ bool move_transform(SVGNode& element, LengthPercentage dx, LengthPercentage dy, 
         Translate& translation = std::get<Translate>(*transform);
         const std::optional<LengthPercentage> x = sum(translation.x, dx);
         if (!x) {
-            problem = no_sum(to_text(dx), to_text(translation.x));
+            problem = no_sum(to_text(dx), dx, to_text(translation.x), translation.x);
             return false;
         }
         const std::optional<LengthPercentage> y = sum(translation.y, dy);
         if (!y) {
-            problem = no_sum(to_text(dy), to_text(translation.y));
+            problem = no_sum(to_text(dy), dy, to_text(translation.y), translation.y);
             return false;
         }
         translation.x = *x;
