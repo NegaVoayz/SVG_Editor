@@ -45,26 +45,65 @@ cmake --preset default \
 ## Running
 
 ```sh
-build/ninja-debug/Ui/svg-editor.exe "create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5; tree"
-build/ninja-debug/Ui/svg-editor.exe     # reads instructions from stdin
+build/ninja-local-dep/Ui/svg-editor.exe     # the prompt, one instruction per line
+build/ninja-local-dep/Ui/svg-editor.exe "create g markers; create rect box 0 0 10 10 #ff0000 in markers; tree"
 ```
 
+The prompt is `svg>`, `help` lists the commands, and one line may hold several
+instructions separated by `;`. A view is printed as what it describes, and anything
+else as the sentence that says what happened:
+
 ```
-[change] created #1 <g> id="layer" under the root
-[change] created #2 <rect> id="box" under the root
-[change] moved #2 to the end of #1
-[change] moved #2 by 5 5
-[view] #0 <svg>
-  #1 <g> id="layer"
-    #2 <rect> id="box" x="5" y="5" w="10" h="10" fill="#ff0000"
+svg> create g markers
+[change] created #1 <g> id="markers" in the root
+svg> create rect box 0 0 10 10 #ff0000 in markers
+[change] created #2 <rect> id="box" in "markers"
+svg> create text title 20 40 "My Diagram"
+[change] created #3 <text> id="title" in the root
+svg> tree
+svg (800x600)
+├── g#markers
+│   └── rect#box  x=0 y=0 w=10 h=10 fill=#ff0000
+└── text#title    (20,40) "My Diagram"
 ```
 
-The instructions are `tree`, `find <svg-id>`,
-`create rect <id> <x> <y> <w> <h> [fill]`, `create g <id>`, `delete <id>`,
-`move <id> <dx> <dy>`, `addto <gid> <id>`, `undo`, `redo`, `open <path>` and
-`save <path>`. `move` translates a shape's own coordinates and adds a transform to
-a container. Two lengths only add up inside one system: mm and cm are metric, in, pt
-and px are defined against the inch, and the two are never mixed.
+The instructions are:
+
+| what                                            | what it does                                              |
+| ----------------------------------------------- | --------------------------------------------------------- |
+| `tree [id]`                                     | the tree, the whole document by default                    |
+| `show <id>`                                     | one element's own attributes                               |
+| `canvas` / `canvas <w> [h]`                     | read the document's size / set it, and start the history over |
+| `create rect <id> <x> <y> <w> <h> [fill]`       | a rectangle                                                |
+| `create circle <id> <cx> <cy> <r> [fill]`       | a circle                                                   |
+| `create ellipse <id> <cx> <cy> <rx> <ry> [fill]` | an ellipse                                                |
+| `create line <id> <x1> <y1> <x2> <y2> [stroke]` | a line                                                     |
+| `create text <id> <x> <y> "content"`            | a text element, and the character data inside it           |
+| `create g <id>`                                 | a group                                                    |
+| `delete <id>`                                   | the node and everything under it                           |
+| `move <id> <dx> <dy>`                           | a shape's coordinates, or a container's transform          |
+| `scale <id> <factor>`                           | a shape's values, or a container's transform               |
+| `group <newGid> <id> <id> ...`                  | a new group, taking those nodes' place                     |
+| `ungroup <gid>`                                 | the group's children, back in its place                    |
+| `addto <gid> <id>`                              | the node, as the last child of a container                 |
+| `front <id>` / `back <id>`                      | the ends of the child order, the first child in front      |
+| `undo` / `redo`                                 | one instruction back or forward                            |
+| `init [w] [h]`                                  | a fresh document, 800x600 by default                       |
+| `read <file.svg>`                               | read a document                                            |
+| `save [file.svg]`                               | write it, where it was read from by default                |
+
+Every `create` also takes `in <gid>`, which is where the element goes: without it, the
+element is the last child of the root. A node is named by its SVG id, by `#<handle>`,
+or by `/` for the root.
+
+Two lengths only add up inside one system: mm and cm are metric, in, pt and px are
+defined against the inch, and the two are never mixed - not even where the arithmetic
+is exact, because a document holding `1mm + 1in = 26.4mm` no longer says that two
+systems were written. The refusal names the two sides, so `1in` against `1cm` says
+which of them is imperial.
+
+`read` and `save` are wired to the file layer already and report that the SVG parser
+and serializer behind them are not written yet; everything above them is in place.
 
 ## Modules and dependency rules
 
