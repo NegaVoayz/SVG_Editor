@@ -4,7 +4,7 @@
 #include <string_view>
 #include <variant>
 
-#include "Protocol.hh"
+#include "Intent.hh"
 
 // The text front end's half of the pipeline: one line in, one structured
 // instruction out. Every piece of syntax lives on this side of the boundary - what

@@ -9,6 +9,8 @@
 #include <string>
 #include <variant>
 
+#include "NodeRef.hh"
+#include "Outcome.hh"
 #include "Translations.hh"
 
 Editor::Editor(Document& document) : document_(document) {}

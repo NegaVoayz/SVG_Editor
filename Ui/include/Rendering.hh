@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "Protocol.hh"
+#include "View.hh"
 
 // The other direction of the same boundary the parser guards: the Planner hands over
 // what it read, and the words around it - what an element is called, how a length is

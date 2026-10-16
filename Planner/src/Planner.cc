@@ -8,6 +8,11 @@
 #include <utility>
 #include <variant>
 
+#include "Intent.hh"
+#include "NodeRef.hh"
+#include "Outcome.hh"
+#include "View.hh"
+
 namespace {
 
 // The words of a text element: what the character data under it says. SVG keeps text

@@ -7,6 +7,8 @@
 #include <variant>
 #include <vector>
 
+#include "NodeRef.hh"
+#include "Outcome.hh"
 #include "Translations.hh"
 
 template<> Outcome Editor::handle<Delete>(const Delete& intent) {

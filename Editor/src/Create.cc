@@ -7,6 +7,8 @@
 #include <utility>
 #include <variant>
 
+#include "NodeRef.hh"
+#include "Outcome.hh"
 #include "Translations.hh"
 
 namespace {

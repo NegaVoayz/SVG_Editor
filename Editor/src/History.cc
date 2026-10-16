@@ -3,6 +3,7 @@
 // undoable, so it belongs on the same side of the boundary as the edits themselves.
 #include <string>
 
+#include "Outcome.hh"
 #include "Translations.hh"
 
 // The parameter has no name: undo and redo are instructions with nothing in them, and a

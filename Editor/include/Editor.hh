@@ -6,7 +6,9 @@
 #include <variant>
 
 #include "Document.hh"
-#include "Protocol.hh"
+#include "Intent.hh"
+#include "NodeRef.hh"
+#include "Outcome.hh"
 
 // The Editor is the write path. The Planner hands it the requests it classified
 // as a change, and it turns one of them into one tree-level transaction out of

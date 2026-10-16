@@ -4,7 +4,9 @@
 
 #include "Document.hh"
 #include "Editor.hh"
-#include "Protocol.hh"
+#include "Intent.hh"
+#include "Outcome.hh"
+#include "View.hh"
 
 // The Planner decides what one instruction means, and nothing else:
 //

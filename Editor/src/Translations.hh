@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "Editor.hh"
+#include "Intent.hh"
 
 // Every instruction the Editor answers with a translation of its own, and which source
 // writes it down. They are declared here, and not in Editor.hh, because they are what

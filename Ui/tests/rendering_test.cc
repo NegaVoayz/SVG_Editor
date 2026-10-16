@@ -7,8 +7,8 @@
 #include <variant>
 #include <vector>
 
-#include "Protocol.hh"
 #include "Rendering.hh"
+#include "View.hh"
 
 namespace {
 

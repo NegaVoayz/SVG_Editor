@@ -10,6 +10,8 @@
 #include <variant>
 
 #include "Geometry.hh"
+#include "NodeRef.hh"
+#include "Outcome.hh"
 #include "Translations.hh"
 
 template<> Outcome Editor::handle<Move>(const Move& intent) {
