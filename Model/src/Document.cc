@@ -107,7 +107,10 @@ Status Document::save(std::optional<std::string_view> path) {
     if (!serialized.ok) return Status{false, "save " + target + ": " + serialized.message};
     const FileResult file = FileSystem::write(target, svg);
     if (!file.ok) return Status{false, "save " + target + ": " + file.text};
-    return Status{true, "saved " + target};
+    // What was written is what the file says from here on, so the way back to the
+    // state before it goes with the history that remembered it.
+    clear_history();
+    return Status{true, "saved " + target + ", and the history starts from here"};
 }
 
 void Document::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {

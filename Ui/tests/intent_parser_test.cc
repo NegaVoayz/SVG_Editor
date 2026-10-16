@@ -85,8 +85,8 @@ int main() {
     CHECK(holds<Undo>(parse("undo")));
     CHECK(holds<Redo>(parse("redo")));
     CHECK(holds<ShowTree>(parse("tree")));
-    CHECK(holds<Find>(parse("find box")));
-    CHECK(holds<Open>(parse("open a.svg")));
+    CHECK(holds<Show>(parse("show box")));
+    CHECK(holds<Read>(parse("read a.svg")));
     CHECK(holds<Save>(parse("save a.svg")));
 
     // rgb() and the short hex form

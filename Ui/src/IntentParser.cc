@@ -128,13 +128,13 @@ Intent parse_words(const std::vector<std::string>& words) {
         expect(words, 1, "no operand");
         return ShowTree{};
     }
-    if (verb == "find") {
+    if (verb == "show") {
         expect(words, 2, "'<svg-id>'");
-        return Find{words[1]};
+        return Show{SvgIdRef{words[1]}};
     }
-    if (verb == "open") {
+    if (verb == "read") {
         expect(words, 2, "'<path>'");
-        return Open{words[1]};
+        return Read{words[1]};
     }
     if (verb == "save") {
         expect(words, 2, "'<path>'");
@@ -147,10 +147,10 @@ Intent parse_words(const std::vector<std::string>& words) {
 }  // namespace
 
 std::string_view usage() {
-    return "  view     tree | find <svg-id>\n"
+    return "  view     tree | show <svg-id>\n"
            "  change   create rect <id> <x> <y> <w> <h> [fill] | create g <id>\n"
            "           delete <id> | move <id> <dx> <dy> | addto <gid> <id> | undo | redo\n"
-           "  context  open <path> | save <path>\n"
+           "  context  read <path> | save <path>\n"
            "  a node is '#<handle>', '/' for the root, or an SVG id\n";
 }
 

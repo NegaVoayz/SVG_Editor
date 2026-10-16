@@ -28,12 +28,15 @@ private:
         return Outcome{false, Kind::Unknown, "no route"};
     }
 
-    // the two views: reading the tree and reporting it is the Planner's half
-    Outcome show_tree() const;
-    Outcome show_find(const Find& intent) const;
+    // the views: reading the tree and reporting it is the Planner's half of them
+    Outcome show_tree(const ShowTree& intent) const;
+    Outcome show_node(const Show& intent) const;
 
-    // the two context changes, through the document that owns the file layer
-    Outcome open(const Open& intent) const;
+    // The context changes: which document is being edited, rather than what is in it.
+    // `init` is one of these because it replaces the document, file and all, instead
+    // of editing the tree in it - the canvas it may carry comes with the new root.
+    Outcome init(const Init& intent);
+    Outcome read(const Read& intent) const;
     Outcome save(const Save& intent);
 
     Document& document_;

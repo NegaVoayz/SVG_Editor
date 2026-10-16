@@ -97,13 +97,14 @@ int main() {
     const Outcome moved = planner.dispatch(Move{SvgIdRef{"box"}, units(5), units(5)});
     CHECK(moved.ok);
 
-    const Outcome found = planner.dispatch(Find{"layer"});
+    const Outcome found = planner.dispatch(Show{SvgIdRef{"layer"}});
     CHECK(found.ok);
     CHECK(found.kind == Kind::View);
     CHECK(std::holds_alternative<NodeView>(found.view));
     if (std::holds_alternative<NodeView>(found.view)) {
         CHECK(std::get<NodeView>(found.view).node == document.find("layer"));
     }
+    CHECK(!planner.dispatch(Show{SvgIdRef{"nothing"}}).ok);
 
     // the tree view is the tree: a row per node, with its depth and its payload
     const Outcome tree = planner.dispatch(ShowTree{});
@@ -117,7 +118,21 @@ int main() {
         CHECK(rows[1].depth == 1);
         CHECK(rows[2].node == document.find("box"));
         CHECK(rows[2].depth == 2);
+        // the drawing needs to know which rows are the last child of their parent
+        CHECK(rows[1].last);
+        CHECK(rows[2].last);
     }
+
+    // and a subtree view is rooted where it was asked to be
+    const Outcome inside_layer = planner.dispatch(ShowTree{SvgIdRef{"layer"}});
+    CHECK(inside_layer.ok);
+    if (std::holds_alternative<TreeView>(inside_layer.view)) {
+        const std::vector<TreeRow>& rows = std::get<TreeView>(inside_layer.view).rows;
+        CHECK(rows.size() == 2);
+        CHECK(rows[0].node == document.find("layer"));
+        CHECK(rows[0].depth == 0);
+    }
+    CHECK(!planner.dispatch(ShowTree{SvgIdRef{"nothing"}}).ok);
 
     const std::optional<Node> box_row = node_in(tree, "box");
     CHECK(box_row.has_value());
@@ -149,12 +164,12 @@ int main() {
 
     // a context change is the Model's file layer, and it reports that there is no
     // parser yet instead of pretending it opened something
-    const Outcome missing = planner.dispatch(Open{"no-such-file.svg"});
+    const Outcome missing = planner.dispatch(Read{"no-such-file.svg"});
     CHECK(!missing.ok);
     CHECK(missing.kind == Kind::Context);
     CHECK(missing.message.find("cannot open") != std::string::npos);
 
-    const Outcome unparsed = planner.dispatch(Open{std::string(SVG_EDITOR_SOURCE_DIR) + "/Structure.md"});
+    const Outcome unparsed = planner.dispatch(Read{std::string(SVG_EDITOR_SOURCE_DIR) + "/Structure.md"});
     CHECK(!unparsed.ok);
     CHECK(unparsed.kind == Kind::Context);
     CHECK(unparsed.message.find("not implemented") != std::string::npos);
@@ -438,6 +453,38 @@ int main() {
             if (canvas.width) CHECK(to_text(*canvas.width) == "1024");
             if (canvas.height) CHECK(to_text(*canvas.height) == "600");
         }
+    }
+
+    // `save` writes where the document was read from unless it is given a path of its
+    // own, and a document that came from nowhere has no such path: that, and not the
+    // missing serializer, is what a bare save reports first.
+    const Outcome nowhere = planner.dispatch(Save{std::nullopt});
+    CHECK(!nowhere.ok);
+    CHECK(nowhere.kind == Kind::Context);
+    CHECK(nowhere.message.find("came from nowhere") != std::string::npos);
+    CHECK(document.depth() == 0);  // and a save that failed is not a checkpoint
+
+    const Outcome unsaved = planner.dispatch(Save{std::string{"out.svg"}});
+    CHECK(!unsaved.ok);
+    CHECK(unsaved.message.find("serializer is not implemented") != std::string::npos);
+
+    // `init` replaces the document instead of editing it: the tree, the history, the
+    // file behind it and the canvas all start over, and the canvas it names is what
+    // the new root carries.
+    const Outcome fresh = planner.dispatch(Init{Length{400.0F, Length::Unit::UserUnit}, std::nullopt});
+    CHECK(fresh.ok);
+    CHECK(fresh.kind == Kind::Context);
+    CHECK(document.children(document.root()).empty());
+    CHECK(document.find("box") == std::nullopt);
+    CHECK(document.depth() == 0);
+    CHECK(!document.can_undo());
+    CHECK(document.source_path().empty());
+    if (const std::optional<Node> payload = document.node(document.root())) {
+        const Container& container = std::get<Container>(std::get<SVGNode>(*payload).data);
+        const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
+        CHECK(canvas.width.has_value() && canvas.height.has_value());
+        if (canvas.width) CHECK(to_text(*canvas.width) == "400");
+        if (canvas.height) CHECK(to_text(*canvas.height) == "600");  // the side left out
     }
 
     if (failures != 0) {

@@ -10,14 +10,35 @@
 
 namespace {
 
+// The words of a text element: what the character data under it says. SVG keeps text
+// in children rather than in an attribute, and a tree in which every word is a line
+// of its own is unreadable, so the two are handed to the front end together.
+std::string content_of(const Document& document, Id node) {
+    std::string text;
+    for (const Id child : document.children(node)) {
+        const std::optional<Node> payload = document.node(child);
+        if (payload && std::holds_alternative<PlainText>(*payload)) {
+            text += std::get<PlainText>(*payload).content;
+        }
+    }
+    return text;
+}
+
 // Reading the tree is the Planner's half of a view: the walk that turns the document
 // into the rows a front end can render. The words around them are not its business.
-void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, std::size_t depth) {
+void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, std::size_t depth, bool last) {
     const std::optional<Node> payload = document.node(node);
     if (!payload) return;
+    // Character data is not a node of the tree a user edits: it is part of the text
+    // element that holds it, and it travels with it.
+    if (std::holds_alternative<PlainText>(*payload)) return;
 
-    rows.push_back(TreeRow{depth, node, *payload});
-    for (const Id child : document.children(node)) append_rows(rows, document, child, depth + 1);
+    rows.push_back(TreeRow{depth, last, node, *payload, content_of(document, node)});
+
+    const std::vector<Id> children = document.children(node);
+    for (std::size_t index = 0; index < children.size(); ++index) {
+        append_rows(rows, document, children[index], depth + 1, index + 1 == children.size());
+    }
 }
 
 }  // namespace
@@ -27,8 +48,10 @@ Planner::Planner(Document& document, Editor& editor) : document_(document), edit
 // The routes, one explicit specialization per instruction: the primary template in
 // the header is the only thing an instruction with no route can reach, and it fails
 // the build naming the type.
-template<> Outcome Planner::handle<ShowTree>(const ShowTree&) { return show_tree(); }
-template<> Outcome Planner::handle<Find>(const Find& intent) { return show_find(intent); }
+template<> Outcome Planner::handle<ShowTree>(const ShowTree& intent) { return show_tree(intent); }
+template<> Outcome Planner::handle<Show>(const Show& intent) { return show_node(intent); }
+template<> Outcome Planner::handle<Init>(const Init& intent) { return init(intent); }
+template<> Outcome Planner::handle<Read>(const Read& intent) { return read(intent); }
 
 template<> Outcome Planner::handle<CreateRect>(const CreateRect& intent) {
     return editor_.translate(ChangeIntent{intent});
@@ -62,29 +85,36 @@ template<> Outcome Planner::handle<SetCanvas>(const SetCanvas& intent) {
 template<> Outcome Planner::handle<Undo>(const Undo&) { return editor_.translate(ChangeIntent{Undo{}}); }
 template<> Outcome Planner::handle<Redo>(const Redo&) { return editor_.translate(ChangeIntent{Redo{}}); }
 
-template<> Outcome Planner::handle<Open>(const Open& intent) { return open(intent); }
 template<> Outcome Planner::handle<Save>(const Save& intent) { return save(intent); }
 
 Outcome Planner::dispatch(const Intent& intent) {
     return std::visit([this](const auto& value) { return handle(value); }, intent);
 }
 
-Outcome Planner::show_tree() const {
+Outcome Planner::show_tree(const ShowTree& intent) const {
+    const std::optional<Id> node = look_up(document_, intent.node);
+    if (!node) return Outcome{false, Kind::View, "there is no node at " + describe(intent.node)};
+
     TreeView view;
-    append_rows(view.rows, document_, document_.root(), 0);
+    append_rows(view.rows, document_, *node, 0, true);
     return Outcome{true, Kind::View, {}, std::move(view)};
 }
 
-Outcome Planner::show_find(const Find& intent) const {
-    const std::optional<Id> found = document_.find(intent.svg_id);
-    if (!found) return Outcome{false, Kind::View, "no node has the id \"" + intent.svg_id + "\""};
+Outcome Planner::show_node(const Show& intent) const {
+    const std::optional<Id> node = look_up(document_, intent.node);
+    if (!node) return Outcome{false, Kind::View, "there is no node at " + describe(intent.node)};
 
-    const std::optional<Node> payload = document_.node(*found);
+    const std::optional<Node> payload = document_.node(*node);
     if (!payload) return Outcome{false, Kind::View, "the node went missing"};  // cannot happen: find()
-    return Outcome{true, Kind::View, {}, NodeView{*found, *payload}};
+    return Outcome{true, Kind::View, {}, NodeView{*node, *payload, content_of(document_, *node)}};
 }
 
-Outcome Planner::open(const Open& intent) const {
+Outcome Planner::init(const Init& intent) {
+    document_.reset(intent.width, intent.height);
+    return Outcome{true, Kind::Context, "an empty document, with the canvas it was given"};
+}
+
+Outcome Planner::read(const Read& intent) const {
     const Status status = document_.open(intent.path);
     return Outcome{status.ok, Kind::Context, status.message};
 }
