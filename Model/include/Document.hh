@@ -70,8 +70,28 @@ public:
 
     // --- the file the document came from (Model/FileSystem) ---
 
+    // Where the document was last read from, empty when it came from nowhere. A
+    // save with no path of its own writes here.
+    const std::string& source_path() const;
+
+    // Read a document from a file, and write it to one. A read that fails leaves the
+    // document as it was, so a document whose read failed did not come from that
+    // file and has no path to save back to.
     Status open(std::string_view path);
-    Status save(std::string_view path) const;
+    Status save(std::optional<std::string_view> path);
+
+    // --- the context ---
+
+    // Back to a fresh document: an empty tree, the canvas it is given (default 800x600
+    // for whichever side is missing), no history, and no file behind it.
+    void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
+
+    // Forget the history: the tree stays as it is and becomes the baseline, so
+    // nothing before this point can be undone or redone. A saved document and a
+    // resized canvas are checkpoints of that kind - they are what the file and the
+    // frame behind the drawing now say, and undoing past them would leave the two
+    // disagreeing about a state nobody wrote down.
+    void clear_history();
 
     friend class Transaction;
 
@@ -84,6 +104,7 @@ private:
     Id next_diff_id_ = 1;      // hive diff ids start at 1 and never decrease
     std::vector<Id> blocks_;   // the diff id of every committed edit, oldest first
     std::size_t applied_ = 0;  // how many of them the two hives are showing
+    std::string source_path_;  // the file open() read, if it read one
 };
 
 // One user-level edit. The ops are applied to the tree as they come, and the

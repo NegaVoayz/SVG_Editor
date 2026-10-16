@@ -46,6 +46,17 @@ bool throws(Action&& action) {
     return false;
 }
 
+// The canvas of a document: the width and height the root element carries.
+std::optional<Container::SVG> canvas_of(const Document& document) {
+    const std::optional<Node> payload = document.node(document.root());
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
+    const SVGNode& element = std::get<SVGNode>(*payload);
+    if (!std::holds_alternative<Container>(element.data)) return std::nullopt;
+    const Container& container = std::get<Container>(element.data);
+    if (!std::holds_alternative<Container::SVG>(container.specific)) return std::nullopt;
+    return std::get<Container::SVG>(container.specific);
+}
+
 }  // namespace
 
 #define CHECK(condition) check((condition), #condition, __LINE__)
@@ -67,6 +78,19 @@ int main() {
     CHECK(std::holds_alternative<SVGNode>(*root_payload));
     CHECK(document.children(root).empty());
     CHECK(!document.can_undo());
+    CHECK(document.source_path().empty());
+
+    // the canvas belongs to the root element, and a fresh document has one
+    {
+        const std::optional<Container::SVG> canvas = canvas_of(document);
+        CHECK(canvas.has_value());
+        if (canvas) {
+            CHECK(canvas->width.has_value());
+            CHECK(canvas->height.has_value());
+            if (canvas->width) CHECK(to_text(*canvas->width) == "800");
+            if (canvas->height) CHECK(to_text(*canvas->height) == "600");
+        }
+    }
 
     // one transaction is one block, so both children go back together
     Id first = no_id;
@@ -265,6 +289,79 @@ int main() {
     CHECK(document.find("inside-a-rect") == std::nullopt);
     // the shape is still under the root, and the leaf still under the holder
     CHECK(document.children(root).size() == before + 2);
+
+    // --- the context: the canvas, the reset, and the checkpoint ---
+
+    // A reset is a fresh document: an empty tree, the canvas it was given for
+    // whichever sides it was given, the slots from the start again, and nothing to
+    // undo back into.
+    document.reset(Length{1024.0F, Length::Unit::Px}, std::nullopt);
+    CHECK(document.children(document.root()).empty());
+    CHECK(document.find("after-failure") == std::nullopt);
+    CHECK(document.depth() == 0);
+    CHECK(document.position() == 0);
+    CHECK(!document.can_undo());
+    CHECK(!document.can_redo());
+    CHECK(document.source_path().empty());
+    {
+        const std::optional<Container::SVG> canvas = canvas_of(document);
+        CHECK(canvas.has_value());
+        if (canvas) {
+            if (canvas->width) CHECK(to_text(*canvas->width) == "1024px");
+            // the side that was left out keeps the default
+            if (canvas->height) CHECK(to_text(*canvas->height) == "600");
+        }
+    }
+
+    // the history of the new document starts at its own baseline
+    Id kept = no_id;
+    {
+        Transaction edit = document.transaction();
+        kept = edit.append_child(document.root(), group("after-reset"));
+        edit.commit();
+    }
+    CHECK(document.depth() == 1);
+    document.undo();
+    CHECK(document.find("after-reset") == std::nullopt);
+    CHECK(!document.can_undo());  // and there is nothing behind the baseline
+    document.redo();
+    CHECK(document.find("after-reset") == kept);
+
+    // A checkpoint drops the way back and keeps the tree. A save is one, and until
+    // the serializer exists the other half of that seam is what can be checked: a
+    // document with no file behind it has no path to write to, and a save that
+    // failed is not a checkpoint.
+    CHECK(!document.save(std::nullopt).ok);
+    CHECK(!document.save("no-such-directory/out.svg").ok);
+    CHECK(document.source_path().empty());
+    CHECK(document.can_undo());
+
+    {
+        Transaction edit = document.transaction();
+        edit.append_child(document.root(), group("newer"));
+        edit.commit();
+    }
+    CHECK(document.depth() == 2);
+
+    document.clear_history();
+    CHECK(document.depth() == 0);
+    CHECK(document.position() == 0);
+    CHECK(!document.can_undo());
+    CHECK(!document.can_redo());
+    // the tree stays: what the history forgot is the way back to it
+    CHECK(document.find("after-reset") == kept);
+    CHECK(document.find("newer").has_value());
+
+    {
+        Transaction edit = document.transaction();
+        edit.erase(kept);
+        edit.commit();
+    }
+    CHECK(document.depth() == 1);
+    document.undo();
+    CHECK(document.find("after-reset") == kept);  // the checkpoint is the floor
+    CHECK(document.find("newer").has_value());
+    CHECK(!document.can_undo());
 
     if (failures != 0) {
         std::printf("document: %d check(s) failed\n", failures);

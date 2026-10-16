@@ -69,7 +69,7 @@ Outcome Planner::open(const Open& intent) const {
     return Outcome{status.ok, Kind::Context, status.message};
 }
 
-Outcome Planner::save(const Save& intent) const {
+Outcome Planner::save(const Save& intent) {
     const Status status = document_.save(intent.path);
     return Outcome{status.ok, Kind::Context, status.message};
 }

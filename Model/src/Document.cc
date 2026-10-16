@@ -79,18 +79,42 @@ void Document::seek_to(std::size_t position) {
 Status Document::open(std::string_view path) {
     const FileResult file = FileSystem::read(path);
     if (!file.ok) return Status{false, "open " + std::string(path) + ": " + file.text};
-    // TODO: parse the bytes into a tree. Until then the read is only reported.
+    // TODO: reset the document, parse the bytes into it, and only then take the path
+    // as the document's own. Until the parser exists the read is only reported, and
+    // the document is left as it was - which is why a read that failed leaves no
+    // path behind either.
     return Status{false, "open " + std::string(path) + ": the SVG parser is not implemented yet (" +
                              std::to_string(file.text.size()) + " bytes read)"};
 }
 
-Status Document::save(std::string_view path) const {
+const std::string& Document::source_path() const { return source_path_; }
+
+Status Document::save(std::optional<std::string_view> path) {
+    const std::string target = path ? std::string{*path} : source_path_;
+    if (target.empty()) {
+        return Status{false, "this document came from nowhere yet: save <path> says where to write it"};
+    }
+
     std::string svg;
     const Status serialized = serialize(store_, svg);
-    if (!serialized.ok) return serialized;
-    const FileResult file = FileSystem::write(path, svg);
-    if (!file.ok) return Status{false, "save " + std::string(path) + ": " + file.text};
-    return Status{true, "saved " + std::string(path)};
+    if (!serialized.ok) return Status{false, "save " + target + ": " + serialized.message};
+    const FileResult file = FileSystem::write(target, svg);
+    if (!file.ok) return Status{false, "save " + target + ": " + file.text};
+    return Status{true, "saved " + target};
+}
+
+void Document::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
+    store_.reset(std::move(width), std::move(height));
+    next_diff_id_ = 1;
+    blocks_.clear();
+    applied_ = 0;
+    source_path_.clear();
+}
+
+void Document::clear_history() {
+    store_.clear_history();
+    blocks_.clear();
+    applied_ = 0;
 }
 
 Transaction::Transaction(Document& document) : document_(document), diff_id_(document.next_diff_id_++) {

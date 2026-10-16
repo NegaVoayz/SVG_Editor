@@ -34,7 +34,7 @@ private:
 
     // the two context changes, through the document that owns the file layer
     Outcome open(const Open& intent) const;
-    Outcome save(const Save& intent) const;
+    Outcome save(const Save& intent);
 
     Document& document_;
     Editor& editor_;

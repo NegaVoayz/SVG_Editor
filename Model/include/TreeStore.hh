@@ -43,6 +43,10 @@ class TreeStore {
 public:
     TreeStore();
 
+    // Back to what a fresh arena holds: one root element, the canvas it is given
+    // (the default for whichever side is missing), and no history at all.
+    void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
+
     void begin(Id diff_id);
     void commit();
     void rollback();
@@ -51,6 +55,11 @@ public:
     // Walk both hives to the end of the block with this id. No transaction may be
     // open while this happens.
     void seek(Id diff_id);
+
+    // Forget the history: the tree stays as it is and becomes the baseline. Both
+    // hives have to forget together, or the pair of them would disagree about where
+    // the beginning is.
+    void clear_history();
 
     // --- edits, only inside a transaction ---
 

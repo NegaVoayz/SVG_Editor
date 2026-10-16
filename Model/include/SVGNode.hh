@@ -35,7 +35,10 @@ struct Container {
 
     struct Group {};
     struct Defs {};
-    struct SVG {};
+    // The root element's own size, which is the canvas of the document: it belongs
+    // to the <svg> element and not to the document beside it, because that is where
+    // SVG writes it and what the serializer will write it back out of.
+    struct SVG { std::optional<LengthPercentage> width, height; };
     struct Symbol {};
     struct Switch {};
     std::variant<Group, Defs, SVG, Symbol, Switch> specific;

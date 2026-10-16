@@ -2,12 +2,21 @@
 
 namespace {
 
+// The canvas a fresh document starts with, and what goes in for a side an `init` or
+// a `canvas` left out. SVG's own default viewport is 300x150 CSS pixels; this
+// editor's front end says 800x600 instead, so the number belongs to the document
+// rather than to the command that asks for it.
+inline const LengthPercentage fresh_canvas_width = Length{800.0F, Length::Unit::UserUnit};
+inline const LengthPercentage fresh_canvas_height = Length{600.0F, Length::Unit::UserUnit};
+
 // The payload of the root element. The root is part of the baseline, so erasing
 // everything leaves an empty document rather than no document.
-Node make_root_payload() {
+Node make_root_payload(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
     SVGNode element;
     element.identity_attr = IdentityAttr{"", "", no_id};
-    element.data = Container{ChildAttr{no_id}, Container::SVG{}};
+    element.data = Container{ChildAttr{no_id},
+                             Container::SVG{width ? std::move(width) : fresh_canvas_width,
+                                            height ? std::move(height) : fresh_canvas_height}};
     return Node{std::move(element)};
 }
 
@@ -22,10 +31,19 @@ bool can_hold_children(const Node& payload) {
 
 }  // namespace
 
-TreeStore::TreeStore() {
+TreeStore::TreeStore() { reset(std::nullopt, std::nullopt); }
+
+void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
+    if (in_transaction_) throw std::logic_error("TreeStore: the arena cannot be reset inside a transaction");
+
+    // Forgetting everything means forgetting the slots too, so a reset document
+    // starts from slot 0 again rather than from whatever was there before.
+    nodes_.clear();
+    edges_.clear();
+
     // The root is the first payload, which is slot 0, because nothing is reserved
     // in front of it: a link that leads nowhere is no_id, not slot 0.
-    root_ = nodes_.insert(1, NodeRecord{make_root_payload(), no_id, no_id});
+    root_ = nodes_.insert(1, NodeRecord{make_root_payload(std::move(width), std::move(height)), no_id, no_id});
 
     // The root is the baseline, not an edit: dropping it from the history is what
     // makes "undo everything" land on an empty document, and it leaves diff id 1
@@ -58,6 +76,12 @@ void TreeStore::seek(Id diff_id) {
     if (in_transaction_) throw std::logic_error("TreeStore: the history cannot be walked inside a transaction");
     nodes_.seek(diff_id);
     edges_.seek(diff_id);
+}
+
+void TreeStore::clear_history() {
+    if (in_transaction_) throw std::logic_error("TreeStore: the history cannot be dropped inside a transaction");
+    nodes_.clear_history();
+    edges_.clear_history();
 }
 
 void TreeStore::require_transaction() const {
