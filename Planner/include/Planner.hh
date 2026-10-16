@@ -1,6 +1,6 @@
 #pragma once
 
-#include <string_view>
+#include <type_traits>
 
 #include "Document.hh"
 #include "Editor.hh"
@@ -22,22 +22,20 @@ public:
     Outcome dispatch(const Intent& intent);
 
 private:
+    // Every instruction that is a change goes to the Editor, and which instructions
+    // those are is what ChangeIntent holds - so the compiler answers it from the type
+    // and no instruction is listed here twice. An instruction that is not a change has
+    // to have a route of its own below, and one that has neither reaches the build
+    // error, which names its type.
     template<typename T>
     Outcome handle(const T& intent) {
-        static_assert(always_false<T>, "the Planner has no route for this intent");
-        return Outcome{false, Kind::Unknown, "no route"};
+        if constexpr (std::is_constructible_v<ChangeIntent, T>) {
+            return editor_.translate(ChangeIntent{intent});
+        } else {
+            static_assert(always_false<T>, "the Planner has no route for this intent");
+            return Outcome{false, Kind::Unknown, "no route"};
+        }
     }
-
-    // the views: reading the tree and reporting it is the Planner's half of them
-    Outcome show_tree(const ShowTree& intent) const;
-    Outcome show_node(const Show& intent) const;
-
-    // The context changes: which document is being edited, rather than what is in it.
-    // `init` is one of these because it replaces the document, file and all, instead
-    // of editing the tree in it - the canvas it may carry comes with the new root.
-    Outcome init(const Init& intent);
-    Outcome read(const Read& intent) const;
-    Outcome save(const Save& intent);
 
     Document& document_;
     Editor& editor_;

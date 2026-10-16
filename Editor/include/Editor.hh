@@ -2,6 +2,8 @@
 
 #include <string>
 #include <string_view>
+#include <optional>
+#include <variant>
 
 #include "Document.hh"
 #include "Protocol.hh"
@@ -26,28 +28,49 @@ public:
     Outcome translate(const ChangeIntent& intent);
 
 private:
-    // One translation per intent. The primary template below is what a missing one
-    // falls back to, and it fails the build with the name of the type.
+    // Which translation answers an instruction is a question about the type of the
+    // instruction, and this is the whole of the answer: an instruction that brings an
+    // element is answered by create(), one body for every kind of element, and an
+    // instruction that brings none has to have a translation of its own. An instruction
+    // with neither reaches the build error below, which names its type: an unimplemented
+    // case is a compile error rather than a branch that quietly does nothing.
     template<typename T>
     Outcome handle(const T& intent) {
-        static_assert(always_false<T>, "the Editor has no translation for this intent");
-        return Outcome{false, Kind::Change, "no translation"};
+        if constexpr (requires { new_element(intent); }) {
+            return create(intent);
+        } else {
+            static_assert(always_false<T>, "the Editor has no translation for this intent");
+            return Outcome{false, Kind::Change, "no translation"};
+        }
     }
 
     // A reference turned into a node, or the refusal for one that names nothing.
     Id resolve(const NodeRef& reference) const;
 
-    // One new element inside a parent, which is what every create does: the id has to
-    // be free, the body is already built, and the element goes last among the
-    // children of the parent the command named.
-    Outcome add(const std::string& id, std::string_view kind, const NodeRef& parent, Node payload);
+    // What one create brings: the tag a message names it by, the element itself, and the
+    // words to put inside it when the element is a text. A text holds character data in
+    // a child node rather than in an attribute, which is why that is a second node.
+    struct NewElement {
+        std::string_view kind;
+        Node payload;
+        std::optional<std::string> content;
+    };
 
-    Outcome create(const CreateRect& intent);
-    Outcome create(const CreateCircle& intent);
-    Outcome create(const CreateEllipse& intent);
-    Outcome create(const CreateLine& intent);
-    Outcome create(const CreateText& intent);
-    Outcome create(const CreateGroup& intent);
+    // One per element kind: these overloads are what says which instructions build an
+    // element, and what each of them builds.
+    NewElement new_element(const CreateRect& intent) const;
+    NewElement new_element(const CreateCircle& intent) const;
+    NewElement new_element(const CreateEllipse& intent) const;
+    NewElement new_element(const CreateLine& intent) const;
+    NewElement new_element(const CreateText& intent) const;
+    NewElement new_element(const CreateGroup& intent) const;
+
+    // One create for every kind: the id has to be free, the element goes last among the
+    // children of the parent the instruction named, and the body is written once. The
+    // instantiations at the end of the source are the list of kinds this can build.
+    template<typename T>
+    Outcome create(const T& intent);
+
     Outcome remove(const Delete& intent);
     Outcome move(const Move& intent);
     Outcome scale(const ScaleBy& intent);

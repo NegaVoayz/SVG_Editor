@@ -49,12 +49,8 @@ Editor::Editor(Document& document) : document_(document) {}
 // The translations, one explicit specialization per intent. They have to be
 // declared before translate() uses them: a specialization the compiler has not seen
 // yet would leave the primary template - the build error - in place.
-template<> Outcome Editor::handle<CreateRect>(const CreateRect& intent) { return create(intent); }
-template<> Outcome Editor::handle<CreateCircle>(const CreateCircle& intent) { return create(intent); }
-template<> Outcome Editor::handle<CreateEllipse>(const CreateEllipse& intent) { return create(intent); }
-template<> Outcome Editor::handle<CreateLine>(const CreateLine& intent) { return create(intent); }
-template<> Outcome Editor::handle<CreateText>(const CreateText& intent) { return create(intent); }
-template<> Outcome Editor::handle<CreateGroup>(const CreateGroup& intent) { return create(intent); }
+// Every create is answered by the same body - the kind of element it is, is what the
+// instruction brings - so the six kinds need no translation here at all.
 template<> Outcome Editor::handle<Delete>(const Delete& intent) { return remove(intent); }
 template<> Outcome Editor::handle<Move>(const Move& intent) { return move(intent); }
 template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) { return scale(intent); }
@@ -87,65 +83,69 @@ Id Editor::resolve(const NodeRef& reference) const {
     throw std::invalid_argument("no node is called " + describe(reference));
 }
 
-Outcome Editor::add(const std::string& id, std::string_view kind, const NodeRef& parent_ref, Node payload) {
-    if (document_.find(id)) return failed("an element is already called \"" + id + "\"");
-    const std::optional<Id> parent = look_up(document_, parent_ref);
-    if (!parent) return failed("there is nothing to put the new element in: " + describe(parent_ref));
-
-    Transaction edit = document_.transaction();
-    const Id node = edit.append_child(*parent, std::move(payload));
-    edit.commit();
-    return Outcome{true, Kind::Change, "created #" + std::to_string(node) + " <" + std::string{kind} + "> id=\"" + id +
-                                           "\" in " + describe(parent_ref)};
+Editor::NewElement Editor::new_element(const CreateGroup& intent) const {
+    return NewElement{"g", element(intent.id, Container{ChildAttr{no_id}, Container::Group{}}), std::nullopt};
 }
 
-Outcome Editor::create(const CreateGroup& intent) {
-    return add(intent.id, "g", intent.parent, element(intent.id, Container{ChildAttr{no_id}, Container::Group{}}));
-}
-
-Outcome Editor::create(const CreateRect& intent) {
+Editor::NewElement Editor::new_element(const CreateRect& intent) const {
     Node payload = element(intent.id, Shape{Shape::Rect{intent.x, intent.y, intent.width, intent.height}});
     fill(payload, intent.fill);
-    return add(intent.id, "rect", intent.parent, std::move(payload));
+    return NewElement{"rect", std::move(payload), std::nullopt};
 }
 
-Outcome Editor::create(const CreateCircle& intent) {
+Editor::NewElement Editor::new_element(const CreateCircle& intent) const {
     Node payload = element(intent.id, Shape{Shape::Circle{intent.cx, intent.cy, intent.r}});
     fill(payload, intent.fill);
-    return add(intent.id, "circle", intent.parent, std::move(payload));
+    return NewElement{"circle", std::move(payload), std::nullopt};
 }
 
-Outcome Editor::create(const CreateEllipse& intent) {
+Editor::NewElement Editor::new_element(const CreateEllipse& intent) const {
     Node payload = element(intent.id, Shape{Shape::Ellipse{intent.cx, intent.cy, intent.rx, intent.ry}});
     fill(payload, intent.fill);
-    return add(intent.id, "ellipse", intent.parent, std::move(payload));
+    return NewElement{"ellipse", std::move(payload), std::nullopt};
 }
 
-Outcome Editor::create(const CreateLine& intent) {
+Editor::NewElement Editor::new_element(const CreateLine& intent) const {
     Node payload = element(intent.id, Shape{Shape::Line{intent.x1, intent.y1, intent.x2, intent.y2}});
     stroke(payload, intent.stroke);
-    return add(intent.id, "line", intent.parent, std::move(payload));
+    return NewElement{"line", std::move(payload), std::nullopt};
 }
 
-Outcome Editor::create(const CreateText& intent) {
-    if (document_.find(intent.id)) return failed("an element is already called \"" + intent.id + "\"");
-    const std::optional<Id> parent = look_up(document_, intent.parent);
-    if (!parent) return failed("there is nothing to put the new element in: " + describe(intent.parent));
-
+Editor::NewElement Editor::new_element(const CreateText& intent) const {
     Text text;
     text.common.x = intent.x;
     text.common.y = intent.y;
     text.child_attr = ChildAttr{no_id};
+    return NewElement{"text", element(intent.id, std::move(text)), intent.content};
+}
+
+template<typename T>
+Outcome Editor::create(const T& intent) {
+    NewElement built = new_element(intent);
+    if (document_.find(intent.id)) return failed("an element is already called \"" + intent.id + "\"");
+    const std::optional<Id> parent = look_up(document_, intent.parent);
+    if (!parent) return failed("there is nothing to put the new element in: " + describe(intent.parent));
 
     // The element and its content are two nodes, and one instruction is one
     // transaction, so either both are written or neither is.
     Transaction edit = document_.transaction();
-    const Id node = edit.append_child(*parent, element(intent.id, std::move(text)));
-    edit.append_child(node, characters(intent.content));
+    const Id node = edit.append_child(*parent, std::move(built.payload));
+    if (built.content) edit.append_child(node, characters(std::move(*built.content)));
     edit.commit();
-    return Outcome{true, Kind::Change, "created #" + std::to_string(node) + " <text> id=\"" + intent.id + "\" in " +
-                                           describe(intent.parent) + ", holding \"" + intent.content + "\""};
+    return Outcome{true, Kind::Change, "created #" + std::to_string(node) + " <" + std::string{built.kind} + "> id=\"" +
+                                           intent.id + "\" in " + describe(intent.parent)};
 }
+
+// One create per element kind: the six bodies are written from the one above, and this
+// is where the compiler is asked for them. A kind with a builder and no line here is
+// still built - the overloads of new_element() are what makes an instruction a create -
+// so the two lists say the same thing, and both are short.
+template Outcome Editor::create<CreateRect>(const CreateRect&);
+template Outcome Editor::create<CreateCircle>(const CreateCircle&);
+template Outcome Editor::create<CreateEllipse>(const CreateEllipse&);
+template Outcome Editor::create<CreateLine>(const CreateLine&);
+template Outcome Editor::create<CreateText>(const CreateText&);
+template Outcome Editor::create<CreateGroup>(const CreateGroup&);
 
 Outcome Editor::remove(const Delete& intent) {
     const Id node = resolve(intent.node);
