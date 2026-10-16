@@ -29,6 +29,13 @@ struct RunInstruction {
         return false;
     }
 
+    // The one instruction the front end answers itself: what the commands are is what
+    // this layer knows the syntax of, and no other layer has to.
+    bool operator()(const Help&) const {
+        std::cout << usage();
+        return true;
+    }
+
     bool operator()(const Intent& intent) const {
         try {
             const Outcome outcome = planner.dispatch(intent);

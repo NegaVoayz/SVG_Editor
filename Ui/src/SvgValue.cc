@@ -117,4 +117,6 @@ std::optional<Color> parse_color(std::string_view text) {
     return std::nullopt;
 }
 
+std::optional<float> parse_number(std::string_view text) { return number_of(text); }
+
 }  // namespace SvgValue

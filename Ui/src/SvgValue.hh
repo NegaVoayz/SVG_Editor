@@ -18,4 +18,7 @@ std::optional<LengthPercentage> parse_length(std::string_view text);
 // not in the model yet, so they read as nothing here.
 std::optional<Color> parse_color(std::string_view text);
 
+// A plain number, with no unit and no percentage: what a scale factor is written as.
+std::optional<float> parse_number(std::string_view text);
+
 }  // namespace SvgValue
