@@ -2,8 +2,10 @@
 #include <cstdio>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 
+#include "Command.hh"
 #include "IntentParser.hh"
 
 namespace {
@@ -33,6 +35,19 @@ bool refuses(const Request& line) { return std::holds_alternative<ParseError>(li
 const std::string& complaint(const Request& line) { return std::get<ParseError>(line).message; }
 
 std::string name_in(const NodeRef& reference) { return std::get<SvgIdRef>(reference).name; }
+
+// The table is the vocabulary and the help is its prose, so this is the one pair that can
+// still drift: a verb the front end accepts and the help does not name is a failure. The
+// names are read out of the table rather than written down a second time here.
+void check_help_names_every_verb() {
+    const std::string_view help = usage();
+    for (const Verb& verb : verbs()) {
+        if (help.find(verb.name) != std::string_view::npos) continue;
+        std::printf("FAIL the help does not name the verb '%.*s'\n", static_cast<int>(verb.name.size()),
+                    verb.name.data());
+        ++failures;
+    }
+}
 
 }  // namespace
 
@@ -201,6 +216,7 @@ int main() {
     // help never leaves the front end: what the commands are is this layer's own text
     CHECK(std::holds_alternative<Help>(parse("help")));
     CHECK(refuses(parse("help me")));
+    check_help_names_every_verb();
 
     // rgb() and the short hex form, with the spaces a function may hold
     const Request function = parse("create rect r 0 0 1 1 rgb(0, 255, 0)");
