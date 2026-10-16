@@ -1,0 +1,77 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Ninja, Debug",
+      "description": "The everyday build. Needs network the first time, to fetch SwapDiffHive.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ninja-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "default",
+      "displayName": "Ninja, Release",
+      "binaryDir": "${sourceDir}/build/ninja-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "local-dep",
+      "inherits": "default",
+      "displayName": "Ninja, Debug, sibling SwapDiffHive checkout",
+      "description": "Takes the dependency from ../SwapDiffHive as it is instead of fetching it, so it configures and builds without network.",
+      "binaryDir": "${sourceDir}/build/ninja-local-dep",
+      "cacheVariables": {
+        "FETCHCONTENT_SOURCE_DIR_SWAPDIFFHIVE": "${sourceDir}/../SwapDiffHive"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "local-dep",
+      "configurePreset": "local-dep"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "local-dep",
+      "configurePreset": "local-dep",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

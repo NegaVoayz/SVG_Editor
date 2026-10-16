@@ -1,0 +1,9 @@
+# build trees
+build/
+out/
+cmake-build-*/
+
+# editor and tooling leftovers
+.vs/
+CMakeUserPresets.json
+compile_commands.json

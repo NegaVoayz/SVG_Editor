@@ -1,0 +1,31 @@
+# The text front end. The library holds everything that is worth testing without a
+# terminal - the instruction syntax, the value syntax and the printing - and the
+# executable is the loop around it.
+add_library(Ui
+    src/IntentParser.cc
+    src/SvgValue.cc)
+add_library(SvgEditor::Ui ALIAS Ui)
+
+target_include_directories(Ui PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+
+target_link_libraries(Ui
+    PUBLIC
+        SvgEditor::Protocol   # the vocabulary it produces
+        SvgEditor::Model      # the values that vocabulary is made of
+    PRIVATE
+        SvgEditor::Warnings)
+
+add_executable(Cli src/main.cc)
+set_target_properties(Cli PROPERTIES OUTPUT_NAME svg-editor)
+
+target_link_libraries(Cli
+    PRIVATE
+        SvgEditor::Ui
+        SvgEditor::Planner
+        SvgEditor::Model
+        SvgEditor::Warnings)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
