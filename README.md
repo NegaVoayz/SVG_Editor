@@ -111,7 +111,7 @@ and serializer behind them are not written yet; everything above them is in plac
 | ------------------- | ------------------- | ---------------------------------- |
 | `SvgEditor::Model`  | `Model/`            | SwapDiffHive                       |
 | `SvgEditor::FileSystem` | `Model/FileSystem/` | -                              |
-| `SvgEditor::Protocol`   | `Protocol/`     | -                                  |
+| `SvgEditor::Protocol`   | `Protocol/`     | Model (for the values)             |
 | `SvgEditor::Editor` | `Editor/`           | Model, Protocol                    |
 | `SvgEditor::Planner`| `Planner/`          | Model, Editor, Protocol            |
 | `SvgEditor::Ui`     | `Ui/`               | Protocol, Model                    |

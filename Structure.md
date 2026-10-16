@@ -6,7 +6,7 @@
 | ------------------- | ----------------------------------------------------------------- | ----------------------------- |
 | `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | SwapDiffHive                  |
 | `Model/FileSystem/` | bytes in and out of the document's file                             | -                             |
-| `Protocol/`         | the vocabulary the pipeline passes around: the intents, `Outcome`    | Model (for the values)        |
+| `Protocol/`         | the vocabulary the pipeline passes around, in the four parts it is made of: how a node is named, the intents, the views, the outcome | Model (for the values) |
 | `Editor/`           | translates one change intent into tree transactions                 | Model, Protocol               |
 | `Planner/`          | decides what one instruction means                                  | Model, Editor, Protocol       |
 | `Ui/`               | the text front end: parses one line into an intent, prints the outcome; owns the document | Planner, Model, Protocol |
@@ -51,6 +51,24 @@ place, which is why the document is owned above the Planner rather than inside i
 3. The outcome travels back the way it came: whether it worked, which branch produced
    it, a sentence about what happened, and - when what was asked for was a read - what
    the read found, as data. [M Protocol] [M Ui]
+
+### What the protocol is made of
+
+The vocabulary is one thing to the layers that speak it, and four things to a reader, so
+`Protocol/` holds four headers and `Protocol.hh` is the name for all of them together:
+
+| header       | what it is                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| `NodeRef.hh` | how an instruction names a node - a handle, the root, an SVG id - and what that name turns out to be |
+| `Intent.hh`  | the instructions, the two variants they form, and `always_false`                            |
+| `View.hh`    | what a read hands back: the rows of a tree, or one node                                     |
+| `Outcome.hh` | `Kind`, `Outcome`, and the one shape a refusal takes                                        |
+
+The parts depend on each other in that order, so there is no loop in the graph, and a file
+includes the part it uses rather than the whole protocol: the umbrella is left for the two
+places that drive the pipeline end to end, the cli and the test that drives it the same way.
+`always_false` sits in `Intent.hh` because it is the idiom every layer that answers an
+instruction is built with, and an instruction is what those layers answer.
 
 ### How an intent is dispatched
 
@@ -118,6 +136,11 @@ Outcome handle(const T& intent) {
   declaration is load-bearing: a specialization the compiler has not met before the point
   where `std::visit` instantiates `handle<T>` is not a specialization at all, and the
   primary template's build error is what comes out instead.
+- The arithmetic underneath those is three sources, one question each: `Units.cc` is what a
+  length is worth and what it may be added to, `Transform.cc` is what a transform does with
+  a value it has to carry, and `Geometry.cc` is what a move or a scale does to one node.
+  The unit table is the one part of it that is about values rather than about nodes, which
+  is why it is the one part with no model type in its interface beyond `LengthPercentage`.
 - the visitors that name things - a node kind, a shape, a colour - are overload
   sets, so a new kind in the model is a build error until it is named too.
 
