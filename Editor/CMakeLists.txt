@@ -4,8 +4,8 @@
 #
 # One source per thing an edit changes, so that what an instruction does is one file to
 # look in: the dispatch in Editor.cc, the elements a command builds in Create.cc, where a
-# node sits in Structure.cc, what a node holds in Payload.cc, and the history in
-# History.cc. Translations.hh is what holds them together, and it declares rather than
+# node sits in Structure.cc, what a node holds in Payload.cc, one named attribute in
+# Set.cc, and the history in History.cc. Translations.hh is what holds them together, and it declares rather than
 # defines: a specialization has to be seen before the visitor asks for it.
 #
 # The arithmetic underneath all of that is three sources of its own, because each of them
@@ -17,6 +17,7 @@ add_library(Editor
     src/Create.cc
     src/Structure.cc
     src/Payload.cc
+    src/Set.cc
     src/History.cc
     src/Units.cc
     src/Transform.cc

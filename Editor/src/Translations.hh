@@ -33,6 +33,10 @@ template<> Outcome Editor::handle<Move>(const Move& intent);
 template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent);
 template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent);
 
+// Set.cc: one named attribute of one node. `Set` is a second-level variant, like `Create`,
+// and its attributes are answered by overloads in that file rather than by this list.
+template<> Outcome Editor::handle<Set>(const Set& intent);
+
 // History.cc: the edits that are not of the tree at all.
 template<> Outcome Editor::handle<Undo>(const Undo& intent);
 template<> Outcome Editor::handle<Redo>(const Redo& intent);

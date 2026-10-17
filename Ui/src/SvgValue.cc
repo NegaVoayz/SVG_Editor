@@ -3,6 +3,8 @@
 #include <charconv>
 #include <cstddef>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace SvgValue {
 
@@ -118,5 +120,59 @@ std::optional<Color> parse_color(std::string_view text) {
 }
 
 std::optional<float> parse_number(std::string_view text) { return number_of(text); }
+
+std::optional<Transform> parse_transform(std::string_view text) {
+    const std::size_t open = text.find('(');
+    if (open == std::string_view::npos || !text.ends_with(')')) return std::nullopt;
+
+    const std::string_view name = text.substr(0, open);
+    std::string_view body = text.substr(open + 1, text.size() - open - 2);
+
+    // One value per comma or run of spaces. An empty part is not a value, so the trailing
+    // comma SVG tolerates is not one either.
+    std::vector<std::string_view> words;
+    std::size_t index = 0;
+    while (index < body.size()) {
+        while (index < body.size() && (body[index] == ' ' || body[index] == ',')) ++index;
+        const std::size_t start = index;
+        while (index < body.size() && body[index] != ' ' && body[index] != ',') ++index;
+        if (start != index) words.push_back(body.substr(start, index - start));
+    }
+
+    if (name == "translate" && (words.size() == 1 || words.size() == 2)) {
+        const std::optional<LengthPercentage> x = parse_length(words[0]);
+        if (!x) return std::nullopt;
+        if (words.size() == 1) return Transform{Translate{*x, Length{0.0F, Length::Unit::UserUnit}}};
+        const std::optional<LengthPercentage> y = parse_length(words[1]);
+        if (!y) return std::nullopt;
+        return Transform{Translate{*x, *y}};
+    }
+
+    if (name == "scale" && (words.size() == 1 || words.size() == 2)) {
+        const std::optional<float> x = number_of(words[0]);
+        if (!x) return std::nullopt;
+        const std::optional<float> y = words.size() == 1 ? x : number_of(words[1]);
+        if (!y) return std::nullopt;
+        return Transform{Scale{*x, *y}};
+    }
+
+    if (name == "rotate" && words.size() == 1) {
+        const std::optional<float> degrees = number_of(words[0]);
+        if (!degrees) return std::nullopt;
+        return Transform{Rotate{*degrees}};
+    }
+
+    if (name == "matrix" && words.size() == 6) {
+        float value[6] = {};
+        for (std::size_t at = 0; at < 6; ++at) {
+            const std::optional<float> number = number_of(words[at]);
+            if (!number) return std::nullopt;
+            value[at] = *number;
+        }
+        return Transform{Matrix{value[0], value[1], value[2], value[3], value[4], value[5]}};
+    }
+
+    return std::nullopt;
+}
 
 }  // namespace SvgValue

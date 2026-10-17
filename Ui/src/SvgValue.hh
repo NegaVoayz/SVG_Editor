@@ -21,4 +21,9 @@ std::optional<Color> parse_color(std::string_view text);
 // A plain number, with no unit and no percentage: what a scale factor is written as.
 std::optional<float> parse_number(std::string_view text);
 
+// "translate(x [y])", "scale(x [y])", "rotate(deg)" or "matrix(a b c d e f)". The
+// translate form takes lengths, the others plain numbers; commas or spaces separate the
+// values. `none` is not read here: clearing an optional transform is the caller's decision.
+std::optional<Transform> parse_transform(std::string_view text);
+
 }  // namespace SvgValue

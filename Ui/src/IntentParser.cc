@@ -66,6 +66,7 @@ std::string_view usage() {
            "             text <id> <x> <y> \"content\" | g <id>\n"
            "           delete <id>            the node and everything under it\n"
            "           move <id> <dx> <dy> | scale <id> <factor>\n"
+           "           set <id> <attr> <value>   one attribute; id, parent and children are not attributes\n"
            "           group <newGid> <id> <id> ... | ungroup <gid> | addto <gid> <id>\n"
            "           front <id> | back <id>   the ends of the child order, first child in front\n"
            "           canvas <w> [h]         a new size, and the history starts over\n"

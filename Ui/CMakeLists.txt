@@ -4,12 +4,14 @@
 #
 # One source per question the front end answers: the boundary and the command list in
 # IntentParser.cc, the verbs and their readers in Command.cc, the element kinds `create`
-# builds in Create.cc, the shape a reader is written in and what one word spells in
-# Syntax.cc, and the other direction of the boundary in Rendering.cc and SvgValue.cc.
+# builds in Create.cc, the attributes `set` writes in Set.cc, the shape a reader is written
+# in and what one word spells in Syntax.cc, and the other direction of the boundary in
+# Rendering.cc and SvgValue.cc.
 add_library(Ui
     src/IntentParser.cc
     src/Command.cc
     src/Create.cc
+    src/Set.cc
     src/Syntax.cc
     src/Rendering.cc
     src/SvgValue.cc)

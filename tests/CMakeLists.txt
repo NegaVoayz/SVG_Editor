@@ -25,6 +25,17 @@ add_test(NAME cli_shape
     COMMAND $<TARGET_FILE:Cli> "create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5; tree")
 set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +x=5 y=5 w=10 h=10 fill=#ff0000")
 
+# `set` names one attribute by its spelling and leaves the rest of the line to the value
+# syntax that name implies
+add_test(NAME cli_set
+    COMMAND $<TARGET_FILE:Cli> "create rect box 0 0 10 10; set box x 5; set box fill #00ff00; set box stroke-width 2; tree")
+set_tests_properties(cli_set PROPERTIES PASS_REGULAR_EXPRESSION
+    "rect#box +x=5 y=0 w=10 h=10 fill=#00ff00 stroke-width=2")
+
+# an attribute the node does not carry is refused with its own spelling
+add_test(NAME cli_unknown_attribute COMMAND $<TARGET_FILE:Cli> "create circle dot 1 1 1; set dot x 5")
+set_tests_properties(cli_unknown_attribute PROPERTIES PASS_REGULAR_EXPRESSION "error: unknown attribute: x")
+
 # the drawing is what a text element's content is printed in the line of, and the line
 # under a last child hangs from spaces rather than bars
 add_test(NAME cli_text COMMAND $<TARGET_FILE:Cli> "create text title 20 40 \"My Diagram\"; tree")

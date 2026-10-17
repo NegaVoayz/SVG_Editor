@@ -436,6 +436,121 @@ int main() {
     CHECK(!planner.dispatch(Group{"box", {SvgIdRef{"box"}}}).ok);
     CHECK(!planner.dispatch(Create{CreateCircle{"box", units(0), units(0), units(1), std::nullopt}}).ok);
 
+    // --- setting one attribute ---
+
+    // A set is one named field and one transaction: the node keeps its place and its
+    // children, and the whole edit goes back with one undo.
+    const std::size_t set_depth = document.depth();
+    CHECK(planner.dispatch(Set{SetX{SvgIdRef{"box"}, units(7)}}).ok);
+    CHECK(document.depth() == set_depth + 1);
+    const Outcome after_set_x = planner.dispatch(Show{SvgIdRef{"box"}});
+    CHECK(std::holds_alternative<NodeView>(after_set_x.view));
+    if (std::holds_alternative<NodeView>(after_set_x.view)) {
+        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(after_set_x.view).payload);
+        CHECK(geometry.has_value());
+        if (geometry) CHECK(to_text(geometry->x) == "7");
+    }
+    CHECK(planner.dispatch(Undo{}).ok);
+    const Outcome after_undo_set = planner.dispatch(Show{SvgIdRef{"box"}});
+    if (std::holds_alternative<NodeView>(after_undo_set.view)) {
+        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(after_undo_set.view).payload);
+        if (geometry) CHECK(to_text(geometry->x) != "7");
+    }
+    CHECK(planner.dispatch(Redo{}).ok);
+
+    // paint, class and stroke width are fields of the element itself
+    CHECK(planner.dispatch(Set{SetFill{SvgIdRef{"box"}, Paint{Color{Color::RGB{0, 255, 0}}}}}).ok);
+    CHECK(planner.dispatch(Set{SetClass{SvgIdRef{"box"}, "highlight"}}).ok);
+    CHECK(planner.dispatch(Set{SetStrokeWidth{SvgIdRef{"box"}, units(2)}}).ok);
+    const Outcome painted = planner.dispatch(Show{SvgIdRef{"box"}});
+    CHECK(std::holds_alternative<NodeView>(painted.view));
+    if (std::holds_alternative<NodeView>(painted.view)) {
+        const Node& payload = std::get<NodeView>(painted.view).payload;
+        CHECK(std::holds_alternative<SVGNode>(payload));
+        if (std::holds_alternative<SVGNode>(payload)) {
+            const SVGNode& element = std::get<SVGNode>(payload);
+            CHECK(element.identity_attr.class_ == "highlight");
+            CHECK(element.paint_attr.fill.has_value());
+            CHECK(element.paint_attr.stroke_width.has_value());
+            if (element.paint_attr.stroke_width) CHECK(to_text(*element.paint_attr.stroke_width) == "2");
+            if (element.paint_attr.fill) {
+                CHECK(std::holds_alternative<Color>(*element.paint_attr.fill));
+                if (std::holds_alternative<Color>(*element.paint_attr.fill)) {
+                    const Color& colour = std::get<Color>(*element.paint_attr.fill);
+                    CHECK(std::holds_alternative<Color::RGB>(colour.specific));
+                }
+            }
+        }
+    }
+
+    // the transform is one attribute, and `none` clears it
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"layer"}, Transform{Translate{units(5), units(6)}}}}).ok);
+    const Outcome transformed = planner.dispatch(Show{SvgIdRef{"layer"}});
+    if (std::holds_alternative<NodeView>(transformed.view)) {
+        const std::optional<Transform> transform = transform_of(std::get<NodeView>(transformed.view).payload);
+        CHECK(transform.has_value());
+        if (transform) {
+            CHECK(std::holds_alternative<Translate>(*transform));
+            if (std::holds_alternative<Translate>(*transform)) {
+                CHECK(to_text(std::get<Translate>(*transform).x) == "5");
+            }
+        }
+    }
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"layer"}, std::nullopt}}).ok);
+    const Outcome cleared = planner.dispatch(Show{SvgIdRef{"layer"}});
+    if (std::holds_alternative<NodeView>(cleared.view)) {
+        CHECK(!transform_of(std::get<NodeView>(cleared.view).payload).has_value());
+    }
+
+    // `width` is the root element's canvas; `w` is a rect's side, and neither node has
+    // the other's attribute
+    CHECK(planner.dispatch(Set{SetWidth{RootRef{}, units(1024)}}).ok);
+    if (const std::optional<Node> root_payload = document.node(document.root())) {
+        const Container& container = std::get<Container>(std::get<SVGNode>(*root_payload).data);
+        CHECK(std::holds_alternative<Container::SVG>(container.specific));
+        if (std::holds_alternative<Container::SVG>(container.specific)) {
+            const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
+            CHECK(canvas.width.has_value());
+            if (canvas.width) CHECK(to_text(*canvas.width) == "1024");
+        }
+    }
+    // `width` is the SVG spelling of a rect's side too; `w` is the short form
+    CHECK(planner.dispatch(Set{SetWidth{SvgIdRef{"box"}, units(11)}}).ok);
+    const Outcome widened_rect = planner.dispatch(Show{SvgIdRef{"box"}});
+    if (std::holds_alternative<NodeView>(widened_rect.view)) {
+        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(widened_rect.view).payload);
+        if (geometry) CHECK(to_text(geometry->w) == "11");
+    }
+
+    const Outcome unknown_on_circle = planner.dispatch(Set{SetX{SvgIdRef{"c1"}, units(1)}});
+    CHECK(!unknown_on_circle.ok);
+    CHECK(unknown_on_circle.message == "error: unknown attribute: x");
+    const Outcome unknown_on_rect = planner.dispatch(Set{SetCx{SvgIdRef{"box"}, units(1)}});
+    CHECK(!unknown_on_rect.ok);
+    CHECK(unknown_on_rect.message == "error: unknown attribute: cx");
+    CHECK(!planner.dispatch(Set{SetFill{SvgIdRef{"nothing"}, Paint{Color{Color::None{}}}}}).ok);
+
+    // A text's content is character data in a child, and a set updates the element's words
+    // whether it is named by the element or by the child's own handle.
+    CHECK(planner.dispatch(Set{SetContent{SvgIdRef{"title"}, "hello again"}}).ok);
+    const Outcome reworded = planner.dispatch(Show{SvgIdRef{"title"}});
+    CHECK(std::holds_alternative<NodeView>(reworded.view));
+    if (std::holds_alternative<NodeView>(reworded.view)) {
+        CHECK(std::get<NodeView>(reworded.view).text == "hello again");
+    }
+    if (title) {
+        const std::vector<Id> inside = document.children(*title);
+        CHECK(inside.size() == 1);
+        if (inside.size() == 1) {
+            CHECK(planner.dispatch(Set{SetContent{HandleRef{inside.front()}, "direct words"}}).ok);
+            const Outcome direct = planner.dispatch(Show{SvgIdRef{"title"}});
+            if (std::holds_alternative<NodeView>(direct.view)) {
+                CHECK(std::get<NodeView>(direct.view).text == "direct words");
+            }
+        }
+    }
+    CHECK(!planner.dispatch(Set{SetContent{SvgIdRef{"box"}, "not a text"}}).ok);
+
     // The canvas is the root element's own size, and setting it is a checkpoint: the
     // frame behind the drawing is what the document is now, so nothing before it can
     // be undone.

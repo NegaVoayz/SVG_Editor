@@ -28,6 +28,8 @@ bool holds(const Request& line) {
     const Intent& intent = std::get<Intent>(line);
     if constexpr (std::is_constructible_v<Create, T>) {
         return std::holds_alternative<Create>(intent) && std::holds_alternative<T>(std::get<Create>(intent));
+    } else if constexpr (std::is_constructible_v<Set, T>) {
+        return std::holds_alternative<Set>(intent) && std::holds_alternative<T>(std::get<Set>(intent));
     } else {
         return std::holds_alternative<T>(intent);
     }
@@ -37,6 +39,7 @@ template<typename T>
 const T& as(const Request& line) {
     const Intent& intent = std::get<Intent>(line);
     if constexpr (std::is_constructible_v<Create, T>) return std::get<T>(std::get<Create>(intent));
+    else if constexpr (std::is_constructible_v<Set, T>) return std::get<T>(std::get<Set>(intent));
     else return std::get<T>(intent);
 }
 
@@ -162,6 +165,52 @@ int main() {
     CHECK(holds<ScaleBy>(scaled));
     if (holds<ScaleBy>(scaled)) CHECK(as<ScaleBy>(scaled).factor == 2.5F);
     CHECK(refuses(parse("scale layer wide")));
+
+    // `set` names one attribute at runtime; the name is in the table and decides both the
+    // value's syntax and which typed instruction comes out.
+    const Request set_x = parse("set box x 50");
+    CHECK(holds<SetX>(set_x));
+    if (holds<SetX>(set_x)) {
+        CHECK(name_in(as<SetX>(set_x).node) == "box");
+        CHECK(std::get<Length>(as<SetX>(set_x).value).unit == Length::Unit::UserUnit);
+    }
+
+    const Request set_fill = parse("set box fill #00ff00");
+    CHECK(holds<SetFill>(set_fill));
+    if (holds<SetFill>(set_fill)) {
+        CHECK(std::holds_alternative<Color>(as<SetFill>(set_fill).value));
+        CHECK(std::holds_alternative<Color::RGB>(std::get<Color>(as<SetFill>(set_fill).value).specific));
+    }
+
+    const Request set_class = parse("set box class \"layer one\"");
+    CHECK(holds<SetClass>(set_class));
+    if (holds<SetClass>(set_class)) CHECK(as<SetClass>(set_class).value == "layer one");
+
+    const Request set_transform = parse("set layer transform translate(5 6)");
+    CHECK(holds<SetTransform>(set_transform));
+    if (holds<SetTransform>(set_transform)) {
+        CHECK(as<SetTransform>(set_transform).value.has_value());
+        if (as<SetTransform>(set_transform).value) {
+            CHECK(std::holds_alternative<Translate>(*as<SetTransform>(set_transform).value));
+        }
+    }
+
+    const Request clear_transform = parse("set layer transform none");
+    CHECK(holds<SetTransform>(clear_transform));
+    if (holds<SetTransform>(clear_transform)) CHECK(!as<SetTransform>(clear_transform).value.has_value());
+
+    const Request unknown_attribute = parse("set box colour red");
+    CHECK(refuses(unknown_attribute));
+    if (refuses(unknown_attribute)) {
+        CHECK(complaint(unknown_attribute) == "error: unknown attribute: colour");
+    }
+
+    // a name the table knows but this node does not carry gets past the front end: whether
+    // the node carries it is a question for the layer that holds the node.
+    CHECK(holds<SetR>(parse("set circle r 5")));
+    CHECK(refuses(parse("set box x")));
+    CHECK(refuses(parse("set box x wide")));
+    CHECK(refuses(parse("set layer transform translate(wide 1)")));
 
     const Request grouped = parse("group pair box ruler");
     CHECK(holds<Group>(grouped));

@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "Create.hh"  // the one reader that lives with the kinds it reads
+#include "Set.hh"     // the one reader that lives with the attributes it reads
 
 namespace {
 
@@ -117,9 +118,9 @@ Request parse_help(const Words& words) {
 }
 
 // The vocabulary itself: one row per verb, in the order the help lists them - `canvas` is
-// the one row that answers both of the forms the help gives it. Eighteen names to compare
+// the one row that answers both of the forms the help gives it. Nineteen names to compare
 // one word against is a scan, not a lookup structure.
-constexpr std::array<Verb, 18> table{{
+constexpr std::array<Verb, 19> table{{
     {"help", parse_help},
     {"tree", parse_tree},
     {"show", parse_show},
@@ -128,6 +129,7 @@ constexpr std::array<Verb, 18> table{{
     {"delete", parse_delete},
     {"move", parse_move},
     {"scale", parse_scale},
+    {"set", parse_set},
     {"group", parse_group},
     {"ungroup", parse_ungroup},
     {"addto", parse_addto},

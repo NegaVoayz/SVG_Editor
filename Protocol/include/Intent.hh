@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -67,6 +68,153 @@ struct AddTo { NodeRef parent, node; };
 // The child chain is the z-order, first child in front.
 struct Front { NodeRef node; };
 struct Back { NodeRef node; };
+
+// --- setting one attribute ---
+
+// `set <id> <attribute> <value>` names its attribute at runtime, but the name decides the
+// value's type before the document is consulted. Each attribute is therefore a type of its
+// own: the front end reads the word as the type that name implies, and the Editor writes the
+// member that type names, with no chain over attribute strings below the ui layer.
+//
+// The `name` member is the spelling the front end looks up and the word an attribute a node
+// does not carry is refused with, so the two cannot drift apart. `id`, the parent links and
+// the child list are deliberately absent: a handle is the hive's, and where a node sits is
+// the Editor's structural vocabulary (`addto`, `front`, `back`, ...), not an attribute.
+struct SetX {
+    static constexpr std::string_view name = "x";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetY {
+    static constexpr std::string_view name = "y";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetW {
+    static constexpr std::string_view name = "w";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetH {
+    static constexpr std::string_view name = "h";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetCx {
+    static constexpr std::string_view name = "cx";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetCy {
+    static constexpr std::string_view name = "cy";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetR {
+    static constexpr std::string_view name = "r";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetRx {
+    static constexpr std::string_view name = "rx";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetRy {
+    static constexpr std::string_view name = "ry";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetX1 {
+    static constexpr std::string_view name = "x1";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetY1 {
+    static constexpr std::string_view name = "y1";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetX2 {
+    static constexpr std::string_view name = "x2";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetY2 {
+    static constexpr std::string_view name = "y2";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetDx {
+    static constexpr std::string_view name = "dx";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetDy {
+    static constexpr std::string_view name = "dy";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetStrokeWidth {
+    static constexpr std::string_view name = "stroke-width";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetWidth {
+    static constexpr std::string_view name = "width";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetHeight {
+    static constexpr std::string_view name = "height";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetStartOffset {
+    static constexpr std::string_view name = "startOffset";
+    NodeRef node;
+    LengthPercentage value;
+};
+struct SetClass {
+    static constexpr std::string_view name = "class";
+    NodeRef node;
+    std::string value;
+};
+struct SetFill {
+    static constexpr std::string_view name = "fill";
+    NodeRef node;
+    Paint value;
+};
+struct SetStroke {
+    static constexpr std::string_view name = "stroke";
+    NodeRef node;
+    Paint value;
+};
+// `none` clears the transform rather than writing a transform called none, which is the
+// one attribute whose absence is a value a user can ask for.
+struct SetTransform {
+    static constexpr std::string_view name = "transform";
+    NodeRef node;
+    std::optional<Transform> value;
+};
+struct SetHref {
+    static constexpr std::string_view name = "href";
+    NodeRef node;
+    std::string value;
+};
+struct SetContent {
+    static constexpr std::string_view name = "content";
+    NodeRef node;
+    std::string value;
+};
+
+// The attributes, one variant. `set` is one instruction, as `create` is, and which
+// attribute it names is the second question - asked where the node that has to carry it is
+// known.
+using Set = std::variant<SetX, SetY, SetW, SetH, SetCx, SetCy, SetR, SetRx, SetRy, SetX1, SetY1, SetX2, SetY2, SetDx,
+                         SetDy, SetStrokeWidth, SetWidth, SetHeight, SetStartOffset, SetClass, SetFill, SetStroke,
+                         SetTransform, SetHref, SetContent>;
+
 struct Undo {};
 struct Redo {};
 struct SetCanvas { std::optional<LengthPercentage> width, height; };
@@ -88,11 +236,11 @@ using Create = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine,
 // Planner and the Editor dispatch on it with std::visit, so every case is answered by a
 // specialization rather than by a chain over verbs. A create is answered by a second visit,
 // over the kinds it may hold.
-using Intent = std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Undo, Redo, SetCanvas,
-                            Init, ShowTree, Show, Read, Save>;
+using Intent = std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Set, Undo, Redo,
+                            SetCanvas, Init, ShowTree, Show, Read, Save>;
 
 // The change instructions on their own: the Editor is typed to these, so a view or a
 // context instruction reaching the write path is not a runtime branch it has to refuse, it
 // is a type it does not accept.
 using ChangeIntent =
-    std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, SetCanvas, Undo, Redo>;
+    std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Set, SetCanvas, Undo, Redo>;
