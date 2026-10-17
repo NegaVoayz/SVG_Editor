@@ -144,7 +144,12 @@ void TreeStore::commit(Edit& edit) {
     const Hive::CommitId before = view_->commit_id();
     // The hive commit is not reversible once published. Make room for its checkpoint
     // before publishing, so the only throwing step is the commit's own prepare phase.
-    checkpoints_.reserve(checkpoints_.size() + 1);
+    // Grow geometrically: reserving exactly the next size would reallocate and copy the
+    // whole checkpoint list on every edit, which turns a long session into O(n^2) work.
+    if (checkpoints_.capacity() < checkpoints_.size() + 1) {
+        const std::size_t grown = checkpoints_.capacity() == 0 ? 2 : checkpoints_.capacity() * 2;
+        checkpoints_.reserve(grown);
+    }
     const Snapshot next = edit.commit();
     if (next.commit_id() == before) return;  // an edit that wrote nothing is no block
 
