@@ -103,10 +103,10 @@ Outcome Editor::create(const T& intent) {
                                            intent.id + "\" in " + describe(intent.parent)};
 }
 
-// One create per element kind: the six bodies are written from the one above, and this is
-// where the compiler is asked for them. A kind with a builder and no line here is still
-// built - the overloads of new_element() are what makes an instruction a create - so the
-// two lists say the same thing, and both are short.
+// One create per element kind, written for the compiler: the second-level visit is in
+// Editor.cc and create() is defined here, so these are what give each kind's call a body. A
+// kind with a builder and no line here would not link, and a kind with no builder is the
+// build error at the visit.
 template Outcome Editor::create<CreateRect>(const CreateRect&);
 template Outcome Editor::create<CreateCircle>(const CreateCircle&);
 template Outcome Editor::create<CreateEllipse>(const CreateEllipse&);

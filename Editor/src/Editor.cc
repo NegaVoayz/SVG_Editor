@@ -29,6 +29,14 @@ Outcome Editor::translate(const ChangeIntent& intent) {
     }
 }
 
+// The second level of the dispatch: a create is one instruction, and which element it builds
+// is the next question. Each kind comes back to handle(), where the builder it has is what
+// answers it - and the explicit instantiations in Create.cc are what gives that answer a body
+// to call from here.
+template<> Outcome Editor::handle<Create>(const Create& intent) {
+    return std::visit([this](const auto& element) { return handle(element); }, intent);
+}
+
 Id Editor::resolve(const NodeRef& reference) const {
     const std::optional<Id> found = look_up(document_, reference);
     if (found) return *found;

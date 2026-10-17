@@ -42,6 +42,10 @@ private:
     // instruction that brings none has to have a translation of its own. An instruction
     // with neither reaches the build error below, which names its type: an unimplemented
     // case is a compile error rather than a branch that quietly does nothing.
+    //
+    // A create is the one instruction that asks twice: `handle<Create>` is a translation of
+    // its own, and the visit inside it comes back here for each element kind a create may
+    // hold - which is why the kinds are answered by this same question and not by a list.
     template<typename T>
     Outcome handle(const T& intent) {
         if constexpr (requires { new_element(intent); }) {
@@ -67,8 +71,8 @@ private:
         std::optional<std::string> content;
     };
 
-    // One per element kind: these overloads are what says which instructions build an
-    // element, and what each of them builds.
+    // One per element kind: what each kind builds. The primary template asks for these by
+    // name, so a kind with no overload here does not compile.
     NewElement new_element(const CreateRect& intent) const;
     NewElement new_element(const CreateCircle& intent) const;
     NewElement new_element(const CreateEllipse& intent) const;

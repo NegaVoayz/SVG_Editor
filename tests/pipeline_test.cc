@@ -79,7 +79,7 @@ int main() {
     }
 
     // a change goes through the Editor, and one instruction is one transaction
-    const Outcome created = planner.dispatch(CreateGroup{"layer"});
+    const Outcome created = planner.dispatch(Create{CreateGroup{"layer"}});
     CHECK(created.ok);
     CHECK(created.kind == Kind::Change);
     CHECK(created.message.find("created") != std::string::npos);
@@ -87,7 +87,7 @@ int main() {
     CHECK(document.find("layer").has_value());
 
     const Outcome shape = planner.dispatch(
-        CreateRect{"box", units(0), units(0), units(10), units(10), Color{Color::RGB{255, 0, 0}}});
+        Create{CreateRect{"box", units(0), units(0), units(10), units(10), Color{Color::RGB{255, 0, 0}}}});
     CHECK(shape.ok);
     CHECK(document.children(document.root()).size() == 2);
 
@@ -197,10 +197,10 @@ int main() {
     CHECK(document.find("layer").has_value());
 
     // an id that is taken is refused, and one that is free is accepted
-    const Outcome taken = planner.dispatch(CreateGroup{"box"});
+    const Outcome taken = planner.dispatch(Create{CreateGroup{"box"}});
     CHECK(!taken.ok);
     CHECK(taken.message.find("already called") != std::string::npos);
-    CHECK(planner.dispatch(CreateGroup{"other"}).ok);
+    CHECK(planner.dispatch(Create{CreateGroup{"other"}}).ok);
 
     // Moving a container is its transform, because a group has no coordinates of its
     // own: the first move becomes a translate and a later one extends it.
@@ -235,10 +235,10 @@ int main() {
 
     // Units: mm and cm are one system and convert, in the unit the value was written
     // in; inches are the other system and are not mixed into it.
-    const Outcome ruler = planner.dispatch(CreateRect{"ruler", Length{2.0F, Length::Unit::Cm},
-                                                      Length{0.0F, Length::Unit::Mm},
-                                                      Length{10.0F, Length::Unit::Mm},
-                                                      Length{10.0F, Length::Unit::Mm}, std::nullopt});
+    const Outcome ruler = planner.dispatch(Create{CreateRect{"ruler", Length{2.0F, Length::Unit::Cm},
+                                                             Length{0.0F, Length::Unit::Mm},
+                                                             Length{10.0F, Length::Unit::Mm},
+                                                             Length{10.0F, Length::Unit::Mm}, std::nullopt}});
     CHECK(ruler.ok);
     CHECK(planner.dispatch(Move{SvgIdRef{"ruler"}, Length{5.0F, Length::Unit::Mm}, Length{0.0F, Length::Unit::Mm}})
               .ok);  // 2cm + 5mm = 2.5cm
@@ -268,8 +268,8 @@ int main() {
     CHECK(!px_into_user_unit.ok);
     CHECK(px_into_user_unit.message.find("1px is imperial") != std::string::npos);
 
-    const Outcome relative = planner.dispatch(CreateRect{"relative", Percentage{50.0F}, Percentage{0.0F},
-                                                         units(1), units(1), std::nullopt});
+    const Outcome relative = planner.dispatch(Create{CreateRect{"relative", Percentage{50.0F}, Percentage{0.0F},
+                                                                units(1), units(1), std::nullopt}});
     CHECK(relative.ok);
     const Outcome into_percentage = planner.dispatch(Move{SvgIdRef{"relative"}, units(1), units(0)});
     CHECK(!into_percentage.ok);
@@ -281,8 +281,8 @@ int main() {
 
     // A create says where the element goes, so a tree is built where it belongs
     // rather than moved there afterwards.
-    const Outcome round = planner.dispatch(CreateCircle{"c1", units(10), units(10), units(5),
-                                                        Color{Color::RGB{0, 0, 255}}, SvgIdRef{"layer"}});
+    const Outcome round = planner.dispatch(Create{CreateCircle{"c1", units(10), units(10), units(5),
+                                                               Color{Color::RGB{0, 0, 255}}, SvgIdRef{"layer"}}});
     CHECK(round.ok);
     const std::optional<Id> dot = document.find("c1");
     CHECK(dot.has_value());
@@ -290,7 +290,7 @@ int main() {
 
     // a text element and the character data inside it are two nodes, and one
     // instruction is still one transaction
-    CHECK(planner.dispatch(CreateText{"title", units(20), units(40), "hello world"}).ok);
+    CHECK(planner.dispatch(Create{CreateText{"title", units(20), units(40), "hello world"}}).ok);
     const std::optional<Id> title = document.find("title");
     CHECK(title.has_value());
     if (title) {
@@ -309,8 +309,8 @@ int main() {
     }
 
     // a line has no inside to fill, so the one colour it is given is a stroke
-    CHECK(planner.dispatch(CreateLine{"edge", units(0), units(0), units(10), units(10),
-                                      Color{Color::RGB{255, 0, 0}}})
+    CHECK(planner.dispatch(Create{CreateLine{"edge", units(0), units(0), units(10), units(10),
+                                             Color{Color::RGB{255, 0, 0}}}})
               .ok);
     if (const std::optional<Id> edge = document.find("edge")) {
         const std::optional<Node> payload = document.node(*edge);
@@ -323,7 +323,7 @@ int main() {
     }
 
     // an ellipse is its own kind, and its radii are its own values
-    CHECK(planner.dispatch(CreateEllipse{"oval", units(0), units(0), units(30), units(10), std::nullopt}).ok);
+    CHECK(planner.dispatch(Create{CreateEllipse{"oval", units(0), units(0), units(30), units(10), std::nullopt}}).ok);
     CHECK(document.find("oval").has_value());
 
     // A scale of a container is its transform: the group had no transform left after
@@ -434,7 +434,7 @@ int main() {
     // A group of nothing, and a name that is taken, are both refused
     CHECK(!planner.dispatch(Group{"empty", {}}).ok);
     CHECK(!planner.dispatch(Group{"box", {SvgIdRef{"box"}}}).ok);
-    CHECK(!planner.dispatch(CreateCircle{"box", units(0), units(0), units(1), std::nullopt}).ok);
+    CHECK(!planner.dispatch(Create{CreateCircle{"box", units(0), units(0), units(1), std::nullopt}}).ok);
 
     // The canvas is the root element's own size, and setting it is a checkpoint: the
     // frame behind the drawing is what the document is now, so nothing before it can

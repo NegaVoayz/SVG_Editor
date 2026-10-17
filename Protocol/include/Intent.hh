@@ -10,8 +10,8 @@
 
 // The vocabulary a front end speaks: one structured instruction per thing a user can ask
 // for, with model values in it rather than text. "create rect box 0 0 10 10 #ff0000" is a
-// CreateRect by the time it leaves the ui layer, so nothing above that parses a string, and
-// nothing below it needs to know how an instruction was written.
+// Create of a CreateRect by the time it leaves the ui layer, so nothing above that parses a
+// string, and nothing below it needs to know how an instruction was written.
 
 // --- the instructions ---
 
@@ -79,15 +79,20 @@ struct Read { std::string path; };
 // No path: write where the document was read from, which is the Model's to remember.
 struct Save { std::optional<std::string> path; };
 
+// The element instructions, one variant of their own: which element a line asks for is a
+// question for the layer that builds one, so the Planner only has to know that a line is a
+// create, and the Editor asks the second question when it is the one holding the line.
+using Create = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup>;
+
 // One instruction, of exactly one of those types: the front end produces it and both the
 // Planner and the Editor dispatch on it with std::visit, so every case is answered by a
-// specialization rather than by a chain over verbs.
-using Intent = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup, Delete,
-                            Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Undo, Redo, SetCanvas, Init, ShowTree,
-                            Show, Read, Save>;
+// specialization rather than by a chain over verbs. A create is answered by a second visit,
+// over the kinds it may hold.
+using Intent = std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Undo, Redo, SetCanvas,
+                            Init, ShowTree, Show, Read, Save>;
 
 // The change instructions on their own: the Editor is typed to these, so a view or a
 // context instruction reaching the write path is not a runtime branch it has to refuse, it
 // is a type it does not accept.
-using ChangeIntent = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup,
-                                  Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, SetCanvas, Undo, Redo>;
+using ChangeIntent =
+    std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, SetCanvas, Undo, Redo>;

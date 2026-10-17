@@ -13,18 +13,19 @@ namespace {
 
 // One kind: the word that names it, and what it makes of the id, the values and the place
 // the line named. The values are what follows the kind with `in <gid>` already off the end,
-// so a builder reads exactly what its own kind asks for.
+// so a builder reads exactly what its own kind asks for. What comes back is a Create, which
+// is the one instruction the rest of the pipeline sees.
 struct ElementKind {
     std::string_view name;
-    Intent (*build)(const std::string& id, const Words& values, const NodeRef& parent);
+    Create (*build)(const std::string& id, const Words& values, const NodeRef& parent);
 };
 
-Intent build_group(const std::string& id, const Words& values, const NodeRef& parent) {
+Create build_group(const std::string& id, const Words& values, const NodeRef& parent) {
     expect(values.size(), 0, "create g takes '<id> [in <gid>]'");
     return CreateGroup{id, parent};
 }
 
-Intent build_rect(const std::string& id, const Words& values, const NodeRef& parent) {
+Create build_rect(const std::string& id, const Words& values, const NodeRef& parent) {
     expect_between(values.size(), 4, 5, "create rect takes '<id> <x> <y> <w> <h> [fill] [in <gid>]'");
     CreateRect intent{id, length_of(values[0]), length_of(values[1]), length_of(values[2]), length_of(values[3]),
                       std::nullopt};
@@ -33,7 +34,7 @@ Intent build_rect(const std::string& id, const Words& values, const NodeRef& par
     return intent;
 }
 
-Intent build_circle(const std::string& id, const Words& values, const NodeRef& parent) {
+Create build_circle(const std::string& id, const Words& values, const NodeRef& parent) {
     expect_between(values.size(), 3, 4, "create circle takes '<id> <cx> <cy> <r> [fill] [in <gid>]'");
     CreateCircle intent{id, length_of(values[0]), length_of(values[1]), length_of(values[2]), std::nullopt};
     if (values.size() == 4) intent.fill = color_of(values[3]);
@@ -41,7 +42,7 @@ Intent build_circle(const std::string& id, const Words& values, const NodeRef& p
     return intent;
 }
 
-Intent build_ellipse(const std::string& id, const Words& values, const NodeRef& parent) {
+Create build_ellipse(const std::string& id, const Words& values, const NodeRef& parent) {
     expect_between(values.size(), 4, 5, "create ellipse takes '<id> <cx> <cy> <rx> <ry> [fill] [in <gid>]'");
     CreateEllipse intent{id,  length_of(values[0]), length_of(values[1]), length_of(values[2]),
                          length_of(values[3]), std::nullopt};
@@ -51,7 +52,7 @@ Intent build_ellipse(const std::string& id, const Words& values, const NodeRef& 
 }
 
 // A line has no inside to fill, so the one colour it takes is its stroke.
-Intent build_line(const std::string& id, const Words& values, const NodeRef& parent) {
+Create build_line(const std::string& id, const Words& values, const NodeRef& parent) {
     expect_between(values.size(), 4, 5, "create line takes '<id> <x1> <y1> <x2> <y2> [stroke] [in <gid>]'");
     CreateLine intent{id,  length_of(values[0]), length_of(values[1]), length_of(values[2]),
                       length_of(values[3]), std::nullopt};
@@ -60,7 +61,7 @@ Intent build_line(const std::string& id, const Words& values, const NodeRef& par
     return intent;
 }
 
-Intent build_text(const std::string& id, const Words& values, const NodeRef& parent) {
+Create build_text(const std::string& id, const Words& values, const NodeRef& parent) {
     expect(values.size(), 3, "create text takes '<id> <x> <y> \"content\" [in <gid>]'");
     CreateText intent{id, length_of(values[0]), length_of(values[1]), values[2]};
     intent.parent = parent;
@@ -106,7 +107,7 @@ Request parse_create(const Words& words) {
     }
 
     for (const ElementKind& kind : kinds) {
-        if (kind.name == words[1]) return kind.build(id, values, parent);
+        if (kind.name == words[1]) return Intent{kind.build(id, values, parent)};
     }
     throw ParseFailed{"create can build " + kinds_of() + ", not '" + words[1] + "'"};
 }

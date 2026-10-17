@@ -3,6 +3,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 
 #include "Command.hh"
@@ -18,16 +19,25 @@ void check(bool condition, const char* expression, int line) {
     ++failures;
 }
 
-// One line is an instruction, the front end's own help, or the reason it is neither,
-// so reading one goes through two variants; these few keep the checks readable.
+// One line is an instruction, the front end's own help, or the reason it is neither, so
+// reading one goes through two variants; a create adds a third, because its element kind is
+// a variant of its own. These few keep the checks readable either way.
 template<typename T>
 bool holds(const Request& line) {
-    return std::holds_alternative<Intent>(line) && std::holds_alternative<T>(std::get<Intent>(line));
+    if (!std::holds_alternative<Intent>(line)) return false;
+    const Intent& intent = std::get<Intent>(line);
+    if constexpr (std::is_constructible_v<Create, T>) {
+        return std::holds_alternative<Create>(intent) && std::holds_alternative<T>(std::get<Create>(intent));
+    } else {
+        return std::holds_alternative<T>(intent);
+    }
 }
 
 template<typename T>
 const T& as(const Request& line) {
-    return std::get<T>(std::get<Intent>(line));
+    const Intent& intent = std::get<Intent>(line);
+    if constexpr (std::is_constructible_v<Create, T>) return std::get<T>(std::get<Create>(intent));
+    else return std::get<T>(intent);
 }
 
 bool refuses(const Request& line) { return std::holds_alternative<ParseError>(line); }

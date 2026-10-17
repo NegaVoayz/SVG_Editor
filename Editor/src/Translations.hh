@@ -12,8 +12,13 @@
 // somewhere before the visitor in Editor.cc asks for them: a specialization the compiler
 // has not met by the point where std::visit instantiates handle<T> is not a
 // specialization at all, and what comes out instead is the primary template's build
-// error. The creates are not on this list: one body answers all six of them, so they are
-// reached through the primary template and the builders it asks for.
+// error. The element kinds are not on this list: their one instruction is, and one body
+// answers all six of them.
+
+// Editor.cc: the second level - a create is one instruction, and its element kind is the
+// next question. The kinds themselves come back through the primary template, which is
+// what asks for a builder by name.
+template<> Outcome Editor::handle<Create>(const Create& intent);
 
 // Structure.cc: where a node sits, and whether it is there at all.
 template<> Outcome Editor::handle<Delete>(const Delete& intent);
