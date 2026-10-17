@@ -9,7 +9,7 @@ target_compile_definitions(pipeline_test PRIVATE SVG_EDITOR_SOURCE_DIR="${CMAKE_
 add_test(NAME pipeline COMMAND pipeline_test)
 
 # the rule the target graph no longer expresses: no module outside Model/ may use
-# the hive, so the sources are read rather than the link lines
+# MVCCHive, so the sources are read rather than the link lines
 add_test(NAME layering
     COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/CheckLayering.cmake)
 

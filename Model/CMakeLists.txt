@@ -1,7 +1,6 @@
 # Model owns the tree: the arena it is stored in, the API that reads it and the
-# API that edits it. MVCCHive is its dependency, and SwapDiffHive is still on the
-# link line until the tree has moved onto the new hive.
-include(cmake/SwapDiffHive.cmake)
+# API that edits it. MVCCHive is its private dependency, so this directory is the
+# only place in the build where the hive is visible at all.
 include(cmake/MVCCHive.cmake)
 
 add_library(Model
@@ -14,11 +13,10 @@ target_include_directories(Model PUBLIC
 
 # PUBLIC, not PRIVATE: Document holds the arena by value, so its header includes
 # TreeStore.hh and with it the hive. What must not travel is the *use* of the hive -
-# no other module may open a hive transaction or touch SwapDiffHive, which the
-# layering test checks.
+# no other module may open a hive transaction or touch MVCCHive, which the layering
+# test checks.
 target_link_libraries(Model
     PUBLIC
-        SwapDiffHive::SwapDiffHive
         mvcc_hive
     PRIVATE
         SvgEditor::Warnings)
