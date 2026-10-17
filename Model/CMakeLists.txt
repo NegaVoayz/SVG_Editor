@@ -1,6 +1,6 @@
 # Model owns the tree: the arena it is stored in, the API that reads it and the
-# API that edits it. MVCCHive is its private dependency, so this directory is the
-# only place in the build where the hive is visible at all.
+# API that edits it. MVCCHive is its dependency, so this directory is the only
+# place in the build where the hive is used.
 include(cmake/MVCCHive.cmake)
 
 add_library(Model

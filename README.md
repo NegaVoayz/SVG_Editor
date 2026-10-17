@@ -25,9 +25,8 @@ ctest --preset default
 ```
 
 The first configure fetches MVCCHive at the tag pinned in
-`Model/cmake/MVCCHive.cmake`. Two things avoid the download: an installed
-MVCCHive (found with `find_package`), or a checkout pointed at by
-`FETCHCONTENT_SOURCE_DIR_MVCCHIVE`:
+`Model/cmake/MVCCHive.cmake`. A package config found by `find_package` or a
+checkout pointed at by `FETCHCONTENT_SOURCE_DIR_MVCCHIVE` avoids the download:
 
 ```sh
 # uses ../MVCCHive as it is, no network involved

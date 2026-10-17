@@ -11,9 +11,9 @@ set(SVG_EDITOR_MVCCHIVE_REPOSITORY "https://github.com/NegaVoayz/MVCCHive.git"
 set(SVG_EDITOR_MVCCHIVE_TAG "v1.0.0"
     CACHE STRING "Tag or commit of MVCCHive to check out")
 
-# An installed MVCCHive wins, which is what makes an offline machine work
-# without a source checkout. The local-dep preset points the source directory at
-# the sibling checkout instead.
+# A package config found by find_package wins, and the local-dep preset points
+# the source directory at the sibling checkout instead; either keeps an offline
+# build off the network.
 FetchContent_Declare(MVCCHive
     GIT_REPOSITORY "${SVG_EDITOR_MVCCHIVE_REPOSITORY}"
     GIT_TAG "${SVG_EDITOR_MVCCHIVE_TAG}"
