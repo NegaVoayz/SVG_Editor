@@ -337,23 +337,49 @@ Three instructions drop the history: `canvas`, `save`, and `init`, which replace
 document instead of editing it. What the first two have in common is that the tree they
 leave behind is the state the file, or the frame behind the drawing, says it is - so the
 way back to the state before them is a state nobody wrote down. `clear_history()` is that
-drop: the tree stays as it is and becomes the baseline. It has to reach both hives in one
-call, or the pair of them would disagree about where the beginning is. `init` goes
+drop: the tree stays as it is and becomes the baseline. It has to reach every hive in one
+call, or they would disagree about where the beginning is. `init` goes
 further: the canvas comes with the new root, and there is nothing of the old document
 left to undo into, so it lands on the Model's `reset()` rather than in a transaction.
 
 ### Model: the tree in a hive
 
-The tree is stored in a `SwapDiffHive`, one hive for the node payloads and one for
-the child links:
+The tree is stored in four `SwapDiffHive`s, one for each kind of record it is made of:
 
 ```C++
-struct Edge { Id child_id; Id prev; };
-struct NodeRecord { Node payload; Id parent; Id last_child_edge; };
+struct Edge       { Id child_id; Id prev; };
+struct ParentLink { Id parent; };
+struct ChildLink  { Id last_child_edge; };
 
-SwapDiffHive<NodeRecord> nodes;
-SwapDiffHive<Edge> edges;
+struct SVGNode   { IdentityAttr identity_attr; PaintAttr paint_attr; TransformAttr transform_attr;
+                   Id parent_link; std::variant<Shape, Container, Text> data; };
+struct PlainText { std::string content; Id parent_link; };
+using Node = std::variant<SVGNode, PlainText>;
+
+SwapDiffHive<Node>       nodes;
+SwapDiffHive<ParentLink> parents;
+SwapDiffHive<ChildLink>  children;
+SwapDiffHive<Edge>       edges;
 ```
+
+A node is the whole record the arena stores: there is no wrapper around the variant, so both
+of its alternatives carry the handle of the row that says who holds them - character data
+included, because a text element holds its characters as a node like any other. A container
+or a text also carries `ChildAttr::links`, the row its own child chain is written in; a
+shape has no such member. Neither handle changes when a node moves: moving patches its parent
+row and the sibling links around it, so the node - identity, paint and transform - is not
+copied to say that it now sits somewhere else. Adding or removing a child patches a row of
+two ids instead of the parent's payload. That is the write amplification this layout removes,
+and it is why the two things a move changes are not fields of the thing it moves.
+
+Which types can do what is a compile-time fact, checked without listing the kinds:
+`Linked<T>` is "has a parent link that is an `Id`" and `ChildHolder<T>` is "has a child link
+that is an `Id`", and `all_linked()` folds over the alternatives of `Node` so a kind that
+forgets its link is a build error. Neither concept is a flag that can be set wrong: the member
+they ask for is the storage the store writes the handle into, so a type that only claimed the
+capability would have nowhere for the handle and would not satisfy them. The store's one
+runtime question - which alternative of `Node` is this? - is a `std::visit`, and each
+alternative answers with `if constexpr`, so a new kind needs no case added anywhere.
 
 The hive gives three ops - insert, remove, swap - and a history of them, so the
 question the Model has to answer is how one user-level edit becomes a sequence of
@@ -369,23 +395,23 @@ those three. Three things make that work:
    parked in the scratch slot, which is where the rollback restores it from. The
    patched slot is the same handle all along, so nothing that names a node has to
    be updated.
-3. **One user intent is one diff id on both hives.** `Document` keeps the ids
-   (`1, 2, 3, ...`, never reused) and opens the same transaction on both hives, so
+3. **One user intent is one diff id on every hive.** `Document` keeps the ids
+   (`1, 2, 3, ...`, never reused) and opens the same transaction on all four hives, so
    the block boundaries agree.
 
 Walking the history is a `seek()` with an exact id rather than one block back per
-hive, and that is not a detail: an edit that only touches the node hive - a payload
-edit - adds a block to one hive and none to the other, and stepping both of them by
-one block would desynchronize them the moment the two histories differ. `undo()`
-and `redo()` both land on a recorded id, so both hives end up showing the same diff.
+hive, and that is not a detail: an edit that only touches one hive - a payload edit, or
+a move - adds a block to that hive and none to the others, and stepping each of them by
+one block would desynchronize them the moment the histories differ. `undo()` and
+`redo()` both land on a recorded id, so every hive ends up showing the same diff.
 
 Each op of the transaction API is one shape of edit on top of those three hive
-ops: `append_child` inserts a node and links it last, `attach_last` unlinks a node
-and links it last somewhere else, `update` patches a payload and leaves the links
-alone, `erase` unlinks a node and removes it with its subtree. The tree also
-refuses what SVG does not allow: only a container or a text node takes children,
-the root cannot be moved or erased, and a node cannot be moved inside its own
-subtree.
+ops: `append_child` inserts a node and its rows and links it last, `attach_last` unlinks a
+node and links it last somewhere else, `update` patches a payload and leaves the rows alone,
+`erase` unlinks a node and removes it with its subtree and its rows. The tree also refuses
+what SVG does not allow: only a payload with a child link takes children, the root cannot be
+moved or erased, a node cannot be moved inside its own subtree, and an update cannot change
+whether a node holds children - the child row was given to the node by its type.
 
 Handles are slot ids. The slot of an erased node goes back to the free list and
 the next insert takes it, so a handle can end up naming a different node than it
@@ -404,22 +430,24 @@ see `SVGNode.hh`
 #### How to store links
 
 ```C++
-struct Edge {
-    Id child_id;
-    Id prev;
-};
+struct Edge       { Id child_id; Id prev; };
+struct ParentLink { Id parent; };          // one per node, the root's parent is no_id
+struct ChildLink  { Id last_child_edge; }; // one per payload with a ChildAttr
 ```
 
-We read a node's child by calling `edges[node.last_child_edge]` and recursively `i = edges[i].prev` until the chain ends at `no_id`.
+We read a node's children from the row the node keeps the handle of: the last edge is
+`children[node.data.child_attr.links].last_child_edge`, and from there `edges[i].prev` until
+the chain ends at `no_id`.
 
 Insert will go to last so that's O(1)
 
 `no_id` is `std::numeric_limits<Id>::max()`, the value the hive calls `npos`.
 Nothing is reserved in front of the first payload: the root is slot 0, and `no_id`
-is where a link that leads nowhere points - the root's `parent`, a childless
-node's `last_child_edge` and the first child's `prev` all read the same way. The
-root is dropped from the history immediately, so it is the baseline and "undo
-everything" lands on an empty document instead of no document.
+is where a link that leads nowhere points - the root's parent row, a childless
+element's `last_child_edge`, a payload that has no child link at all, and the first
+child's `prev` all read the same way. The root is dropped from the history
+immediately, so it is the baseline and "undo everything" lands on an empty document
+instead of no document.
 
 The two names for that one value are a naming choice, not a difference: a second
 global `npos` next to the hive's would be a redefinition in every Model source that
@@ -448,7 +476,7 @@ walk below.
 ### Model: ownership and layout
 
 `Document` holds the arena, the diff ids and the history position as members, and
-the two hives inside `TreeStore` are members of that. Nothing about a document sits
+the hives inside `TreeStore` are members of that. Nothing about a document sits
 behind another pointer: a document and the tree it holds are built, moved and
 destroyed as one object, and the only indirection left is the storage the hives
 themselves own.
@@ -513,10 +541,6 @@ either yet.
   serializer writes none of it.
 - a `find()` index: the view walks the tree on every call, which cannot go stale
   and is cheap enough while the tree is small.
-- the identity attributes: `NodeRecord` holds `parent` and `last_child_edge`,
-  while `IdentityAttr::parent_id` and `ChildAttr::last_child_edge` still exist in
-  the payload. The record is the authoritative copy today, which means the fields
-  in the payload are dead weight - either drop them or let the arena read them.
 - retention and compaction, now that `clear_history()` is what three instructions reach
   for: the hives offer `compact(trace_limit)`, and a document that only ever grows its
   trace is the other half of that question.
