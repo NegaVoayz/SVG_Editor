@@ -453,14 +453,27 @@ Current-view reads resolve a virtual id to one target, O(1), and then pay for th
 copy at the API boundary. The Planner's `tree` view is a full walk plus one `Node` copy per
 row, and `find()` is still a walk, so a command naming an SVG id costs O(N) before any
 write. The handle form (`#<id>`) avoids that walk; an id index is the next read-side
-improvement.
+improvement. Resolving a handle uses `Document::has_node()`, so it does not copy the
+record merely to learn that the record exists; only a read that returns the payload pays
+for the copy.
 
-History is the other axis. `TreeStore` grows its checkpoint list geometrically, but
-MVCCHive v1.0.0 reserves its commit and diff vectors for exactly the next commit in
-`commit_store.hpp`, which makes each commit copy the retained history. A long session
-therefore pays more per edit as history grows; pruning, a retention limit, or the same
-geometric-growth fix in the dependency is the first thing to settle before measuring
-large histories.
+History is the other axis. MVCCHive 1.0.2 keeps commit records and diffs in fixed-size
+blocked vectors, so appending a commit no longer copies the retained commit log;
+`TreeStore` grows its checkpoint list geometrically as well. The remaining history cost
+is block reclamation: `VersionStore::drain_retirements()` calls `release_empty_blocks()`,
+which scans every owned version block on every commit. With a 416-byte `Node` that is one
+block per 32 versions, so per-edit latency still rises with retained history even though
+each edit writes one version. Tracking only the blocks a retirement actually empties, or
+putting a cap on retained history, is the next step before very long sessions.
+
+On this machine (MinGW GCC 14.2, Release), a `set` at 50k history entries costs about
+5.1 us (195k sets/s), reading one node about 0.49 us, and `show #handle` about 0.95 us.
+The same run measures about 3.8, 13 and 31 us per set at 20k, 100k and 200k history,
+which is that block scan. Bulk loading has a separate cost: `Transaction::emplace()`
+reserves its created-target and reclamation vectors for exactly one more element per
+insertion, so building 16k nodes in one transaction takes about 0.7 s rather than
+scaling linearly. The parser should commit a large load in chunks and clear the history
+when the load is finished.
 
 Handles are MVCCHive virtual ids. They are monotonically allocated and never
 reused, so a handle cannot silently name a different node later. The durable
