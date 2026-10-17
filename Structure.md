@@ -138,15 +138,15 @@ template<> Outcome handle<Create>(const Create& intent) {
   accepts.
 - A create is answered in two levels. `Create` is one alternative of `ChangeIntent`, so
   level one routes it like any other change and the Planner never learns which element a
-  line named; level two is a translation of its own, `handle<Create>`, which visits the
-  kinds it may hold. Each kind comes back to the primary template above, where
-  `new_element()` having an overload for it is what sends it to `create()` - so a kind
-  added to `Create` with no builder is the build error naming that kind, and one with a
-  builder needs no change to the routing above.
+  line named; level two is a translation of its own, `handle<Create>` in
+  `Editor/src/Create.cc`, which visits the kinds it may hold. Each kind comes back to the
+  primary template above, where `new_element()` having an overload for it is what sends it
+  to `create()` - so a kind added to `Create` with no builder is the build error naming
+  that kind, and one with a builder needs no change to the routing above.
 - One body answers all six kinds, and what differs is what the instruction brings: the
-  overloads of `new_element()` are what each kind builds. The visit is in `Editor.cc` and
-  `create()` is defined in `Create.cc`, which is why each kind also has its explicit
-  instantiation there: that is what gives the call a body.
+  overloads of `new_element()` are what each kind builds. The visit sits next to that body
+  and the builders, so it is also what instantiates `create()` for every kind: the kinds
+  are the alternatives of `Create`, and there is no second list of them to keep in step.
 - The other eleven translations are written where they are routed, one file per thing an
   edit changes: `Editor/src/Create.cc` builds elements, `Structure.cc` moves nodes and
   levels around, `Payload.cc` changes what one node holds, and `History.cc` is undo and
