@@ -4,7 +4,7 @@
 
 | module              | what it is                                                        | depends on                    |
 | ------------------- | ----------------------------------------------------------------- | ----------------------------- |
-| `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | SwapDiffHive                  |
+| `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | MVCCHive                      |
 | `Model/FileSystem/` | bytes in and out of the document's file                             | -                             |
 | `Protocol/`         | the vocabulary the pipeline passes around, in the four parts it is made of: how a node is named, the intents, the views, the outcome | Model (for the values) |
 | `Editor/`           | translates one change intent into tree transactions                 | Model, Protocol               |
@@ -13,10 +13,10 @@
 
 Three rules hold the shape together:
 
-- **SwapDiffHive is Model's dependency.** The hive is the arena the tree is stored
-  in: only `Model/` fetches it (`Model/cmake/SwapDiffHive.cmake`) and only
-  `Model/` uses it - its transactions, its diff ids and its slots are Model's
-  business, and no other module opens one.
+- **MVCCHive is Model's dependency.** The hive is the arena the tree is stored
+  in: only `Model/` fetches it (`Model/cmake/MVCCHive.cmake`) and only `Model/`
+  uses it - its transactions, commit ids and virtual ids are Model's business,
+  and no other module opens one.
 - **Everything above Model reaches the document through Model.** The Editor
   writes to it, the Planner reads it, and the Planner never talks to the Editor
   about anything but a change intent.
@@ -27,7 +27,7 @@ Three rules hold the shape together:
 Because `Document` holds the arena by value, the hive's headers do reach the other
 modules' include path, so the link line no longer says who may use it. The test
 named `layering` reads the sources of every module but Model and fails if one of
-them names SwapDiffHive.
+them names MVCCHive or `mvcc_hive`.
 
 The text front end is also the composition root: it owns the `Document` and hands
 it to the Editor and the Planner. A gui front end would sit in exactly the same
@@ -262,8 +262,8 @@ Three things about the drawing are worth knowing, because each of them is a deci
   nodes of the tree.
 
 What a name is, is the kind and the SVG id the user wrote - `rect#box`, `g#markers` -
-and not the handle: a handle is a slot number, and a slot can name another node once
-the node in it is erased.
+and not the handle: a handle is a virtual id, which the hive never reuses for
+another node.
 
 A length converts only inside its own system, and the two systems are never mixed.
 mm and cm are metric, a power of ten apart, so 2cm + 5mm is 2.5cm - written in the
@@ -306,7 +306,7 @@ void update(Id node, Node payload);
 void erase(Id node);
 void commit();  void rollback();
 
-// history: the Model owns it, so the Planner never sees a diff id
+// history: the Model owns it, so the Planner never sees a commit id
 void undo();  void redo();  bool can_undo() const;  bool can_redo() const;
 
 // the context: which document this is, rather than what is in it
@@ -337,149 +337,131 @@ Three instructions drop the history: `canvas`, `save`, and `init`, which replace
 document instead of editing it. What the first two have in common is that the tree they
 leave behind is the state the file, or the frame behind the drawing, says it is - so the
 way back to the state before them is a state nobody wrote down. `clear_history()` is that
-drop: the tree stays as it is and becomes the baseline. It has to reach every hive in one
-call, or they would disagree about where the beginning is. `init` goes
+drop: the tree stays as it is and becomes the baseline. `init` goes
 further: the canvas comes with the new root, and there is nothing of the old document
 left to undo into, so it lands on the Model's `reset()` rather than in a transaction.
 
 ### Model: the tree in a hive
 
-The tree is stored in four `SwapDiffHive`s, one for each kind of record it is made of:
+The tree is one `mvcc_hive::MVCCHive<Node>`. There are no side tables for parent
+or child links: a `Node` is the whole record, and its place in the tree is part
+of it.
 
 ```C++
-struct Edge       { Id child_id; Id prev; };
-struct ParentLink { Id parent; };
-struct ChildLink  { Id last_child_edge; };
+struct SVGNode {
+    IdentityAttr identity_attr;
+    PaintAttr paint_attr;
+    TransformAttr transform_attr;
+    Id parent_id = no_id;
+    Id previous_sibling = no_id;
+    Id next_sibling = no_id;
+    std::variant<Shape, Container, Text> data;
+};
 
-struct SVGNode   { IdentityAttr identity_attr; PaintAttr paint_attr; TransformAttr transform_attr;
-                   Id parent_link; std::variant<Shape, Container, Text> data; };
-struct PlainText { std::string content; Id parent_link; };
-using Node = std::variant<SVGNode, PlainText>;
+struct PlainText {
+    std::string content;
+    Id parent_id = no_id;
+    Id previous_sibling = no_id;
+    Id next_sibling = no_id;
+};
 
-SwapDiffHive<Node>       nodes;
-SwapDiffHive<ParentLink> parents;
-SwapDiffHive<ChildLink>  children;
-SwapDiffHive<Edge>       edges;
+struct Removed {  // the MVCC tombstone: a virtual id that has no document node
+    Id parent_id = no_id;
+    Id previous_sibling = no_id;
+    Id next_sibling = no_id;
+};
+
+using Node = std::variant<SVGNode, PlainText, Removed>;
+
+struct ChildAttr { Id first_child = no_id; Id last_child = no_id; };
 ```
 
-A node is the whole record the arena stores: there is no wrapper around the variant, so both
-of its alternatives carry the handle of the row that says who holds them - character data
-included, because a text element holds its characters as a node like any other. A container
-or a text also carries `ChildAttr::links`, the row its own child chain is written in; a
-shape has no such member. Neither handle changes when a node moves: moving patches its parent
-row and the sibling links around it, so the node - identity, paint and transform - is not
-copied to say that it now sits somewhere else. Adding or removing a child patches a row of
-two ids instead of the parent's payload. That is the write amplification this layout removes,
-and it is why the two things a move changes are not fields of the thing it moves.
+A container or a text carries `ChildAttr`, a shape does not. The children of a
+node are a doubly linked list: start at `first_child`, follow `next_sibling`, and
+stop at `no_id`. A parent keeps both ends, so appending is O(1); a node keeps both
+of its sibling links, so placing it in front of another child or removing it is
+O(1) too. There is no backwards edge table to consult.
 
-Which types can do what is a compile-time fact, checked without listing the kinds:
-`Linked<T>` is "has a parent link that is an `Id`" and `ChildHolder<T>` is "has a child link
-that is an `Id`", and `all_linked()` folds over the alternatives of `Node` so a kind that
-forgets its link is a build error. Neither concept is a flag that can be set wrong: the member
-they ask for is the storage the store writes the handle into, so a type that only claimed the
-capability would have nowhere for the handle and would not satisfy them. The store's one
-runtime question - which alternative of `Node` is this? - is a `std::visit`, and each
-alternative answers with `if constexpr`, so a new kind needs no case added anywhere.
+`Removed` is why a handle can come back without allocating a new id. Erasing a
+subtree replaces each record with a `Removed` payload instead of removing the
+row. The active checkpoint treats those rows as absent, while an older snapshot
+still shows the original payloads. A later edit after an undo can therefore put
+the same virtual id back with `replace`, and a handle that named a node before
+the erase names the same node again when that checkpoint is selected.
 
-The hive gives three ops - insert, remove, swap - and a history of them, so the
-question the Model has to answer is how one user-level edit becomes a sequence of
-those three. Three things make that work:
+Which types can do what remains a compile-time fact, checked without listing the
+kinds. `Linked<T>` requires the three link members themselves, and
+`all_linked()` folds over the alternatives of `Node`, so an alternative that
+forgets one is a build error. `ChildHolder<T>` requires both ends of the child
+list; a type that only claims the capability, or stores a different type there,
+does not satisfy it. The store's one runtime question - what is this payload? -
+is still a `std::visit`, and the alternatives answer with `if constexpr`.
 
-1. **The hive is the only memory.** A user edit never writes a payload other than
-   through the hive, so every mutation is in the trace and `undo()` needs no
-   bookkeeping of its own.
-2. **A payload is never rewritten in place.** The hive moves payloads between
-   slots, it does not track a slot's content, so an in-place field update would be
-   invisible to a rollback. A patch is therefore *insert + swap + remove*: the new
-   record takes the patched node's slot back and the record it displaced stays
-   parked in the scratch slot, which is where the rollback restores it from. The
-   patched slot is the same handle all along, so nothing that names a node has to
-   be updated.
-3. **One user intent is one diff id on every hive.** `Document` keeps the ids
-   (`1, 2, 3, ...`, never reused) and opens the same transaction on all four hives, so
-   the block boundaries agree.
+One user intent is one MVCCHive transaction, and therefore one commit. A move
+rewrites the moved node's links and the links of its old and new neighbours; a
+payload edit writes a new version of one node. The hive records a normalized
+diff per changed virtual id, not a whole copy of a block per hive, so there is no
+second, third or fourth history to keep in step and no fourfold amplification
+when one user instruction touches several rows. This is also why the stored type
+may be as large as `Node`: the hive only constructs a new version of the records
+the edit actually changes.
 
-Walking the history is a `seek()` with an exact id rather than one block back per
-hive, and that is not a detail: an edit that only touches one hive - a payload edit, or
-a move - adds a block to that hive and none to the others, and stepping each of them by
-one block would desynchronize them the moment the histories differ. `undo()` and
-`redo()` both land on a recorded id, so every hive ends up showing the same diff.
+The transaction API is one operation per shape of tree edit:
 
-Each op of the transaction API is one shape of edit on top of those three hive
-ops: `append_child` inserts a node and its rows and links it last, `attach_last` unlinks a
-node and links it last somewhere else, `update` patches a payload and leaves the rows alone,
-`erase` unlinks a node and removes it with its subtree and its rows. The tree also refuses
-what SVG does not allow: only a payload with a child link takes children, the root cannot be
-moved or erased, a node cannot be moved inside its own subtree, and an update cannot change
-whether a node holds children - the child row was given to the node by its type.
+- `append_child` writes the node, the old last child and the parent's end links.
+- `attach_last` detaches the node from its old neighbours and links it at the
+  new end. The node's payload is never moved into another record.
+- `insert_at` / `attach_at` do the same splice in front of a sibling. Because
+  the list is doubly linked, the anchor's place is known without walking the
+  level, and `no_id` still means the end.
+- `update` replaces the payload and copies the existing place and child-list
+  ends into the replacement, so a payload cannot bring another node's links
+  with it.
+- `erase_subtree` detaches the root of the subtree and replaces every record in
+  it with `Removed`.
 
-Handles are slot ids. The slot of an erased node goes back to the free list and
-the next insert takes it, so a handle can end up naming a different node than it
-did before: a handle is a way to point at a node now, not a durable name. The
-durable name of an element is its SVG id attribute, which is what `find()` walks
-the tree for. The arena also hands out no way to list its slots, so the tree is
-the only index there is - anything not reachable from the root is unreachable,
-period.
+The tree refuses what SVG does not allow: only a payload with `ChildAttr` takes
+children, the root cannot be moved or erased, a node cannot be moved inside its
+own subtree, and an update cannot change whether a node holds children.
 
-### Structure
+Handles are MVCCHive virtual ids. They are monotonically allocated and never
+reused, so a handle cannot silently name a different node later. The durable
+name of an element is still its SVG id attribute, which is what `find()` walks
+the tree for. Model keeps no separate id index, so the tree is the only index
+there is - anything not reachable from the root is unreachable.
 
-#### How to store a node
+`no_id` is `std::numeric_limits<Id>::max()`, and `Id` has the same 64-bit width
+as a hive virtual id. Nothing is reserved in front of the first record: the root
+is virtual id 0, and `no_id` is what every link that leads nowhere points at.
+The root is the baseline, so "undo everything" lands on an empty document rather
+than no document.
 
-see `SVGNode.hh`
+### Model: history, snapshots and checkpoints
 
-#### How to store links
+`TreeStore` keeps a `Snapshot` for each user-level commit, and `Document`
+undoes by selecting an earlier snapshot. The tree is not rewritten to undo:
+the snapshot already holds the immutable versions that were visible then.
 
-```C++
-struct Edge       { Id child_id; Id prev; };
-struct ParentLink { Id parent; };          // one per node, the root's parent is no_id
-struct ChildLink  { Id last_child_edge; }; // one per payload with a ChildAttr
-```
+The one place where that is not enough is an edit made after an undo. MVCCHive
+transactions extend the head and cannot branch from an old commit, so before
+opening the new transaction `TreeStore` rewinds the head to the visible
+checkpoint. It reads the normalized diffs between the two commits, and for each
+touched virtual id writes the visible payload back, or a `Removed` record when
+the visible checkpoint did not have that id. That rewind is one commit; the new
+edit follows it, the redo branch is dropped, and the checkpoints before the
+visible one stay usable. In other words, undo is snapshot navigation, and
+editing after undo is a new branch expressed as a head-to-visible catch-up
+followed by the edit.
 
-We read a node's children from the row the node keeps the handle of: the last edge is
-`children[node.data.child_attr.links].last_child_edge`, and from there `edges[i].prev` until
-the chain ends at `no_id`.
+`clear_history()` first makes the head match the visible checkpoint, then asks
+the hive to prune its older commits and keeps the current head as the baseline.
+`reset()` is stronger: it drops every snapshot, replaces the whole hive
+generation, and builds a new root. A document that holds that hive by value
+cannot be moved, which is why `Document` is non-copyable and non-movable.
 
-Insert will go to last so that's O(1)
-
-`no_id` is `std::numeric_limits<Id>::max()`, the value the hive calls `npos`.
-Nothing is reserved in front of the first payload: the root is slot 0, and `no_id`
-is where a link that leads nowhere points - the root's parent row, a childless
-element's `last_child_edge`, a payload that has no child link at all, and the first
-child's `prev` all read the same way. The root is dropped from the history
-immediately, so it is the baseline and "undo everything" lands on an empty document
-instead of no document.
-
-The two names for that one value are a naming choice, not a difference: a second
-global `npos` next to the hive's would be a redefinition in every Model source that
-includes both. Model's sources assert the two agree, so the day the dependency
-picks another value the build says so instead of quietly walking off the end of a
-chain.
-
-A child can also be placed in front of a sibling, and that is the same splice wherever
-the sibling sits: the chain runs backwards, so the new link takes the anchor's place in
-the backwards walk and points at what the anchor pointed at. Placing in front of the
-first child is therefore nothing special, and only the end is cheaper - which is the one
-`append_child()` takes. Three instructions are built out of that one splice: `front`
-places a node in front of what is currently the first child, `group` places the new group
-in front of the first sibling after the node it takes that is not being taken itself, and
-`ungroup` places each child in front of the node that stood after the group, in order -
-which keeps their order and leaves the level where it was.
-
-### Model: history and retention
-
-The hive keeps an unbounded trace and offers `compact(trace_limit)` to drop what
-is older than a limit. The Model does not expose that yet, and doing so is not a
-one-liner: compaction is per hive, so a window that has to stay the same for both
-of them is Model's decision to make, and it has to remember the floor it cannot
-walk below.
-
-### Model: ownership and layout
-
-`Document` holds the arena, the diff ids and the history position as members, and
-the hives inside `TreeStore` are members of that. Nothing about a document sits
-behind another pointer: a document and the tree it holds are built, moved and
-destroyed as one object, and the only indirection left is the storage the hives
-themselves own.
+The number of checkpoints is the history depth. The hive's own retention
+controls (`prune_before`, `clear_history`) are exposed only through those
+checkpoint operations; no other module sees a commit id.
 
 ### Model: the transform
 
@@ -541,8 +523,10 @@ either yet.
   serializer writes none of it.
 - a `find()` index: the view walks the tree on every call, which cannot go stale
   and is cheap enough while the tree is small.
-- retention and compaction, now that `clear_history()` is what three instructions reach
-  for: the hives offer `compact(trace_limit)`, and a document that only ever grows its
-  trace is the other half of that question.
+- retention: the hive offers `prune_before` and `clear_history`, and `TreeStore` uses
+  the latter at checkpoints, but a document with many undo steps keeps one snapshot
+  guard per step. Removed records also stay as `Removed` rows until a reset, because
+  an older checkpoint may still show them. A retention policy that drops old
+  checkpoints and then prunes the hive is the next piece; it is not exposed yet.
 - escaping in the front end: a quoted run is one word and there is no way to put a quote
   inside one, so a text cannot spell `"` yet.

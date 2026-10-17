@@ -8,14 +8,13 @@ design document, and the module table at its top is the map of the build.
 ## Requirements
 
 - A C++23 toolchain. That is the language this project is written in;
-  [SwapDiffHive](https://github.com/NegaVoayz/SwapDiffHive) is written in C++23
-  too, so the one dependency asks nothing extra of the toolchain.
+  [MVCCHive](https://github.com/NegaVoayz/MVCCHive) is written in C++23 too, so
+  the one dependency asks nothing extra of the toolchain.
   P2593 - a `static_assert(false, ...)` in a discarded branch of an `if constexpr`,
   which is what makes an instruction with no handler a build error here - is one of the
   C++23 features the code relies on rather than merely benefits from, so the floor is
   GCC 13 or Clang 17 and up.
-- CMake 3.24 or newer. The dependency needs 3.20 on its own; the extra is for what
-  this build does with it, `FIND_PACKAGE_ARGS` in the fetch.
+- CMake 3.28 or newer, which is the floor MVCCHive itself declares.
 
 ## Building
 
@@ -25,13 +24,13 @@ cmake --build --preset default
 ctest --preset default
 ```
 
-The first configure fetches SwapDiffHive at the tag pinned in
-`Model/cmake/SwapDiffHive.cmake`. Two things avoid the download: an installed
-SwapDiffHive (found with `find_package`), or a checkout pointed at by
-`FETCHCONTENT_SOURCE_DIR_SWAPDIFFHIVE`:
+The first configure fetches MVCCHive at the tag pinned in
+`Model/cmake/MVCCHive.cmake`. Two things avoid the download: an installed
+MVCCHive (found with `find_package`), or a checkout pointed at by
+`FETCHCONTENT_SOURCE_DIR_MVCCHIVE`:
 
 ```sh
-# uses ../SwapDiffHive as it is, no network involved
+# uses ../MVCCHive as it is, no network involved
 cmake --preset local-dep
 cmake --build --preset local-dep
 ctest --preset local-dep
@@ -42,8 +41,8 @@ dependency instead of taking it from next door:
 
 ```sh
 cmake --preset default \
-  -DSVG_EDITOR_SWAPDIFFHIVE_REPOSITORY=https://host/mirror/SwapDiffHive.git \
-  -DSVG_EDITOR_SWAPDIFFHIVE_TAG=v1.1.0
+  -DSVG_EDITOR_MVCCHIVE_REPOSITORY=https://host/mirror/MVCCHive.git \
+  -DSVG_EDITOR_MVCCHIVE_TAG=v1.0.0
 ```
 
 ## Running
@@ -113,7 +112,7 @@ and serializer behind them are not written yet; everything above them is in plac
 
 | target              | directory           | links                              |
 | ------------------- | ------------------- | ---------------------------------- |
-| `SvgEditor::Model`  | `Model/`            | SwapDiffHive                       |
+| `SvgEditor::Model`  | `Model/`            | MVCCHive                           |
 | `SvgEditor::FileSystem` | `Model/FileSystem/` | -                              |
 | `SvgEditor::Protocol`   | `Protocol/`     | Model (for the values)             |
 | `SvgEditor::Editor` | `Editor/`           | Model, Protocol                    |
@@ -127,9 +126,8 @@ Model because it is the composition root - it owns the document and hands it to 
 Editor and the Planner. What it must not do is decide what an instruction means:
 that is the Planner's job, and nothing else in the pipeline routes.
 
-Only `Model/` may *use* SwapDiffHive: its transactions, its diff ids and its slots
-are Model's business, and an edit or a read from any other module goes through
-Model's own API. `Document` holds the arena by value, so the hive's headers are on
-every module's include path and the link line cannot express that rule - the
-`layering` test reads the sources instead and fails if a module outside `Model/`
-names it.
+Only `Model/` may *use* MVCCHive: its transactions, commit ids and virtual ids are
+Model's business, and an edit or a read from any other module goes through Model's
+own API. `Document` holds the arena by value, so the hive's headers are on every
+module's include path and the link line cannot express that rule - the `layering`
+test reads the sources instead and fails if a module outside `Model/` names it.
