@@ -85,6 +85,7 @@ The instructions are:
 | `delete <id>`                                   | the node and everything under it                           |
 | `move <id> <dx> <dy>`                           | a shape's coordinates, or a container's transform          |
 | `scale <id> <factor>`                           | a shape's values, or a container's transform               |
+| `set <id> <attr> <value>`                       | one editable attribute; `id`, parent and children are not attributes |
 | `group <newGid> <id> <id> ...`                  | a new group, taking those nodes' place                     |
 | `ungroup <gid>`                                 | the group's children, back in its place                    |
 | `addto <gid> <id>`                              | the node, as the last child of a container                 |

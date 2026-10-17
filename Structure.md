@@ -183,6 +183,7 @@ until every one of them names it.
 | `delete <id>`                                    | the node and everything under it                       | the Editor, one transaction |
 | `move <id> <dx> <dy>`                            | a shape's geometry, or a container's transform         | the Editor, one transaction |
 | `scale <id> <factor>`                            | a shape's own values, or a container's transform       | the Editor, one transaction |
+| `set <id> <attr> <value>`                        | one editable attribute of that node                    | the Editor, one transaction |
 | `group <newGid> <id> <id> ...`                   | a new group, standing where the first node stood        | the Editor, one transaction |
 | `ungroup <gid>`                                  | the children, back in the group's place                | the Editor, one transaction |
 | `addto <gid> <id>`                               | the node, as the last child of a container             | the Editor, one transaction |
@@ -211,6 +212,20 @@ the kinds it names. The rest of the front end is one source per question it answ
 written in and what one word spells, `Rendering.cc` is the other direction of the boundary -
 and the one pair that can still drift is the table and the help, so a test reads the table and
 fails if the help does not name a verb in it.
+
+`set` is the one instruction whose *attribute* is a runtime name, and it is typed in two
+places so no layer below the front end parses a string. `Intent.hh` holds one struct per
+attribute (`SetX`, `SetFill`, `SetTransform`, ...), grouped as the `Set` variant the same way
+the element kinds are grouped as `Create`; each struct carries its own spelling as
+`static constexpr name`. `Ui/src/Set.cc` is the table from that spelling to a reader, and the
+reader is what decides the value's syntax - a length, a paint, a class name, a transform - so
+`set box x 10` and `set box fill #00ff00` produce different typed instructions. The Editor
+visits the attribute and writes the member its type names, asking each payload alternative
+with `requires` whether the member is there; a node that does not carry it is refused with
+`error: unknown attribute: <attr>`. No attribute is discovered by a switch over its name.
+`id`, parent and child links are left out on purpose: a handle belongs to the hive, and where
+a node sits is the structural vocabulary (`addto`, `front`, `back`, ...). `width`/`height`
+mean the root's canvas or a rect's side, and `w`/`h` are the short spellings the tree prints.
 
 `front` and `back` are the two ends of the child order, and the first child is what this
 calls the front - the order the tree prints in is the order they move a node through.
@@ -424,6 +439,29 @@ The tree refuses what SVG does not allow: only a payload with `ChildAttr` takes
 children, the root cannot be moved or erased, a node cannot be moved inside its
 own subtree, and an update cannot change whether a node holds children.
 
+### Model: what one edit costs
+
+A `set` is the smallest write: one changed virtual id, one new `Node` version, one
+row-version node and one commit diff. Nothing scales with the number of fields in the
+record or with the old diff-hive's parallel tables. The record itself is the unit of
+copying, though: `Node` is 416 bytes with the current MinGW/libstdc++ layout, mostly
+`Text`'s optional values and the strings, so a one-field edit still constructs a
+416-byte version. If that becomes the hot path, the lever is the record layout rather
+than another hive.
+
+Current-view reads resolve a virtual id to one target, O(1), and then pay for the payload
+copy at the API boundary. The Planner's `tree` view is a full walk plus one `Node` copy per
+row, and `find()` is still a walk, so a command naming an SVG id costs O(N) before any
+write. The handle form (`#<id>`) avoids that walk; an id index is the next read-side
+improvement.
+
+History is the other axis. `TreeStore` grows its checkpoint list geometrically, but
+MVCCHive v1.0.0 reserves its commit and diff vectors for exactly the next commit in
+`commit_store.hpp`, which makes each commit copy the retained history. A long session
+therefore pays more per edit as history grows; pruning, a retention limit, or the same
+geometric-growth fix in the dependency is the first thing to settle before measuring
+large histories.
+
 Handles are MVCCHive virtual ids. They are monotonically allocated and never
 reused, so a handle cannot silently name a different node later. The durable
 name of an element is still its SVG id attribute, which is what `find()` walks
@@ -518,9 +556,9 @@ either yet.
   `symbol` or a `switch` can only arrive from one.
 - named colours: the model has ids for the system colours and none for the named ones,
   so `fill=red` is not a fill this reads yet. That is why the drawing prints `#ff0000`.
-- the transform is in the model, but only `move` and `scale` write it: there is no `set
-  transform` instruction, the parser does not read a `transform` attribute yet, and the
-  serializer writes none of it.
+- the transform is in the model, and `move`, `scale` and `set transform` write it; the
+  parser does not read a `transform` attribute from a file yet, and the serializer writes
+  none of it.
 - a `find()` index: the view walks the tree on every call, which cannot go stale
   and is cheap enough while the tree is small.
 - retention: the hive offers `prune_before` and `clear_history`, and `TreeStore` uses
