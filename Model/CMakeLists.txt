@@ -8,6 +8,8 @@ add_library(Model
     src/TreeStore.cc)
 add_library(SvgEditor::Model ALIAS Model)
 
+target_compile_features(Model PUBLIC cxx_std_23)
+
 target_include_directories(Model PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
