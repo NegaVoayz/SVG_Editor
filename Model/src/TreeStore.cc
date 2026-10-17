@@ -172,10 +172,15 @@ std::size_t TreeStore::position() const { return applied_; }
 
 void TreeStore::clear_history() {
     rewind_head_to_view();
+
+    // The head is the tree being kept. Dropping every checkpoint first releases the
+    // snapshot horizons, which lets the pruning pass reclaim the versions no longer
+    // reachable from that head.
+    checkpoints_.clear();
+    view_.reset();
     nodes_.clear_history();
 
     const Snapshot baseline = nodes_.head();
-    checkpoints_.clear();
     checkpoints_.push_back(baseline);
     view_ = baseline;
     applied_ = 0;
