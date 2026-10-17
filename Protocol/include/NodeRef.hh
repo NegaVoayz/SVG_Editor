@@ -29,7 +29,7 @@ inline std::optional<Id> look_up(const Document& document, const NodeRef& refere
     if (std::holds_alternative<RootRef>(reference)) return document.root();
     if (std::holds_alternative<HandleRef>(reference)) {
         const Id id = std::get<HandleRef>(reference).id;
-        if (!document.node(id)) return std::nullopt;
+        if (!document.has_node(id)) return std::nullopt;
         return id;
     }
     return document.find(std::get<SvgIdRef>(reference).name);

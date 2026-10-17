@@ -116,6 +116,8 @@ int main() {
     const std::optional<Node> root_payload = document.node(root);
     CHECK(root_payload.has_value());
     CHECK(std::holds_alternative<SVGNode>(*root_payload));
+    CHECK(document.has_node(root));
+    CHECK(!document.has_node(no_id));
     CHECK(document.children(root).empty());
     CHECK(!document.can_undo());
     CHECK(document.source_path().empty());
@@ -188,10 +190,12 @@ int main() {
         edit.commit();
     }
     CHECK(!document.node(first).has_value());
+    CHECK(!document.has_node(first));
     CHECK(document.children(root) == std::vector<Id>({second}));
     CHECK(document.find("renamed") == std::nullopt);
     document.undo();
     CHECK(document.node(first).has_value());
+    CHECK(document.has_node(first));
     CHECK(document.children(root).size() == 2);
     CHECK(document.find("renamed").has_value());
 

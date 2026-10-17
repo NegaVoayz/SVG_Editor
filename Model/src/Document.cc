@@ -25,6 +25,8 @@ std::optional<Node> Document::node(Id id) const {
     return store_.record(id);
 }
 
+bool Document::has_node(Id id) const { return store_.has_node(id); }
+
 std::vector<Id> Document::children(Id parent) const { return store_.children(parent); }
 
 std::optional<Id> Document::parent(Id node) const {

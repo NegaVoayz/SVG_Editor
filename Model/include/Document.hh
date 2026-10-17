@@ -46,6 +46,10 @@ public:
     // a copy so a caller's payload is not tied to the lifetime of a checkpoint.
     std::optional<Node> node(Id id) const;
 
+    // Whether a live document node lives at that handle, without copying its payload.
+    // Resolving a `#<handle>` needs only the answer, and a payload is 416 bytes today.
+    bool has_node(Id id) const;
+
     // The children of a node, in document order. Empty for a handle that holds
     // no node.
     std::vector<Id> children(Id parent) const;
