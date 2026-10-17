@@ -24,7 +24,7 @@ LengthPercentage units(float value) { return Length{value, Length::Unit::UserUni
 
 Node element(std::string id, std::variant<Shape, Container, Text> body) {
     SVGNode node;
-    node.identity_attr = IdentityAttr{std::move(id), "", no_id};
+    node.identity_attr = IdentityAttr{std::move(id), ""};
     node.data = std::move(body);
     return Node{std::move(node)};
 }

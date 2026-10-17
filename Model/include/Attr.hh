@@ -19,7 +19,15 @@ struct Rotate { float degrees; };
 struct Matrix { float a, b, c, d, e, f; };
 using Transform = std::variant<Translate, Scale, Rotate, Matrix>;
 
-struct IdentityAttr { std::string id, class_; Id parent_id; };
+// What an element is called. Where it sits in the tree is not part of this: a parent is a
+// link, not an attribute of the element, and it lives in TreeStore's link tables.
+struct IdentityAttr { std::string id, class_; };
 struct PaintAttr { std::optional<Paint> fill, stroke; std::optional<LengthPercentage> stroke_width; };
 struct TransformAttr { std::optional<Transform> transform; };
-struct ChildAttr { Id last_child_edge; };
+
+// The row in TreeStore's child hive that holds this element's child chain: the last edge of
+// the chain lives there, not in the payload, so adding or removing a child does not rewrite
+// the element. Having this member is what can hold children - it is the storage the store
+// writes the row's handle into, not a flag claiming the element has one. A payload is built
+// with no_id here and the store fills it in when the element is added to a tree.
+struct ChildAttr { Id links; };

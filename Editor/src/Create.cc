@@ -20,7 +20,7 @@ namespace {
 // the two fields they all share.
 Node element(std::string svg_id, std::variant<Shape, Container, Text> body) {
     SVGNode node;
-    node.identity_attr = IdentityAttr{std::move(svg_id), "", no_id};
+    node.identity_attr = IdentityAttr{std::move(svg_id), ""};
     node.data = std::move(body);
     return Node{std::move(node)};
 }
@@ -81,7 +81,7 @@ Editor::NewElement Editor::new_element(const CreateText& intent) const {
     Text text;
     text.common.x = intent.x;
     text.common.y = intent.y;
-    text.child_attr = ChildAttr{no_id};
+    text.child_attr = ChildAttr{no_id};  // the store gives the element its row when it is added
     return NewElement{"text", element(intent.id, std::move(text)), intent.content};
 }
 

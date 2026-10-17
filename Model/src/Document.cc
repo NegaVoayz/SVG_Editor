@@ -33,14 +33,13 @@ Id Document::root() const { return store_.root(); }
 
 std::optional<Node> Document::node(Id id) const {
     if (!store_.has_node(id)) return std::nullopt;
-    return store_.record(id).payload;
+    return store_.record(id);
 }
 
 std::vector<Id> Document::children(Id parent) const { return store_.children(parent); }
 
 std::optional<Id> Document::parent(Id node) const {
-    if (!store_.has_node(node)) return std::nullopt;
-    const Id above = store_.record(node).parent;
+    const Id above = store_.parent(node);
     if (above == no_id) return std::nullopt;
     return above;
 }
@@ -55,7 +54,7 @@ std::optional<Id> Document::find(std::string_view svg_id) const {
         const Id current = pending.back();
         pending.pop_back();
         if (!store_.has_node(current)) continue;
-        if (const Node& payload = store_.record(current).payload;
+        if (const Node& payload = store_.record(current);
             std::holds_alternative<SVGNode>(payload) &&
             std::get<SVGNode>(payload).identity_attr.id == svg_id) {
             return current;

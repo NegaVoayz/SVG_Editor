@@ -57,6 +57,22 @@ std::optional<Container::SVG> canvas_of(const Document& document) {
     return std::get<Container::SVG>(container.specific);
 }
 
+// A payload that claims it holds children but has nowhere to keep the handle: it does not
+// count, because the capability is the link the store writes into, not a statement about it.
+struct ClaimsChildren {
+    static constexpr bool holds_children = true;
+};
+
+// One that does have a child link counts, whatever it is called.
+struct HasLink {
+    ChildAttr child_attr;
+};
+
+// A link that cannot hold a node handle is not a child link either.
+struct NarrowLink {
+    struct { int links; } child_attr;
+};
+
 }  // namespace
 
 #define CHECK(condition) check((condition), #condition, __LINE__)
@@ -65,6 +81,28 @@ std::optional<Container::SVG> canvas_of(const Document& document) {
 // move is a member-wise one, with no heap indirection of its own.
 static_assert(!std::is_copy_constructible_v<Document>);
 static_assert(std::is_nothrow_move_constructible_v<Document>);
+
+// Whether a payload can hold children is a compile-time property of its type, and the types
+// that have it are exactly the ones with a child link - the storage the store writes the
+// row's handle into. No list of element kinds is written anywhere, and a claim without the
+// link does not satisfy it.
+static_assert(ChildHolder<Container>);
+static_assert(ChildHolder<Text>);
+static_assert(!ChildHolder<Shape>);
+static_assert(!ChildHolder<PlainText>);
+static_assert(!ChildHolder<SVGNode>);
+static_assert(Element<SVGNode>);
+static_assert(!Element<PlainText>);
+static_assert(ChildHolder<HasLink>);
+static_assert(!ChildHolder<ClaimsChildren>);
+static_assert(!ChildHolder<NarrowLink>);
+
+// A node is the whole record the arena stores, so both alternatives of Node carry the handle
+// of the row that says who holds them; a type without one could not be a node.
+struct Unheld {};
+static_assert(Linked<SVGNode>);
+static_assert(Linked<PlainText>);
+static_assert(!Linked<Unheld>);
 
 int main() {
     Document document;
@@ -268,6 +306,18 @@ int main() {
     }
     CHECK(document.children(holder) == std::vector<Id>({leaf}));
     CHECK(document.find("leaf-renamed") == leaf);
+
+    // An update replaces what a node holds, not what it is: a payload that cannot hold
+    // children cannot take over a node that has a row for them, because the row was given to
+    // the node by its type.
+    {
+        Transaction edit = document.transaction();
+        CHECK(throws([&] { edit.update(shape, group("shape-becoming-a-group")); }));
+        CHECK(throws([&] { edit.update(holder, rect("holder-becoming-a-rect")); }));
+    }
+    CHECK(document.find("shape-becoming-a-group") == std::nullopt);
+    CHECK(document.children(shape).empty());
+
     document.undo();
     CHECK(document.children(holder).empty());
     document.redo();
