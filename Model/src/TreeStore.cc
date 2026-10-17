@@ -126,6 +126,7 @@ void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<Lengt
     // it the baseline and leaves commit 1 for the document's first edit.
     auto edit = nodes_.begin_transaction();
     root_ = edit.emplace(make_root_payload(std::move(width), std::move(height)));
+    checkpoints_.reserve(1);
     const Snapshot baseline = edit.commit();
     nodes_.clear_history();
 
@@ -141,6 +142,9 @@ TreeStore::Edit TreeStore::begin() {
 
 void TreeStore::commit(Edit& edit) {
     const Hive::CommitId before = view_->commit_id();
+    // The hive commit is not reversible once published. Make room for its checkpoint
+    // before publishing, so the only throwing step is the commit's own prepare phase.
+    checkpoints_.reserve(checkpoints_.size() + 1);
     const Snapshot next = edit.commit();
     if (next.commit_id() == before) return;  // an edit that wrote nothing is no block
 
@@ -176,6 +180,7 @@ void TreeStore::clear_history() {
     // The head is the tree being kept. Dropping every checkpoint first releases the
     // snapshot horizons, which lets the pruning pass reclaim the versions no longer
     // reachable from that head.
+    checkpoints_.reserve(1);
     checkpoints_.clear();
     view_.reset();
     nodes_.clear_history();
