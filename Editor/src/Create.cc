@@ -46,7 +46,7 @@ void stroke(Node& payload, const std::optional<Color>& color) {
 // The one element that is built for an edit rather than for a command: `group` takes
 // nodes that already exist and needs somewhere to put them.
 Node make_group(std::string svg_id) {
-    return element(std::move(svg_id), Container{ChildAttr{no_id}, Container::Group{}});
+    return element(std::move(svg_id), Container{ChildAttr{}, Container::Group{}});
 }
 
 Editor::NewElement Editor::new_element(const CreateGroup& intent) const {
@@ -81,7 +81,7 @@ Editor::NewElement Editor::new_element(const CreateText& intent) const {
     Text text;
     text.common.x = intent.x;
     text.common.y = intent.y;
-    text.child_attr = ChildAttr{no_id};  // the store gives the element its row when it is added
+    text.child_attr = ChildAttr{};  // an empty child list, filled when children arrive
     return NewElement{"text", element(intent.id, std::move(text)), intent.content};
 }
 

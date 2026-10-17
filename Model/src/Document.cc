@@ -16,18 +16,7 @@ Status serialize(const TreeStore& store, std::string& out_svg) {
     return Status{false, "the SVG serializer is not implemented yet"};
 }
 
-// The hive reads diff id 0 as "before everything that is left": no diff id is
-// ever 0, which is what leaves it free for that meaning.
-constexpr Id before_everything = 0;
-
 }  // namespace
-
-// The hive calls the end of a link chain npos and Model calls it no_id: one value
-// under two names, because the public headers cannot see the dependency.
-static_assert(no_id == npos);
-
-Document::Document(Document&&) noexcept = default;
-Document& Document::operator=(Document&&) noexcept = default;
 
 Id Document::root() const { return store_.root(); }
 
@@ -47,8 +36,8 @@ std::optional<Id> Document::parent(Id node) const {
 std::optional<Id> Document::find(std::string_view svg_id) const {
     if (svg_id.empty()) return std::nullopt;
 
-    // No index yet: a walk cannot go stale, and the tree is small. The arena does
-    // hand out no way to list its slots, so the tree is the only index there is.
+    // No index yet: a walk cannot go stale, and the tree is small. The arena hands
+    // out no way to list its rows, so the tree is the only index there is.
     std::vector<Id> pending{store_.root()};
     while (!pending.empty()) {
         const Id current = pending.back();
@@ -66,21 +55,12 @@ std::optional<Id> Document::find(std::string_view svg_id) const {
 
 Transaction Document::transaction() { return Transaction{*this}; }
 
-bool Document::can_undo() const { return applied_ > 0; }
-bool Document::can_redo() const { return applied_ < blocks_.size(); }
-void Document::undo() { if (can_undo()) seek_to(applied_ - 1); }
-void Document::redo() { if (can_redo()) seek_to(applied_ + 1); }
-std::size_t Document::depth() const { return blocks_.size(); }
-std::size_t Document::position() const { return applied_; }
-
-// Walk both hives to the end of the block with this id. Every hive applies only
-// the diffs that were written to it, so the step has to be a seek with an exact id
-// instead of one block back per hive: a transaction that touched only one of the
-// two would otherwise step the other one too far.
-void Document::seek_to(std::size_t position) {
-    store_.seek(position == 0 ? before_everything : blocks_[position - 1]);
-    applied_ = position;
-}
+bool Document::can_undo() const { return store_.can_undo(); }
+bool Document::can_redo() const { return store_.can_redo(); }
+void Document::undo() { store_.undo(); }
+void Document::redo() { store_.redo(); }
+std::size_t Document::depth() const { return store_.depth(); }
+std::size_t Document::position() const { return store_.position(); }
 
 Status Document::open(std::string_view path) {
     const FileResult file = FileSystem::read(path);
@@ -114,21 +94,12 @@ Status Document::save(std::optional<std::string_view> path) {
 
 void Document::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
     store_.reset(std::move(width), std::move(height));
-    next_diff_id_ = 1;
-    blocks_.clear();
-    applied_ = 0;
     source_path_.clear();
 }
 
-void Document::clear_history() {
-    store_.clear_history();
-    blocks_.clear();
-    applied_ = 0;
-}
+void Document::clear_history() { store_.clear_history(); }
 
-Transaction::Transaction(Document& document) : document_(document), diff_id_(document.next_diff_id_++) {
-    document_.store_.begin(diff_id_);
-}
+Transaction::Transaction(Document& document) : document_(document), edit_(document.store_.begin()) {}
 
 Transaction::~Transaction() {
     if (closed_) return;
@@ -150,41 +121,32 @@ void Transaction::attach_last(Id parent, Id node) { attach_at(parent, no_id, nod
 
 Id Transaction::insert_at(Id parent, Id before, Node payload) {
     require_open();
-    const Id child = document_.store_.insert_at(parent, before, std::move(payload));
-    wrote_ = true;
-    return child;
+    return document_.store_.insert_at(edit_, parent, before, std::move(payload));
 }
 
 void Transaction::attach_at(Id parent, Id before, Id node) {
     require_open();
-    document_.store_.attach_at(parent, before, node);
-    wrote_ = true;
+    document_.store_.attach_at(edit_, parent, before, node);
 }
 
 void Transaction::update(Id node, Node payload) {
     require_open();
-    document_.store_.update(node, std::move(payload));
-    wrote_ = true;
+    document_.store_.update(edit_, node, std::move(payload));
 }
 
 void Transaction::erase(Id node) {
     require_open();
-    document_.store_.erase_subtree(node);
-    wrote_ = true;
+    document_.store_.erase_subtree(edit_, node);
 }
 
 void Transaction::commit() {
     if (closed_) return;
     closed_ = true;
-    document_.store_.commit();
-    if (!wrote_) return;  // an empty transaction leaves no block behind
-    document_.blocks_.resize(document_.applied_);  // drop what a rollback deprecated
-    document_.blocks_.push_back(diff_id_);
-    ++document_.applied_;
+    document_.store_.commit(edit_);
 }
 
 void Transaction::rollback() {
     if (closed_) return;
     closed_ = true;
-    document_.store_.rollback();
+    document_.store_.rollback(edit_);
 }

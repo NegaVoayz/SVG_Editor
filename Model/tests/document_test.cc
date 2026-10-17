@@ -1,5 +1,5 @@
-// The Model on its own: the tree, the transactions, and the history that has to
-// keep the two hives of the arena in step.
+// The Model on its own: the tree, the transactions, and the checkpoints of the
+// one hive the tree lives in.
 #include <cstdio>
 #include <exception>
 #include <string>
@@ -23,7 +23,7 @@ void check(bool condition, const char* expression, int line) {
 Node group(std::string svg_id) {
     SVGNode element;
     element.identity_attr.id = std::move(svg_id);
-    element.data = Container{ChildAttr{no_id}, Container::Group{}};
+    element.data = Container{ChildAttr{}, Container::Group{}};
     return Node{std::move(element)};
 }
 
@@ -57,35 +57,35 @@ std::optional<Container::SVG> canvas_of(const Document& document) {
     return std::get<Container::SVG>(container.specific);
 }
 
-// A payload that claims it holds children but has nowhere to keep the handle: it does not
-// count, because the capability is the link the store writes into, not a statement about it.
+// A payload that claims it holds children but has nowhere to keep the list: it does not
+// count, because the capability is the storage the tree writes, not a statement about it.
 struct ClaimsChildren {
     static constexpr bool holds_children = true;
 };
 
-// One that does have a child link counts, whatever it is called.
+// One that does have the child-list ends counts, whatever it is called.
 struct HasLink {
     ChildAttr child_attr;
 };
 
-// A link that cannot hold a node handle is not a child link either.
+// Child-list ends that cannot hold node handles are not child storage either.
 struct NarrowLink {
-    struct { int links; } child_attr;
+    struct { int first_child, last_child; } child_attr;
 };
 
 }  // namespace
 
 #define CHECK(condition) check((condition), #condition, __LINE__)
 
-// A document owns its arena and its history, so it moves and does not copy; the
-// move is a member-wise one, with no heap indirection of its own.
+// A document owns its hive and its history. The hive's storage cannot be moved, so
+// neither can the document that holds it by value.
 static_assert(!std::is_copy_constructible_v<Document>);
-static_assert(std::is_nothrow_move_constructible_v<Document>);
+static_assert(!std::is_move_constructible_v<Document>);
 
 // Whether a payload can hold children is a compile-time property of its type, and the types
-// that have it are exactly the ones with a child link - the storage the store writes the
-// row's handle into. No list of element kinds is written anywhere, and a claim without the
-// link does not satisfy it.
+// that have it are exactly the ones with the first/last child storage. No list of
+// element kinds is written anywhere, and a claim without the storage does not
+// satisfy it.
 static_assert(ChildHolder<Container>);
 static_assert(ChildHolder<Text>);
 static_assert(!ChildHolder<Shape>);
@@ -97,19 +97,21 @@ static_assert(ChildHolder<HasLink>);
 static_assert(!ChildHolder<ClaimsChildren>);
 static_assert(!ChildHolder<NarrowLink>);
 
-// A node is the whole record the arena stores, so both alternatives of Node carry the handle
-// of the row that says who holds them; a type without one could not be a node.
+// A node is the whole record the hive stores, so every alternative of Node carries
+// its parent and sibling links; a type without them could not be a node.
 struct Unheld {};
 static_assert(Linked<SVGNode>);
 static_assert(Linked<PlainText>);
+static_assert(Linked<Removed>);
 static_assert(!Linked<Unheld>);
+static_assert(!ChildHolder<Removed>);
 
 int main() {
     Document document;
     const Id root = document.root();
 
-    // the root is the first payload of the arena: a link that leads nowhere is
-    // no_id, not a reserved slot in front of it
+    // the root is the first virtual id of the hive: a link that leads nowhere is
+    // no_id, not a reserved id in front of it
     CHECK(root != no_id);
     const std::optional<Node> root_payload = document.node(root);
     CHECK(root_payload.has_value());
@@ -162,8 +164,8 @@ int main() {
     document.redo();
     CHECK(document.children(first).size() == 1);
 
-    // A transaction that only wrote to the node hive still has to land on the same
-    // diff id in the edge hive: this is why the history is walked by seek.
+    // A payload update and a move are the same kind of history step now: one
+    // commit on the one hive, reached through the same checkpoint list.
     {
         Transaction edit = document.transaction();
         edit.update(second, group("second-renamed"));
@@ -176,7 +178,7 @@ int main() {
     CHECK(document.find("second-renamed") == second);
     CHECK(document.children(root).size() == 2);
 
-    // an update is a payload patch: the hive never rewrites a payload in place
+    // an update is a new node version: the hive never rewrites a payload in place
     CHECK(document.node(second).has_value());
 
     // erasing takes the payloads away, undo brings them back
@@ -239,16 +241,16 @@ int main() {
     CHECK(document.find("first") == first);
     CHECK(document.find("renamed").has_value());
 
-    // Forward again. The slot the erase freed was handed to the next insert, so
-    // the `first` handle now names that new node: a handle names a slot, and only
-    // for as long as the node in it lives - the durable name is the SVG id.
+    // Forward again. Virtual ids are never reused, so the node created after the
+    // undo has an id of its own; the erased `first` id comes back only when the
+    // snapshot that still shows that node is selected again.
     document.redo();
     document.redo();
     const std::vector<Id> children = document.children(root);
     CHECK(children.size() == 2);
     CHECK(children[0] == second);
-    CHECK(children[1] == first);
-    CHECK(document.find("after-failure") == first);
+    CHECK(children[1] != first);
+    CHECK(document.find("after-failure") == children[1]);
     CHECK(document.find("first") == std::nullopt);
 
     // Erasing the last child splices the parent's own link instead of a sibling's,
@@ -308,8 +310,7 @@ int main() {
     CHECK(document.find("leaf-renamed") == leaf);
 
     // An update replaces what a node holds, not what it is: a payload that cannot hold
-    // children cannot take over a node that has a row for them, because the row was given to
-    // the node by its type.
+    // children cannot take over a node whose type has the child-list storage.
     {
         Transaction edit = document.transaction();
         CHECK(throws([&] { edit.update(shape, group("shape-becoming-a-group")); }));
@@ -396,8 +397,8 @@ int main() {
     // --- the context: the canvas, the reset, and the checkpoint ---
 
     // A reset is a fresh document: an empty tree, the canvas it was given for
-    // whichever sides it was given, the slots from the start again, and nothing to
-    // undo back into.
+    // whichever sides it was given, the virtual ids from the start again, and
+    // nothing to undo back into.
     document.reset(Length{1024.0F, Length::Unit::Px}, std::nullopt);
     CHECK(document.children(document.root()).empty());
     CHECK(document.find("after-failure") == std::nullopt);

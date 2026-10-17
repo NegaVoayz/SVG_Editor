@@ -5,7 +5,9 @@
 #include <variant>
 #include <optional>
 
-using Id = size_t;
+// The same width as an MVCCHive virtual id: a handle is never narrowed on the way
+// into or out of the hive.
+using Id = std::uint64_t;
 
 struct Length {
     float value;

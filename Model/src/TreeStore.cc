@@ -1,9 +1,16 @@
 #include "TreeStore.hh"
 
 #include <algorithm>
+#include <cstdint>
+#include <stdexcept>
 #include <type_traits>
+#include <utility>
+#include <variant>
 
 namespace {
+
+using Edit = TreeStore::Hive::Transaction;
+using NodeRef = std::reference_wrapper<const Node>;
 
 // The canvas a fresh document starts with, and what goes in for a side an `init` or
 // a `canvas` left out. SVG's own default viewport is 300x150 CSS pixels; this
@@ -12,30 +19,18 @@ namespace {
 inline const LengthPercentage fresh_canvas_width = Length{800.0F, Length::Unit::UserUnit};
 inline const LengthPercentage fresh_canvas_height = Length{600.0F, Length::Unit::UserUnit};
 
-// The payload of the root element. The root is part of the baseline, so erasing
-// everything leaves an empty document rather than no document.
-Node make_root_payload(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
-    SVGNode element;
-    element.identity_attr = IdentityAttr{"", ""};
-    element.data = Container{ChildAttr{no_id}, Container::SVG{width ? std::move(width) : fresh_canvas_width,
-                                                              height ? std::move(height) : fresh_canvas_height}};
-    return Node{std::move(element)};
-}
+struct Links {
+    Id parent;
+    Id previous;
+    Id next;
+};
 
-template<typename T>
-bool has_row(const SwapDiffHive<T>& hive, Id row) {
-    try {
-        hive.at(row);
-        return true;
-    } catch (const std::out_of_range&) {
-        return false;
-    }
-}
+bool removed(const Node& node) { return std::holds_alternative<Removed>(node); }
 
-// Give an action every element payload of a node: the `data` alternative of an SVG element,
-// and nothing for character data, which is a node with no element kind under it. The action
-// then asks its own question with `if constexpr`, so no type is named here and no list of the
-// kinds exists - the variant is the list.
+// Give an action every element payload of a node: the `data` alternative of an SVG
+// element, and nothing for character data or a removed record. The action then asks
+// its own question with `if constexpr`, so no kind is named here and no list of them
+// exists - the variant is the list.
 template<typename Payload, typename Action>
 void visit_data(Payload& payload, Action action) {
     std::visit(
@@ -45,317 +40,411 @@ void visit_data(Payload& payload, Action action) {
         payload);
 }
 
-// The row that says who holds a node. Every alternative of Node carries one - that is what
-// the static_assert next to the variant is for - so which alternative it is does not matter.
-Id parent_link_of(const Node& payload) {
-    return std::visit([](const auto& value) -> Id { return value.parent_link; }, payload);
+Links links_of(const Node& node) {
+    return std::visit(
+        [](const auto& value) {
+            return Links{value.parent_id, value.previous_sibling, value.next_sibling};
+        },
+        node);
+}
+
+void set_links(Node& node, Links links) {
+    std::visit(
+        [links](auto& value) {
+            value.parent_id = links.parent;
+            value.previous_sibling = links.previous;
+            value.next_sibling = links.next;
+        },
+        node);
+}
+
+std::optional<NodeRef> staged_node(Edit& edit, Id id) {
+    const auto found = edit.find(id);
+    if (!found || removed(found->get())) return std::nullopt;
+    return *found;
+}
+
+NodeRef require_staged(Edit& edit, Id id) {
+    const std::optional<NodeRef> found = staged_node(edit, id);
+    if (!found) throw std::out_of_range("TreeStore: no live node at this id");
+    return *found;
+}
+
+Links links_in(Edit& edit, Id id) { return links_of(require_staged(edit, id).get()); }
+
+std::optional<ChildAttr> child_attr_in(Edit& edit, Id id) {
+    return child_attr_of(require_staged(edit, id).get());
+}
+
+// The payload of the root element. The root is part of the baseline, so erasing
+// everything leaves an empty document rather than no document.
+Node make_root_payload(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
+    SVGNode element;
+    element.identity_attr = IdentityAttr{"", ""};
+    element.data = Container{ChildAttr{no_id, no_id},
+                             Container::SVG{width ? std::move(width) : fresh_canvas_width,
+                                            height ? std::move(height) : fresh_canvas_height}};
+    return Node{std::move(element)};
 }
 
 }  // namespace
 
-TreeStore::TreeStore() { reset(std::nullopt, std::nullopt); }
-
-void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
-    if (in_transaction_) throw std::logic_error("TreeStore: the arena cannot be reset inside a transaction");
-
-    // Forgetting everything means forgetting the slots too, so a reset document starts from
-    // slot 0 again rather than from whatever was there before.
-    nodes_.clear();
-    parents_.clear();
-    children_.clear();
-    edges_.clear();
-
-    // The root is the first payload, which is slot 0, because nothing is reserved in front of
-    // it: a link that leads nowhere is no_id, not slot 0. Its rows come with it: every node is
-    // held by something, only the root by nothing, and a child row if its type has one. They
-    // are written as one transaction under the baseline's diff id, and that history is dropped
-    // below, so what is left is a baseline.
-    begin(1);
-    Node payload = make_root_payload(std::move(width), std::move(height));
-    set_parent_link(payload, parents_.insert(ParentLink{no_id}));
-    make_child_row(payload);
-    root_ = nodes_.insert(std::move(payload));
-    commit();
-
-    // The root is the baseline, not an edit: dropping it from the history is what makes
-    // "undo everything" land on an empty document, and it leaves diff id 1 free for the first
-    // real transaction.
-    clear_history();
+std::optional<ChildAttr> child_attr_of(const Node& node) {
+    std::optional<ChildAttr> result;
+    visit_data(
+        node,
+        [&result](const auto& value) {
+            if constexpr (ChildHolder<std::remove_cvref_t<decltype(value)>>) result = value.child_attr;
+        });
+    return result;
 }
 
-void TreeStore::begin(Id diff_id) {
-    if (in_transaction_) throw std::logic_error("TreeStore: a transaction is already open");
-    nodes_.begin_transaction(diff_id);
-    parents_.begin_transaction(diff_id);
-    children_.begin_transaction(diff_id);
-    edges_.begin_transaction(diff_id);
-    in_transaction_ = true;
-}
-
-void TreeStore::commit() {
-    require_transaction();
-    in_transaction_ = false;
-    nodes_.commit();
-    parents_.commit();
-    children_.commit();
-    edges_.commit();
-}
-
-void TreeStore::rollback() {
-    require_transaction();
-    in_transaction_ = false;
-    nodes_.rollback();
-    parents_.rollback();
-    children_.rollback();
-    edges_.rollback();
-}
-
-void TreeStore::seek(Id diff_id) {
-    if (in_transaction_) throw std::logic_error("TreeStore: the history cannot be walked inside a transaction");
-    nodes_.seek(diff_id);
-    parents_.seek(diff_id);
-    children_.seek(diff_id);
-    edges_.seek(diff_id);
-}
-
-void TreeStore::clear_history() {
-    if (in_transaction_) throw std::logic_error("TreeStore: the history cannot be dropped inside a transaction");
-    nodes_.clear_history();
-    parents_.clear_history();
-    children_.clear_history();
-    edges_.clear_history();
-}
-
-void TreeStore::require_transaction() const {
-    if (!in_transaction_) throw std::logic_error("TreeStore: this edit needs an open transaction");
-}
-
-bool TreeStore::has_node(Id node) const { return has_row(nodes_, node); }
-
-const Node& TreeStore::record(Id node) const {
-    return nodes_.at(node);  // throws std::out_of_range when no node lives there
-}
-
-bool TreeStore::has_edge(Id edge) const { return has_row(edges_, edge); }
-
-Id TreeStore::parent_of(Id node) const { return parents_.at(parent_link_of(record(node))).parent; }
-
-Id TreeStore::last_edge_of(Id node) const {
-    const Id row = child_row_of(record(node));
-    if (row == no_id) return no_id;  // the payload cannot hold children, so it has no chain
-    return children_.at(row).last_child_edge;
-}
-
-bool TreeStore::can_hold(Id node) const { return child_row_of(record(node)) != no_id; }
-
-// The row a payload keeps its child chain in, or no_id when it has nowhere to keep one. The
-// question is the member: a payload that has a child link answers with the handle in it, and
-// one that has not cannot hold children at all.
-Id TreeStore::child_row_of(const Node& payload) const {
-    Id row = no_id;
-    visit_data(payload, [&row](const auto& data) {
-        if constexpr (ChildHolder<std::remove_cvref_t<decltype(data)>>) row = data.child_attr.links;
-    });
-    return row;
-}
-
-// The row a new payload keeps its child chain in, made now, with its handle written into the
-// link itself. That is the whole of the capability: the type has the storage, and this is the
-// store that uses it.
-void TreeStore::make_child_row(Node& payload) {
-    visit_data(payload, [this](auto& data) {
-        if constexpr (ChildHolder<std::remove_cvref_t<decltype(data)>>) {
-            data.child_attr.links = children_.insert(ChildLink{no_id});
-        }
-    });
-}
-
-// Put an existing row into a payload that has somewhere for it, and say whether it did.
-bool TreeStore::set_child_row(Node& payload, Id row) {
+bool set_child_attr(Node& node, const ChildAttr& attr) {
     bool placed = false;
-    visit_data(payload, [&placed, row](auto& data) {
-        if constexpr (ChildHolder<std::remove_cvref_t<decltype(data)>>) {
-            data.child_attr.links = row;
-            placed = true;
-        }
-    });
+    visit_data(
+        node,
+        [&placed, &attr](auto& value) {
+            if constexpr (ChildHolder<std::remove_cvref_t<decltype(value)>>) {
+                value.child_attr = attr;
+                placed = true;
+            }
+        });
     return placed;
 }
 
-// Every node carries the handle of the row that says who holds it; the store gives it one
-// when the node is added, and a replacement payload takes over the node's own.
-void TreeStore::set_parent_link(Node& payload, Id row) {
-    std::visit([row](auto& value) { value.parent_link = row; }, payload);
+TreeStore::TreeStore() { reset(std::nullopt, std::nullopt); }
+
+void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
+    // Forgetting everything means releasing the snapshots too: the guards would keep the
+    // old generation alive, and none of those views can be reached from this document.
+    checkpoints_.clear();
+    view_.reset();
+    nodes_.clear();
+
+    // The root is the first virtual id, 0, because no id is reserved in front of it: a
+    // link that leads nowhere is no_id. Its history is dropped immediately, which makes
+    // it the baseline and leaves commit 1 for the document's first edit.
+    auto edit = nodes_.begin_transaction();
+    root_ = edit.emplace(make_root_payload(std::move(width), std::move(height)));
+    const Snapshot baseline = edit.commit();
+    nodes_.clear_history();
+
+    checkpoints_.push_back(baseline);
+    view_ = baseline;
+    applied_ = 0;
+}
+
+TreeStore::Edit TreeStore::begin() {
+    rewind_head_to_view();
+    return nodes_.begin_transaction();
+}
+
+void TreeStore::commit(Edit& edit) {
+    const Hive::CommitId before = view_->commit_id();
+    const Snapshot next = edit.commit();
+    if (next.commit_id() == before) return;  // an edit that wrote nothing is no block
+
+    checkpoints_.erase(checkpoints_.begin() + static_cast<std::ptrdiff_t>(applied_ + 1), checkpoints_.end());
+    checkpoints_.push_back(next);
+    applied_ = checkpoints_.size() - 1;
+    view_ = next;
+}
+
+void TreeStore::rollback(Edit& edit) noexcept { edit.rollback(); }
+
+bool TreeStore::can_undo() const { return applied_ > 0; }
+bool TreeStore::can_redo() const { return applied_ + 1 < checkpoints_.size(); }
+
+void TreeStore::undo() {
+    if (!can_undo()) return;
+    --applied_;
+    view_ = checkpoints_[applied_];
+}
+
+void TreeStore::redo() {
+    if (!can_redo()) return;
+    ++applied_;
+    view_ = checkpoints_[applied_];
+}
+
+std::size_t TreeStore::depth() const { return checkpoints_.empty() ? 0 : checkpoints_.size() - 1; }
+std::size_t TreeStore::position() const { return applied_; }
+
+void TreeStore::clear_history() {
+    rewind_head_to_view();
+    nodes_.clear_history();
+
+    const Snapshot baseline = nodes_.head();
+    checkpoints_.clear();
+    checkpoints_.push_back(baseline);
+    view_ = baseline;
+    applied_ = 0;
+}
+
+// Bring the hive's head back to the checkpoint the document is showing. The hive's
+// commit timeline can only grow at the head, so an edit after an undo first writes the
+// visible state as a new head commit. Only ids touched between the two commits are
+// rewritten; a row that was created after the visible state becomes a Removed record,
+// and one that is visible there is copied back from the snapshot.
+void TreeStore::rewind_head_to_view() {
+    const Snapshot head = nodes_.head();
+    if (head.commit_id() == view_->commit_id()) return;
+    if (head.commit_id() < view_->commit_id()) {
+        throw std::logic_error("TreeStore: the visible checkpoint is ahead of the hive");
+    }
+
+    std::vector<Id> touched;
+    for (Hive::CommitId commit = view_->commit_id() + 1; commit <= head.commit_id(); ++commit) {
+        for (const auto& diff : nodes_.diffs(commit)) touched.push_back(static_cast<Id>(diff.virtual_id));
+    }
+    std::sort(touched.begin(), touched.end());
+    touched.erase(std::unique(touched.begin(), touched.end()), touched.end());
+
+    auto edit = nodes_.begin_transaction();
+    for (const Id id : touched) {
+        const auto visible = view_->find(id);
+        if (!visible) {
+            edit.replace(id, Removed{});
+        } else {
+            edit.replace(id, visible->get());
+        }
+    }
+
+    const Snapshot rewound = edit.commit();
+    checkpoints_.erase(checkpoints_.begin() + static_cast<std::ptrdiff_t>(applied_ + 1), checkpoints_.end());
+    checkpoints_[applied_] = rewound;
+    view_ = rewound;
+}
+
+bool TreeStore::has_node(Id node) const { return live_node(node).has_value(); }
+
+const Node& TreeStore::record(Id node) const {
+    const std::optional<NodeRef> found = live_node(node);
+    if (!found) throw std::out_of_range("TreeStore: no live node at this id");
+    return found->get();
+}
+
+std::optional<TreeStore::NodeRef> TreeStore::live_node(Id node) const {
+    if (!view_) return std::nullopt;
+    const auto found = view_->find(node);
+    if (!found || removed(found->get())) return std::nullopt;
+    return *found;
 }
 
 Id TreeStore::parent(Id node) const {
-    if (!has_node(node)) return no_id;
-    return parent_of(node);
+    const std::optional<NodeRef> found = live_node(node);
+    if (!found) return no_id;
+    return links_of(found->get()).parent;
 }
 
 std::vector<Id> TreeStore::children(Id parent) const {
     std::vector<Id> result;
-    if (!has_node(parent)) return result;
+    const std::optional<NodeRef> held = live_node(parent);
+    if (!held) return result;
 
-    // The chain runs from the last child backwards, so collect and flip.
-    for (Id edge = last_edge_of(parent); edge != no_id; edge = edges_.at(edge).prev) {
-        result.push_back(edges_.at(edge).child_id);
+    const std::optional<ChildAttr> attr = child_attr_of(held->get());
+    if (!attr) return result;
+
+    for (Id child = attr->first_child; child != no_id;) {
+        const std::optional<NodeRef> node = live_node(child);
+        if (!node) throw std::logic_error("TreeStore: a child link names no live node");
+        result.push_back(child);
+        child = links_of(node->get()).next;
     }
-    std::reverse(result.begin(), result.end());
     return result;
 }
 
-Id TreeStore::append_child(Id parent, Node payload) {
-    return insert_at(parent, no_id, std::move(payload));
+Id TreeStore::append_child(Edit& edit, Id parent, Node payload) {
+    return insert_at(edit, parent, no_id, std::move(payload));
 }
 
-void TreeStore::attach_last(Id parent, Id node) {
-    attach_at(parent, no_id, node);
+void TreeStore::attach_last(Edit& edit, Id parent, Id node) {
+    attach_at(edit, parent, no_id, node);
 }
 
-Id TreeStore::insert_at(Id parent, Id before, Node payload) {
-    require_transaction();
-    if (!can_hold(parent)) {
-        throw std::logic_error("TreeStore: this node cannot hold children");
+Id TreeStore::insert_at(Edit& edit, Id parent, Id before, Node payload) {
+    if (removed(payload)) throw std::invalid_argument("TreeStore: a removed record cannot be inserted");
+
+    const NodeRef holder = require_staged(edit, parent);
+    const std::optional<ChildAttr> attr = child_attr_of(holder.get());
+    if (!attr) throw std::logic_error("TreeStore: this node cannot hold children");
+
+    Id previous = attr->last_child;
+    if (before != no_id) {
+        const Links anchor = links_in(edit, before);
+        if (anchor.parent != parent) {
+            throw std::invalid_argument("TreeStore: the node to place in front of is not a child of that parent");
+        }
+        previous = anchor.previous;
     }
 
-    // The rows the node owns, before the node itself: every node is held by something, and a
-    // payload with a child link gets a row for its own chain, which the link keeps.
-    const Id parent_row = parents_.insert(ParentLink{parent});
-    set_parent_link(payload, parent_row);
-    make_child_row(payload);
-    const Id child = nodes_.insert(std::move(payload));
-    link_before(parent, before, child);
+    set_links(payload, Links{parent, previous, before});
+    const Id child = edit.emplace(std::move(payload));
+
+    if (previous == no_id && before == no_id) {
+        patch_child_attr(edit, parent, [child](ChildAttr& ends) {
+            ends.first_child = child;
+            ends.last_child = child;
+        });
+    } else {
+        if (previous != no_id) {
+            patch_node(edit, previous, [child](Node& node) {
+                Links links = links_of(node);
+                links.next = child;
+                set_links(node, links);
+            });
+        } else {
+            patch_child_attr(edit, parent, [child](ChildAttr& ends) { ends.first_child = child; });
+        }
+
+        if (before != no_id) {
+            patch_node(edit, before, [child](Node& node) {
+                Links links = links_of(node);
+                links.previous = child;
+                set_links(node, links);
+            });
+        } else {
+            patch_child_attr(edit, parent, [child](ChildAttr& ends) { ends.last_child = child; });
+        }
+    }
     return child;
 }
 
-void TreeStore::attach_at(Id parent, Id before, Id node) {
-    require_transaction();
+void TreeStore::attach_at(Edit& edit, Id parent, Id before, Id node) {
     if (node == root_) throw std::logic_error("TreeStore: the root cannot be attached to anything");
     if (parent == node) throw std::logic_error("TreeStore: a node cannot hold itself");
     if (before == node) throw std::logic_error("TreeStore: a node cannot be placed in front of itself");
-    if (!can_hold(parent)) {
-        throw std::logic_error("TreeStore: this node cannot hold children");
-    }
+
+    const NodeRef holder = require_staged(edit, parent);
+    if (!child_attr_of(holder.get())) throw std::logic_error("TreeStore: this node cannot hold children");
+    static_cast<void>(require_staged(edit, node));
 
     // The place a node moves to must not be inside the node itself: the parent
     // chain of the new parent is what would have to contain it.
-    for (Id walk = parent; walk != no_id; walk = parent_of(walk)) {
+    for (Id walk = parent; walk != no_id; walk = links_in(edit, walk).parent) {
         if (walk == node) throw std::logic_error("TreeStore: a node cannot be moved inside itself");
     }
 
-    // The move itself is small: the sibling links around the node, and the node's own parent
-    // row - which is not rewritten when the node only changes place among its siblings. The
-    // payload never changes and is never copied.
-    const Id previous_parent = parent_of(node);
-    if (previous_parent != no_id) unlink(node);
-    link_before(parent, before, node);
-    if (previous_parent != parent) patch_parent(node, parent);
+    if (before != no_id) {
+        const Links anchor = links_in(edit, before);
+        if (anchor.parent != parent) {
+            throw std::invalid_argument("TreeStore: the node to place in front of is not a child of that parent");
+        }
+    }
+
+    detach(edit, node);
+
+    // Read the target after the detach: if the node came from the same level, removing
+    // it changed either the parent's last child or the anchor's previous link.
+    const std::optional<ChildAttr> ends = child_attr_in(edit, parent);
+    Id previous = ends->last_child;
+    if (before != no_id) previous = links_in(edit, before).previous;
+
+    patch_node(edit, node, [parent, previous, before](Node& record) {
+        set_links(record, Links{parent, previous, before});
+    });
+
+    if (previous == no_id && before == no_id) {
+        patch_child_attr(edit, parent, [node](ChildAttr& attr) {
+            attr.first_child = node;
+            attr.last_child = node;
+        });
+    } else {
+        if (previous != no_id) {
+            patch_node(edit, previous, [node](Node& record) {
+                Links links = links_of(record);
+                links.next = node;
+                set_links(record, links);
+            });
+        } else {
+            patch_child_attr(edit, parent, [node](ChildAttr& attr) { attr.first_child = node; });
+        }
+
+        if (before != no_id) {
+            patch_node(edit, before, [node](Node& record) {
+                Links links = links_of(record);
+                links.previous = node;
+                set_links(record, links);
+            });
+        } else {
+            patch_child_attr(edit, parent, [node](ChildAttr& attr) { attr.last_child = node; });
+        }
+    }
 }
 
-void TreeStore::update(Id node, Node payload) {
-    // Both rows belong to the node, not to the payload that happens to be in it, so a
-    // replacement takes the node's handles - a payload copied from another node cannot bring
-    // that node's place with it. The type still has to agree: an update does not turn a group
-    // into a rect, because then the child row and the payload would no longer say the same
-    // thing.
-    const Node& stored = record(node);
-    const Id row = child_row_of(stored);
-    if (set_child_row(payload, row) != (row != no_id)) {
+void TreeStore::detach(Edit& edit, Id node) {
+    const Links link = links_in(edit, node);
+    if (link.parent == no_id) throw std::logic_error("TreeStore: this node is not linked under anything");
+
+    if (link.previous == no_id && link.next == no_id) {
+        patch_child_attr(edit, link.parent, [](ChildAttr& attr) {
+            attr.first_child = no_id;
+            attr.last_child = no_id;
+        });
+    } else {
+        if (link.previous != no_id) {
+            patch_node(edit, link.previous, [next = link.next](Node& record) {
+                Links links = links_of(record);
+                links.next = next;
+                set_links(record, links);
+            });
+        } else {
+            patch_child_attr(edit, link.parent, [next = link.next](ChildAttr& attr) { attr.first_child = next; });
+        }
+
+        if (link.next != no_id) {
+            patch_node(edit, link.next, [previous = link.previous](Node& record) {
+                Links links = links_of(record);
+                links.previous = previous;
+                set_links(record, links);
+            });
+        } else {
+            patch_child_attr(edit, link.parent, [previous = link.previous](ChildAttr& attr) { attr.last_child = previous; });
+        }
+    }
+}
+
+void TreeStore::update(Edit& edit, Id node, Node payload) {
+    const NodeRef stored = require_staged(edit, node);
+    if (removed(payload)) throw std::invalid_argument("TreeStore: a live node cannot be updated to a removed one");
+
+    const std::optional<ChildAttr> stored_children = child_attr_of(stored.get());
+    const std::optional<ChildAttr> new_children = child_attr_of(payload);
+    if (stored_children.has_value() != new_children.has_value()) {
         throw std::logic_error("TreeStore: an update cannot change whether a node holds children");
     }
-    set_parent_link(payload, parent_link_of(stored));
-    patch_row(nodes_, node, [&payload](Node& record) { record = std::move(payload); });
+
+    // The node's place and child list belong to the node, not to the payload that
+    // happens to be in it.
+    set_links(payload, links_of(stored.get()));
+    if (stored_children) set_child_attr(payload, *stored_children);
+    edit.replace(node, std::move(payload));
 }
 
-void TreeStore::erase_subtree(Id node) {
-    require_transaction();
+void TreeStore::erase_subtree(Edit& edit, Id node) {
     if (node == root_) throw std::logic_error("TreeStore: the root cannot be erased");
+    static_cast<void>(require_staged(edit, node));
 
-    // Children first: their links are patched while their parent is still there.
-    for (const Id child : children(node)) erase_subtree(child);
-    unlink(node);
+    // The node leaves its level first; its descendants keep their own links until they
+    // are replaced, which is what lets the walk read them as one tree.
+    detach(edit, node);
 
-    // The node goes, and the rows that were its: the parent row every node has, and the child
-    // row its payload keeps the handle of. Read them before the record is gone.
-    const Node stored = record(node);
-    const Id child_row = child_row_of(stored);
-    parents_.remove(parent_link_of(stored));
-    if (child_row != no_id) children_.remove(child_row);
-    nodes_.remove(node);
-}
+    std::vector<Id> pending{node};
+    std::vector<Id> doomed;
+    while (!pending.empty()) {
+        const Id current = pending.back();
+        pending.pop_back();
 
-void TreeStore::patch_parent(Id node, Id parent) {
-    patch_row(parents_, parent_link_of(record(node)), [parent](ParentLink& row) { row.parent = parent; });
-}
-
-void TreeStore::patch_last_edge(Id node, Id edge) {
-    patch_row(children_, child_row_of(record(node)), [edge](ChildLink& row) { row.last_child_edge = edge; });
-}
-
-void TreeStore::link_last(Id parent, Id child) {
-    // Read what the op needs before it starts moving rows around.
-    const Id previous_last_edge = last_edge_of(parent);
-    const Id edge = edges_.insert(Edge{child, previous_last_edge});
-    patch_last_edge(parent, edge);
-}
-
-// The link that holds one child under its parent. The chain runs from the last child
-// backwards, so this reads the whole list; it is asked once per placed node, and a
-// list is as long as the element has children.
-Id TreeStore::edge_of(Id parent, Id child) const {
-    for (Id edge = last_edge_of(parent); edge != no_id; edge = edges_.at(edge).prev) {
-        if (edges_.at(edge).child_id == child) return edge;
-    }
-    throw std::invalid_argument("TreeStore: the node to place in front of is not a child of that parent");
-}
-
-// Puts a node in front of a sibling in the link chain. The node must not be linked
-// yet: there is one link per child, so the caller takes the old one away first.
-//
-// Inserting in front of a sibling is the same splice wherever the sibling sits,
-// because the chain runs backwards: the new link takes the anchor's place in the
-// backwards walk and points at what the anchor pointed at. Only the end is cheaper,
-// and that is what append_child() asks for.
-void TreeStore::link_before(Id parent, Id before, Id child) {
-    if (before == no_id) {
-        link_last(parent, child);
-        return;
-    }
-    // The anchor keeps its own link slot - patching what that link points at is
-    // what moves the new node in front of it - and the node's own link is fresh.
-    const Id anchor = edge_of(parent, before);
-    const Id previous = edges_.at(anchor).prev;
-    const Id placed = edges_.insert(Edge{child, previous});
-    patch_edge(anchor, Edge{before, placed});
-}
-
-void TreeStore::unlink(Id node) {
-    const Id parent = parent_of(node);
-    if (parent == no_id) throw std::logic_error("TreeStore: this node is not linked under anything");
-
-    // Walk the parent's chain for the edge that holds this node, keeping the edge
-    // that points at it, which is the one that has to be spliced.
-    Id closer = no_id;
-    for (Id edge = last_edge_of(parent); edge != no_id; ) {
-        const Edge link = edges_.at(edge);  // a copy: the walk continues after the edits
-        if (link.child_id == node) {
-            if (closer == no_id) {
-                // It was the last child, so the parent's chain now ends at the one before it.
-                patch_last_edge(parent, link.prev);
-            } else {
-                patch_edge(closer, Edge{edges_.at(closer).child_id, link.prev});
+        const NodeRef found = require_staged(edit, current);
+        doomed.push_back(current);
+        if (const std::optional<ChildAttr> children = child_attr_of(found.get())) {
+            for (Id child = children->first_child; child != no_id;) {
+                const NodeRef child_node = require_staged(edit, child);
+                pending.push_back(child);
+                child = links_of(child_node.get()).next;
             }
-            edges_.remove(edge);
-            return;
         }
-        closer = edge;
-        edge = link.prev;
     }
-    throw std::logic_error("TreeStore: the node is not linked into its parent");
-}
 
-void TreeStore::patch_edge(Id edge, Edge replacement) {
-    if (!has_edge(edge)) throw std::out_of_range("TreeStore: no link at this handle");
-    patch_row(edges_, edge, [&replacement](Edge& row) { row = replacement; });
+    for (const Id id : doomed) edit.replace(id, Removed{});
 }

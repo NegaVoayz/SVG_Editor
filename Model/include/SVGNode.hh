@@ -17,9 +17,13 @@ struct Shape {
 
 struct PlainText {
     std::string content;
-    // Character data is a node of the tree like any other - a text element holds it - so it
-    // says who holds it the same way an element does. See Node below.
-    Id parent_link = no_id;
+
+    // Character data is a node of the tree like any other - a text element holds it - so
+    // it carries its own place in the tree. The link is the node id, not a row in another
+    // hive: one Node is the whole record the MVCC hive stores.
+    Id parent_id = no_id;
+    Id previous_sibling = no_id;
+    Id next_sibling = no_id;
 };
 
 struct Text { 
@@ -53,40 +57,54 @@ struct SVGNode {
     PaintAttr paint_attr;
     TransformAttr transform_attr;
 
-    // The row in TreeStore's parent hive that says who holds this element. It is part of what
-    // the node is, not where it is: a move writes the row's contents, never this handle, which
-    // is what keeps a move from rewriting the payload it moves.
-    Id parent_link = no_id;
+    // Where this node sits. The ids are node ids in the same hive, and no_id is the root's
+    // parent and the end of either sibling list. A move rewrites this small part of the
+    // node record; the MVCC hive keeps the old version for snapshots.
+    Id parent_id = no_id;
+    Id previous_sibling = no_id;
+    Id next_sibling = no_id;
 
     std::variant<Shape,Container,Text> data;
 };
 
-using Node = std::variant<SVGNode, PlainText>;
-
-// Whether a payload type carries the handle of the row that says who holds it.
-template<typename T>
-concept Linked = requires(T candidate, Id link) {
-    { candidate.parent_link = link } -> std::same_as<Id&>;
+// A removed node stays a live virtual id in the hive. The record is replaced instead of
+// erased, which is what lets an undo snapshot show the node again and lets a new edit
+// after an undo restore it without allocating a different id. The public document treats
+// this alternative as absent; the links are the same three every alternative carries.
+struct Removed {
+    Id parent_id = no_id;
+    Id previous_sibling = no_id;
+    Id next_sibling = no_id;
 };
 
-// A node is the whole record the arena stores: there is no wrapper around the variant, so
-// every alternative of it has to say who holds it itself. Folding over the alternatives is
-// how that is checked without listing them, and a new kind of node that forgets the link is
-// a build error here.
+using Node = std::variant<SVGNode, PlainText, Removed>;
+
+// Whether a payload type carries its place in the tree.
+template<typename T>
+concept Linked = requires(T candidate, Id link) {
+    { candidate.parent_id = link } -> std::same_as<Id&>;
+    { candidate.previous_sibling = link } -> std::same_as<Id&>;
+    { candidate.next_sibling = link } -> std::same_as<Id&>;
+};
+
+// A node is the whole record the hive stores: there is no wrapper around the variant, so
+// every alternative of it has to carry its own place. Folding over the alternatives is how
+// that is checked without listing them, and a new kind of node that forgets a link is a
+// build error here.
 template<typename... Alternatives>
 consteval bool all_linked(std::variant<Alternatives...>*) {
     return (Linked<Alternatives> && ...);
 }
-static_assert(all_linked(static_cast<Node*>(nullptr)), "every alternative of Node needs a parent link");
+static_assert(all_linked(static_cast<Node*>(nullptr)), "every alternative of Node needs its tree links");
 
-// Whether a payload type can hold children: it is the types that have a child link, and
-// nothing lists them. The link is the storage the store writes its row's handle into, so a
-// type that has it really can hold children, and one that has not cannot. The answer is not a
-// claim that can be wrong: a type saying it does without the member does not satisfy this, and
-// neither does one whose member is not an Id.
+// Whether a payload type can hold children: it is the types that have the first/last child
+// storage, and nothing lists them. The answer is not a claim that can be wrong: a type
+// saying it does without the members does not satisfy this, and neither does one whose
+// members are not Ids.
 template<typename T>
-concept ChildHolder = requires(T candidate, Id link) {
-    { candidate.child_attr.links = link } -> std::same_as<Id&>;
+concept ChildHolder = requires(T candidate, Id id) {
+    { candidate.child_attr.first_child = id } -> std::same_as<Id&>;
+    { candidate.child_attr.last_child = id } -> std::same_as<Id&>;
 };
 
 // A node that is an SVG element carries the variant of what element it is; character data is

@@ -40,19 +40,19 @@ Node circle(std::string id, float cx, float cy, float r) {
 }
 
 Node group(std::string id) {
-    return element(std::move(id), Container{ChildAttr{no_id}, Container::Group{}});
+    return element(std::move(id), Container{ChildAttr{}, Container::Group{}});
 }
 
 // The root element, which is where the canvas of the document lives.
 Node root_with(LengthPercentage width, LengthPercentage height) {
-    return element("", Container{ChildAttr{no_id}, Container::SVG{width, height}});
+    return element("", Container{ChildAttr{}, Container::SVG{width, height}});
 }
 
 Node text_element(std::string id, float x, float y) {
     Text text;
     text.common.x = units(x);
     text.common.y = units(y);
-    text.child_attr = ChildAttr{no_id};
+    text.child_attr = ChildAttr{};
     return element(std::move(id), std::move(text));
 }
 

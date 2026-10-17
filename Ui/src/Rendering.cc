@@ -160,7 +160,7 @@ Words element_words(const SVGNode& element, const std::string& text) {
     Words words;
     const std::string_view kind = std::visit(ElementName{}, element.data);
     // The kind and the id the user wrote: the handle is not part of the drawing, because
-    // it is a slot number, and a slot can name another node after an erase.
+    // it is the hive's virtual id, which is never reused for another node.
     words.name =
         element.identity_attr.id.empty() ? std::string{kind} : std::string{kind} + "#" + element.identity_attr.id;
 

@@ -11,9 +11,9 @@
 // what turns it into text, because text is its business in both directions of the boundary
 // - it parses what a user wrote, and it writes what a user reads.
 //
-// The payloads are copies. A view is a snapshot of the tree as it stands, and a payload
-// moves between slots as soon as anything is edited, so nothing here could be a reference
-// into the arena.
+// The payloads are copies. A view is a snapshot of the tree as it stands, and it has to
+// outlive the checkpoint or transaction that produced it, so nothing here can be a
+// reference into the arena.
 //
 // `text` is a text element's words, read out of the character data under it. SVG keeps them
 // in a child node rather than in an attribute, but a tree in which every word is a line of

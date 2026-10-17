@@ -39,7 +39,7 @@ Node line() {
         Shape{Shape::Line{user_units(0), user_units(0), user_units(5), user_units(5)}})};
 }
 
-Node group() { return Node{element_with(Container{ChildAttr{no_id}, Container::Group{}})}; }
+Node group() { return Node{element_with(Container{ChildAttr{}, Container::Group{}})}; }
 
 Node text_node() { return Node{PlainText{"hello"}}; }
 

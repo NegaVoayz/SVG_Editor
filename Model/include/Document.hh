@@ -20,29 +20,30 @@ class Transaction;
 //   - the editing API is transaction(), a tree-level transaction, which is what
 //     the Editor uses to turn one user intent into one undoable block.
 //
-// A handle (an Id) names a slot in the node arena and keeps naming the same node
-// while that node lives, across any number of edits and history moves. It is not
-// a name to put in a file: the durable name of an element is its SVG id
-// attribute, which is what find() looks up.
+// A handle (an Id) is the node's virtual id in the hive. Virtual ids are never
+// reused, so a handle keeps naming the same stored record across edits and
+// history moves; a record that is removed comes back with the same id when the
+// snapshot that still shows it is selected. It is not a name to put in a file:
+// the durable name of an element is its SVG id attribute, which is what find()
+// looks up.
 class Document {
 public:
     // An empty document, with its root <svg> element already in place.
     Document() = default;
 
-    Document(Document&&) noexcept;
-    Document& operator=(Document&&) noexcept;
     Document(const Document&) = delete;
     Document& operator=(const Document&) = delete;
+    Document(Document&&) = delete;
+    Document& operator=(Document&&) = delete;
 
     // --- viewing ---
 
     // The root <svg> node. An empty document still has one.
     Id root() const;
 
-    // A copy of the payload stored at that handle, or nothing when no node lives
-    // there. It is a copy on purpose: an edit moves payloads between slots, so
-    // anything reaching into the arena could be pointing at another node by the
-    // time it is read.
+    // A copy of the payload stored at that handle, or nothing when no live node is
+    // there. The hive exposes only immutable versions, but the document hands out
+    // a copy so a caller's payload is not tied to the lifetime of a checkpoint.
     std::optional<Node> node(Id id) const;
 
     // The children of a node, in document order. Empty for a handle that holds
@@ -101,14 +102,10 @@ public:
     friend class Transaction;
 
 private:
-    void seek_to(std::size_t position);
-
     // The arena is a member, not something behind another pointer: a document and
-    // the tree it holds are built, moved and destroyed as one object.
+    // the tree it holds are built and destroyed as one object. The hive owns its
+    // storage and cannot be moved, so neither can the document that holds it.
     TreeStore store_;
-    Id next_diff_id_ = 1;      // hive diff ids start at 1 and never decrease
-    std::vector<Id> blocks_;   // the diff id of every committed edit, oldest first
-    std::size_t applied_ = 0;  // how many of them the two hives are showing
     std::string source_path_;  // the file open() read, if it read one
 };
 
@@ -118,8 +115,9 @@ private:
 //
 // A transaction that is destroyed without commit() rolls back, which is what
 // makes an edit that fails half way harmless. Only one transaction can be open at
-// a time: reading the document while one is open is fine, editing it through a
-// second one is not.
+// a time. A read through Document while one is open sees the checkpoint, not the
+// staged edit, and a second transaction must not be opened: the hive has one
+// writer, so it would wait behind the first.
 class Transaction {
 public:
     ~Transaction();
@@ -145,8 +143,9 @@ public:
     // Replace a node's payload and leave its place in the tree alone.
     void update(Id node, Node payload);
 
-    // Drop a node and everything under it. The handles of the removed nodes stop
-    // working and their slots become reusable; undo brings all of them back.
+    // Drop a node and everything under it. The active checkpoint treats the
+    // removed nodes as absent; the records stay in the hive, so undo brings the
+    // same handles back instead of allocating new ones.
     void erase(Id node);
 
     void commit();    // keep the edit as one block of the history
@@ -158,7 +157,6 @@ private:
     void require_open() const;
 
     Document& document_;
-    Id diff_id_;
-    bool wrote_ = false;
+    TreeStore::Edit edit_;
     bool closed_ = false;
 };
