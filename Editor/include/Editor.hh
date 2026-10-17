@@ -81,8 +81,8 @@ private:
     NewElement new_element(const CreateGroup& intent) const;
 
     // One create for every kind: the id has to be free, the element goes last among the
-    // children of the parent the instruction named, and the body is written once. The
-    // instantiations at the end of the source are the list of kinds this can build.
+    // children of the parent the instruction named, and the body is written once. Which
+    // kinds ask for it is the visit in Create.cc, so the list of them is the variant.
     template<typename T>
     Outcome create(const T& intent);
 

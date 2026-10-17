@@ -15,7 +15,7 @@
 // error. The element kinds are not on this list: their one instruction is, and one body
 // answers all six of them.
 
-// Editor.cc: the second level - a create is one instruction, and its element kind is the
+// Create.cc: the second level - a create is one instruction, and its element kind is the
 // next question. The kinds themselves come back through the primary template, which is
 // what asks for a builder by name.
 template<> Outcome Editor::handle<Create>(const Create& intent);

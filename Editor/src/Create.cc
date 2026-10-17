@@ -1,6 +1,9 @@
 // Building an element. Six kinds share one body, because what differs between them is
 // only what they bring: the element itself, the tag a message names it by, and the words
 // to put inside it when the element is a text.
+//
+// The second level of the dispatch lives here too: `handle<Create>` is the question of which
+// element a create holds, asked where the builders it may answer with are.
 #include <optional>
 #include <string>
 #include <string_view>
@@ -103,13 +106,10 @@ Outcome Editor::create(const T& intent) {
                                            intent.id + "\" in " + describe(intent.parent)};
 }
 
-// One create per element kind, written for the compiler: the second-level visit is in
-// Editor.cc and create() is defined here, so these are what give each kind's call a body. A
-// kind with a builder and no line here would not link, and a kind with no builder is the
-// build error at the visit.
-template Outcome Editor::create<CreateRect>(const CreateRect&);
-template Outcome Editor::create<CreateCircle>(const CreateCircle&);
-template Outcome Editor::create<CreateEllipse>(const CreateEllipse&);
-template Outcome Editor::create<CreateLine>(const CreateLine&);
-template Outcome Editor::create<CreateText>(const CreateText&);
-template Outcome Editor::create<CreateGroup>(const CreateGroup&);
+// The second level of the dispatch: a create is one instruction, and which element it builds
+// is the next question. Each kind comes back to handle(), where the builder it has is what
+// answers it. create() is defined in this file, so the visit below is also what instantiates
+// it for every kind - the kinds are the alternatives of Create, and nothing is listed twice.
+template<> Outcome Editor::handle<Create>(const Create& intent) {
+    return std::visit([this](const auto& element) { return handle(element); }, intent);
+}
