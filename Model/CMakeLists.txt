@@ -1,7 +1,8 @@
 # Model owns the tree: the arena it is stored in, the API that reads it and the
-# API that edits it. SwapDiffHive is its private dependency, so this directory is
-# the only place in the build where the hive is visible at all.
+# API that edits it. MVCCHive is its dependency, and SwapDiffHive is still on the
+# link line until the tree has moved onto the new hive.
 include(cmake/SwapDiffHive.cmake)
+include(cmake/MVCCHive.cmake)
 
 add_library(Model
     src/Document.cc
@@ -18,6 +19,7 @@ target_include_directories(Model PUBLIC
 target_link_libraries(Model
     PUBLIC
         SwapDiffHive::SwapDiffHive
+        mvcc_hive
     PRIVATE
         SvgEditor::Warnings)
 

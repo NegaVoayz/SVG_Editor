@@ -9,7 +9,7 @@
     {
       "name": "default",
       "displayName": "Ninja, Debug",
-      "description": "The everyday build. Needs network the first time, to fetch SwapDiffHive.",
+      "description": "The everyday build. Needs network the first time, to fetch the hives.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/ninja-debug",
       "cacheVariables": {
@@ -29,11 +29,12 @@
     {
       "name": "local-dep",
       "inherits": "default",
-      "displayName": "Ninja, Debug, sibling SwapDiffHive checkout",
-      "description": "Takes the dependency from ../SwapDiffHive as it is instead of fetching it, so it configures and builds without network.",
+      "displayName": "Ninja, Debug, sibling hive checkouts",
+      "description": "Takes the dependencies from ../SwapDiffHive and ../MVCCHive as they are instead of fetching them, so it configures and builds without network.",
       "binaryDir": "${sourceDir}/build/ninja-local-dep",
       "cacheVariables": {
-        "FETCHCONTENT_SOURCE_DIR_SWAPDIFFHIVE": "${sourceDir}/../SwapDiffHive"
+        "FETCHCONTENT_SOURCE_DIR_SWAPDIFFHIVE": "${sourceDir}/../SwapDiffHive",
+        "FETCHCONTENT_SOURCE_DIR_MVCCHIVE": "${sourceDir}/../MVCCHive"
       }
     }
   ],
