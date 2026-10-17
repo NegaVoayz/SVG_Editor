@@ -37,10 +37,10 @@ place, which is why the document is owned above the Planner rather than inside i
 
 > Here [M a b...] means this process mainly requires module b in a;
 
-1. A line is read and parsed into a typed intent: a `CreateRect`, a `Delete`, a
-   `Read`, one of the alternatives of `Intent`. The values in it are model values
-   by then - a `LengthPercentage`, a `Color`, a `NodeRef` - so nothing above this
-   point sees a string a user typed. [M Ui] [M Protocol]
+1. A line is read and parsed into a typed intent: a `Create` (holding a `CreateRect`, a
+   `CreateCircle`, ...), a `Delete`, a `Read` - one of the alternatives of `Intent`. The
+   values in it are model values by then - a `LengthPercentage`, a `Color`, a `NodeRef` - so
+   nothing above this point sees a string a user typed. [M Ui] [M Protocol]
 2. The Planner decides what that intent means, and that is the whole decision:
    [M Planner]
    - a **view** is served by reading the tree directly [M Model]
@@ -60,7 +60,7 @@ The vocabulary is one thing to the layers that speak it, and four things to a re
 | header       | what it is                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------------ |
 | `NodeRef.hh` | how an instruction names a node - a handle, the root, an SVG id - and what that name turns out to be |
-| `Intent.hh`  | the instructions and the two variants they form                                             |
+| `Intent.hh`  | the instructions and the three variants they form, the element instructions among them      |
 | `View.hh`    | what a read hands back: the rows of a tree, or one node                                     |
 | `Outcome.hh` | `Kind`, `Outcome`, and the one shape a refusal takes                                        |
 
@@ -70,10 +70,11 @@ places that drive the pipeline end to end, the cli and the test that drives it t
 
 ### How an intent is dispatched
 
-An instruction is a `std::variant` of one struct per thing a user can ask for, and
-every layer that has to answer one does it with `std::visit` over that variant plus
-one function per alternative. Most of those functions are not written by hand,
-because what answers an instruction is a question about its type:
+An instruction is a `std::variant` of one struct per thing a user can ask for - except that
+the six ways to create an element are one alternative, `Create`, which is a variant of its
+own. Every layer that has to answer one does it with `std::visit` over that variant plus one
+function per alternative. Most of those functions are not written by hand, because what
+answers an instruction is a question about its type:
 
 ```C++
 // the Planner. Every change instruction goes to the Editor, and which instructions
@@ -113,7 +114,8 @@ get around that. Both layers here want the same thing - a branch that cannot be 
 a case that has a route, and that a case without one must take - so neither of them needs
 the workaround now, and neither of them has one.
 
-The Editor is the same shape with a different question asked of the type:
+The Editor is the same shape with a different question asked of the type, and a create is
+the one instruction it answers twice:
 
 ```C++
 template<typename T>
@@ -124,17 +126,27 @@ Outcome handle(const T& intent) {
         static_assert(false, "the Editor has no translation for this intent");
     }
 }
+
+// the second level: a create is one instruction, and its element kinds are the next question
+template<> Outcome handle<Create>(const Create& intent) {
+    return std::visit([this](const auto& element) { return handle(element); }, intent);
+}
 ```
 
 - The Editor is typed to `ChangeIntent`, so a view or a context instruction reaching
   the write path is not something it has to refuse at runtime - it is not a type it
   accepts.
-- A create is answered by one body for all six element kinds, and what differs is what
-  the instruction brings: the overloads of `new_element()` are the list of kinds, and
-  the explicit instantiations of `create()` at the end of the source are the same list
-  written for the compiler. A kind with a builder is routed; a kind without one, or an
-  instruction that brings no element at all and has no translation of its own, is a
-  build error naming its type.
+- A create is answered in two levels. `Create` is one alternative of `ChangeIntent`, so
+  level one routes it like any other change and the Planner never learns which element a
+  line named; level two is a translation of its own, `handle<Create>`, which visits the
+  kinds it may hold. Each kind comes back to the primary template above, where
+  `new_element()` having an overload for it is what sends it to `create()` - so a kind
+  added to `Create` with no builder is the build error naming that kind, and one with a
+  builder needs no change to the routing above.
+- One body answers all six kinds, and what differs is what the instruction brings: the
+  overloads of `new_element()` are what each kind builds. The visit is in `Editor.cc` and
+  `create()` is defined in `Create.cc`, which is why each kind also has its explicit
+  instantiation there: that is what gives the call a body.
 - The other eleven translations are written where they are routed, one file per thing an
   edit changes: `Editor/src/Create.cc` builds elements, `Structure.cc` moves nodes and
   levels around, `Payload.cc` changes what one node holds, and `History.cc` is undo and
