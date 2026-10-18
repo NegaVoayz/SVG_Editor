@@ -28,7 +28,9 @@ class Transaction;
 // looks up.
 class Document {
 public:
-    // An empty document, with its root <svg> element already in place.
+    // No document yet: there is no root until reset() makes a fresh one or open()
+    // reads one. This is the state the front end starts in, and the reason every
+    // command but `init` and `read` can be refused before either has happened.
     Document() = default;
 
     Document(const Document&) = delete;
@@ -38,8 +40,11 @@ public:
 
     // --- viewing ---
 
-    // The root <svg> node. An empty document still has one.
+    // The root <svg> node, or no_id while there is no document.
     Id root() const;
+
+    // Whether a root exists. A removed node is not a document either.
+    bool has_document() const;
 
     // A copy of the payload stored at that handle, or nothing when no live node is
     // there. The hive exposes only immutable versions, but the document hands out

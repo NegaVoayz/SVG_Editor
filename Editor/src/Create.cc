@@ -89,17 +89,14 @@ template<typename T>
 Outcome Editor::create(const T& intent) {
     NewElement built = new_element(intent);
     if (document_.find(intent.id)) {
-        return refusal(Kind::Change, "an element is already called \"" + intent.id + "\"");
+        return refusal(Kind::Change, "error: id already exists: " + intent.id);
     }
-    const std::optional<Id> parent = look_up(document_, intent.parent);
-    if (!parent) {
-        return refusal(Kind::Change, "there is nothing to put the new element in: " + describe(intent.parent));
-    }
+    const Id parent = resolve_container(intent.parent);
 
     // The element and its content are two nodes, and one instruction is one
     // transaction, so either both are written or neither is.
     Transaction edit = document_.transaction();
-    const Id node = edit.append_child(*parent, std::move(built.payload));
+    const Id node = edit.append_child(parent, std::move(built.payload));
     if (built.content) edit.append_child(node, characters(std::move(*built.content)));
     edit.commit();
     return Outcome{true, Kind::Change, "created #" + std::to_string(node) + " <" + std::string{built.kind} + "> id=\"" +

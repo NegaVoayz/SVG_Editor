@@ -108,6 +108,18 @@ static_assert(!ChildHolder<Removed>);
 
 int main() {
     Document document;
+    CHECK(!document.has_document());
+    CHECK(document.root() == no_id);
+    CHECK(document.children(no_id).empty());
+    CHECK(document.depth() == 0);
+    CHECK(!document.can_undo());
+    CHECK(throws([&] { auto edit = document.transaction(); }));
+    const Status early_save = document.save(std::nullopt);
+    CHECK(!early_save.ok);
+    CHECK(early_save.message == "error: no document. use 'init' or 'read' first");
+
+    // `init` is what makes the first root; before it there is no document to edit.
+    document.reset(std::nullopt, std::nullopt);
     const Id root = document.root();
 
     // the root is the first virtual id of the hive: a link that leads nowhere is

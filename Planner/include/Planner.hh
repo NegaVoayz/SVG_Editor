@@ -32,6 +32,7 @@ private:
     template<typename T>
     Outcome handle(const T& intent) {
         if constexpr (std::is_constructible_v<ChangeIntent, T>) {
+            if (!document_.has_document()) return no_document(Kind::Change);
             return editor_.translate(ChangeIntent{intent});
         } else {
             static_assert(false, "the Planner has no route for this intent");

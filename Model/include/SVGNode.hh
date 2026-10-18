@@ -79,6 +79,14 @@ struct Removed {
 
 using Node = std::variant<SVGNode, PlainText, Removed>;
 
+// The SVG element that can be a parent of shapes and other containers. A text also has
+// child storage, for its character data, but it is not a container a user can put an
+// element inside.
+inline bool is_container(const Node& node) {
+    if (!std::holds_alternative<SVGNode>(node)) return false;
+    return std::holds_alternative<Container>(std::get<SVGNode>(node).data);
+}
+
 // Whether a payload type carries its place in the tree.
 template<typename T>
 concept Linked = requires(T candidate, Id link) {

@@ -296,6 +296,11 @@ int main() {
     CHECK(refuses(parse("   ")));
     CHECK(refuses(parse("delete")));
     CHECK(refuses(parse("create poly p 1 2 3")));
+    const Request unknown_kind = parse("create hexagon h 0 0");
+    CHECK(refuses(unknown_kind));
+    if (refuses(unknown_kind)) {
+        CHECK(complaint(unknown_kind) == "error: unknown shape type: hexagon (is the plugin loaded?)");
+    }
 
     const Request bad_length = parse("create rect r wide 0 10 10");
     CHECK(refuses(bad_length));

@@ -55,8 +55,9 @@ Planner::Planner(Document& document, Editor& editor) : document_(document), edit
 // views, and which document is being edited. Each of these is short enough to read
 // where it is routed, so there is no second place to look for what one of them does.
 template<> Outcome Planner::handle<ShowTree>(const ShowTree& intent) {
+    if (!document_.has_document()) return no_document(Kind::View);
     const std::optional<Id> node = look_up(document_, intent.node);
-    if (!node) return refusal(Kind::View, "there is no node at " + describe(intent.node));
+    if (!node) return refusal(Kind::View, "error: no such shape: " + label(intent.node));
 
     // The root of the view is the row the front end prints first, and its children are
     // the rows under it - which is why the walk starts at depth 0.
@@ -66,8 +67,9 @@ template<> Outcome Planner::handle<ShowTree>(const ShowTree& intent) {
 }
 
 template<> Outcome Planner::handle<Show>(const Show& intent) {
+    if (!document_.has_document()) return no_document(Kind::View);
     const std::optional<Id> node = look_up(document_, intent.node);
-    if (!node) return refusal(Kind::View, "there is no node at " + describe(intent.node));
+    if (!node) return refusal(Kind::View, "error: no such shape: " + label(intent.node));
 
     const std::optional<Node> payload = document_.node(*node);
     if (!payload) return refusal(Kind::View, "the node went missing");  // cannot happen: look_up
@@ -90,6 +92,7 @@ template<> Outcome Planner::handle<Read>(const Read& intent) {
 // A save with no path writes where the document was read from, which is the Model's to
 // remember: the front end never sees a path it did not write itself.
 template<> Outcome Planner::handle<Save>(const Save& intent) {
+    if (!document_.has_document()) return no_document(Kind::Context);
     const Status status = document_.save(intent.path);
     return Outcome{status.ok, Kind::Context, status.message};
 }

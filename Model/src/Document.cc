@@ -20,6 +20,8 @@ Status serialize(const TreeStore& store, std::string& out_svg) {
 
 Id Document::root() const { return store_.root(); }
 
+bool Document::has_document() const { return store_.root() != no_id; }
+
 std::optional<Node> Document::node(Id id) const {
     if (!store_.has_node(id)) return std::nullopt;
     return store_.record(id);
@@ -37,6 +39,7 @@ std::optional<Id> Document::parent(Id node) const {
 
 std::optional<Id> Document::find(std::string_view svg_id) const {
     if (svg_id.empty()) return std::nullopt;
+    if (!has_document()) return std::nullopt;
 
     // No index yet: a walk cannot go stale, and the tree is small. The arena hands
     // out no way to list its rows, so the tree is the only index there is.
@@ -66,28 +69,32 @@ std::size_t Document::position() const { return store_.position(); }
 
 Status Document::open(std::string_view path) {
     const FileResult file = FileSystem::read(path);
-    if (!file.ok) return Status{false, "open " + std::string(path) + ": " + file.text};
+    if (!file.ok) return Status{false, "error: " + file.text};
     // TODO: reset the document, parse the bytes into it, and only then take the path
     // as the document's own. Until the parser exists the read is only reported, and
     // the document is left as it was - which is why a read that failed leaves no
     // path behind either.
-    return Status{false, "open " + std::string(path) + ": the SVG parser is not implemented yet (" +
-                             std::to_string(file.text.size()) + " bytes read)"};
+    return Status{false, "error: the SVG parser is not implemented yet, after reading " +
+                             std::to_string(file.text.size()) + " bytes"};
 }
 
 const std::string& Document::source_path() const { return source_path_; }
 
 Status Document::save(std::optional<std::string_view> path) {
+    if (!has_document()) {
+        return Status{false, "error: no document. use 'init' or 'read' first"};
+    }
+
     const std::string target = path ? std::string{*path} : source_path_;
     if (target.empty()) {
-        return Status{false, "this document came from nowhere yet: save <path> says where to write it"};
+        return Status{false, "error: this document came from nowhere yet: save <path> says where to write it"};
     }
 
     std::string svg;
     const Status serialized = serialize(store_, svg);
-    if (!serialized.ok) return Status{false, "save " + target + ": " + serialized.message};
+    if (!serialized.ok) return Status{false, "error: " + serialized.message};
     const FileResult file = FileSystem::write(target, svg);
-    if (!file.ok) return Status{false, "save " + target + ": " + file.text};
+    if (!file.ok) return Status{false, "error: " + file.text};
     // What was written is what the file says from here on, so the way back to the
     // state before it goes with the history that remembered it.
     clear_history();

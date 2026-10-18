@@ -66,6 +66,27 @@ int main() {
     Editor editor{document};
     Planner planner{document, editor};
 
+    // Before `init` or `read` there is no root, so every route that needs a document
+    // refuses with the same sentence.
+    const Outcome before_init = planner.dispatch(ShowTree{});
+    CHECK(!before_init.ok);
+    CHECK(before_init.kind == Kind::View);
+    CHECK(before_init.message == "error: no document. use 'init' or 'read' first");
+    const Outcome change_before_init = planner.dispatch(Create{CreateGroup{"early"}});
+    CHECK(!change_before_init.ok);
+    CHECK(change_before_init.kind == Kind::Change);
+    CHECK(change_before_init.message == before_init.message);
+    CHECK(planner.dispatch(Save{std::nullopt}).message == before_init.message);
+
+    // `read` is allowed without a document; a read that fails leaves the absence alone.
+    const Outcome read_before_init = planner.dispatch(Read{"no-such-file.svg"});
+    CHECK(!read_before_init.ok);
+    CHECK(read_before_init.message == "error: cannot read file: no-such-file.svg");
+    CHECK(!document.has_document());
+
+    // `init` is the context instruction that makes the first root.
+    CHECK(planner.dispatch(Init{}).ok);
+
     // a view is served by reading the tree and hands back what it read
     const Outcome empty_view = planner.dispatch(ShowTree{});
     CHECK(empty_view.ok);
@@ -167,7 +188,7 @@ int main() {
     const Outcome missing = planner.dispatch(Read{"no-such-file.svg"});
     CHECK(!missing.ok);
     CHECK(missing.kind == Kind::Context);
-    CHECK(missing.message.find("cannot open") != std::string::npos);
+    CHECK(missing.message == "error: cannot read file: no-such-file.svg");
 
     const Outcome unparsed = planner.dispatch(Read{std::string(SVG_EDITOR_SOURCE_DIR) + "/Structure.md"});
     CHECK(!unparsed.ok);
@@ -179,17 +200,38 @@ int main() {
     const Outcome bad_handle = planner.dispatch(Move{HandleRef{9999}, units(1), units(1)});
     CHECK(!bad_handle.ok);
     CHECK(bad_handle.kind == Kind::Change);
-    CHECK(bad_handle.message.find("no node lives at handle #9999") != std::string::npos);
+    CHECK(bad_handle.message == "error: no such shape: #9999");
 
     const Outcome bad_name = planner.dispatch(Delete{SvgIdRef{"nothing"}});
     CHECK(!bad_name.ok);
-    CHECK(bad_name.message.find("no node is called \"nothing\"") != std::string::npos);
+    CHECK(bad_name.message == "error: no such shape: nothing");
 
     // and so is what the model refuses to do with a node that does exist
     const Outcome not_a_container = planner.dispatch(AddTo{SvgIdRef{"box"}, SvgIdRef{"layer"}});
     CHECK(!not_a_container.ok);
-    CHECK(not_a_container.message.find("cannot hold children") != std::string::npos);
+    CHECK(not_a_container.message == "error: not a container: box");
     CHECK(document.children(document.root()).size() == 2);
+
+    const Outcome missing_container = planner.dispatch(Create{CreateGroup{"in_missing", SvgIdRef{"node9"}}});
+    CHECK(!missing_container.ok);
+    CHECK(missing_container.message == "error: no such container: node9");
+    const Outcome shape_as_container = planner.dispatch(Create{CreateGroup{"in_shape", SvgIdRef{"box"}}});
+    CHECK(!shape_as_container.ok);
+    CHECK(shape_as_container.message == "error: not a container: box");
+
+    const Outcome cannot_ungroup_shape = planner.dispatch(Ungroup{SvgIdRef{"box"}});
+    CHECK(!cannot_ungroup_shape.ok);
+    CHECK(cannot_ungroup_shape.message == "error: cannot ungroup composite shape: box");
+    const Outcome cannot_ungroup_missing = planner.dispatch(Ungroup{SvgIdRef{"missing"}});
+    CHECK(!cannot_ungroup_missing.ok);
+    CHECK(cannot_ungroup_missing.message == "error: no such container: missing");
+    const Outcome cannot_ungroup_top = planner.dispatch(Ungroup{RootRef{}});
+    CHECK(!cannot_ungroup_top.ok);
+    CHECK(cannot_ungroup_top.message == "error: cannot ungroup top-level container: /");
+
+    const Outcome zero_scale = planner.dispatch(ScaleBy{SvgIdRef{"box"}, 0.0F});
+    CHECK(!zero_scale.ok);
+    CHECK(zero_scale.message == "error: scale factor must be positive");
 
     const Outcome rootless = planner.dispatch(Delete{RootRef{}});
     CHECK(!rootless.ok);
@@ -199,7 +241,7 @@ int main() {
     // an id that is taken is refused, and one that is free is accepted
     const Outcome taken = planner.dispatch(Create{CreateGroup{"box"}});
     CHECK(!taken.ok);
-    CHECK(taken.message.find("already called") != std::string::npos);
+    CHECK(taken.message == "error: id already exists: box");
     CHECK(planner.dispatch(Create{CreateGroup{"other"}}).ok);
 
     // Moving a container is its transform, because a group has no coordinates of its
@@ -550,6 +592,15 @@ int main() {
         }
     }
     CHECK(!planner.dispatch(Set{SetContent{SvgIdRef{"box"}, "not a text"}}).ok);
+
+    // A container cannot be moved under a group that would already be inside it.
+    CHECK(planner.dispatch(Create{CreateGroup{"inner", SvgIdRef{"layer"}}}).ok);
+    const Outcome add_cycle = planner.dispatch(AddTo{SvgIdRef{"inner"}, SvgIdRef{"layer"}});
+    CHECK(!add_cycle.ok);
+    CHECK(add_cycle.message == "error: cannot group a container into its own descendant: layer");
+    const Outcome group_cycle = planner.dispatch(Group{"cycle", {SvgIdRef{"inner"}, SvgIdRef{"layer"}}});
+    CHECK(!group_cycle.ok);
+    CHECK(group_cycle.message == "error: cannot group a container into its own descendant: layer");
 
     // The canvas is the root element's own size, and setting it is a checkpoint: the
     // frame behind the drawing is what the document is now, so nothing before it can

@@ -78,17 +78,6 @@ constexpr std::array<ElementKind, 6> kinds{{
     {"g", build_group},
 }};
 
-// The kinds as the sentence that refuses one nobody knows: the table is the only place they
-// are written down, so a kind that is added names itself in this sentence as well.
-std::string kinds_of() {
-    std::string names;
-    for (std::size_t index = 0; index < kinds.size(); ++index) {
-        if (index != 0) names += (index + 1 == kinds.size()) ? " or " : ", ";
-        names += kinds[index].name;
-    }
-    return names;
-}
-
 }  // namespace
 
 // create <kind> <id> [values] [in <gid>]
@@ -109,5 +98,5 @@ Request parse_create(const Words& words) {
     for (const ElementKind& kind : kinds) {
         if (kind.name == words[1]) return Intent{kind.build(id, values, parent)};
     }
-    throw ParseFailed{"create can build " + kinds_of() + ", not '" + words[1] + "'"};
+    throw ParseFailed{"error: unknown shape type: " + words[1] + " (is the plugin loaded?)"};
 }

@@ -105,7 +105,7 @@ bool scale(Node& payload, float factor, std::string& problem) {
     // approximated - and a factor that is not a number at all lands here too, because "not
     // greater than zero" is what both cases are.
     if (!(factor > 0.0F)) {
-        problem = "a scale of " + number_text(factor) + " is not written yet: a factor has to be greater than zero";
+        problem = "error: scale factor must be positive";
         return false;
     }
     if (!std::holds_alternative<SVGNode>(payload)) {

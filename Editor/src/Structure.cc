@@ -2,6 +2,7 @@
 // goes away, and a node that ends up somewhere else - at one end of its level, under a
 // new group, or standing where a group used to.
 #include <algorithm>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <variant>
@@ -10,6 +11,30 @@
 #include "NodeRef.hh"
 #include "Outcome.hh"
 #include "Translations.hh"
+
+namespace {
+
+// Whether `candidate` is the ancestor itself or sits somewhere under it. Attaching an
+// ancestor to a group built under one of its descendants would make the tree a cycle.
+bool inside(const Document& document, Id candidate, Id ancestor) {
+    for (Id walk = candidate; walk != no_id; walk = document.parent(walk).value_or(no_id)) {
+        if (walk == ancestor) return true;
+    }
+    return false;
+}
+
+// The name a top-level-container error should use: the root's SVG id when a parsed
+// document gave it one, and the root reference otherwise.
+std::string top_level_name(const Document& document) {
+    const std::optional<Node> payload = document.node(document.root());
+    if (payload && std::holds_alternative<SVGNode>(*payload)) {
+        const std::string& id = std::get<SVGNode>(*payload).identity_attr.id;
+        if (!id.empty()) return id;
+    }
+    return "/";
+}
+
+}  // namespace
 
 template<> Outcome Editor::handle<Delete>(const Delete& intent) {
     const Id node = resolve(intent.node);
@@ -22,8 +47,12 @@ template<> Outcome Editor::handle<Delete>(const Delete& intent) {
 }
 
 template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {
-    const Id parent = resolve(intent.parent);
+    const Id parent = resolve_container(intent.parent);
     const Id node = resolve(intent.node);
+    if (inside(document_, parent, node)) {
+        return refusal(Kind::Change,
+                       "error: cannot group a container into its own descendant: " + label(intent.node));
+    }
 
     Transaction edit = document_.transaction();
     edit.attach_last(parent, node);
@@ -73,7 +102,7 @@ template<> Outcome Editor::handle<Back>(const Back& intent) {
 template<> Outcome Editor::handle<Group>(const Group& intent) {
     if (intent.nodes.empty()) return refusal(Kind::Change, "a group needs at least one node to hold");
     if (document_.find(intent.id)) {
-        return refusal(Kind::Change, "an element is already called \"" + intent.id + "\"");
+        return refusal(Kind::Change, "error: id already exists: " + intent.id);
     }
 
     std::vector<Id> members;
@@ -84,7 +113,16 @@ template<> Outcome Editor::handle<Group>(const Group& intent) {
     // of the first sibling after that node which is not being taken itself.
     const Id first = members.front();
     const std::optional<Id> parent = document_.parent(first);
-    if (!parent) return refusal(Kind::Change, "the root cannot be put inside a group");
+    if (!parent) return refusal(Kind::Change, "error: cannot group top-level container: " + top_level_name(document_));
+
+    // The new group is made under `parent`, so taking one of parent's own ancestors would
+    // put that container inside a group that is already inside it.
+    for (std::size_t index = 0; index < members.size(); ++index) {
+        if (inside(document_, *parent, members[index])) {
+            return refusal(Kind::Change, "error: cannot group a container into its own descendant: " +
+                                             label(intent.nodes[index]));
+        }
+    }
 
     const auto taken = [&members](Id node) {
         return std::find(members.begin(), members.end(), node) != members.end();
@@ -112,22 +150,20 @@ template<> Outcome Editor::handle<Group>(const Group& intent) {
 }
 
 template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
-    const Id node = resolve(intent.node);
+    const std::optional<Id> found = look_up(document_, intent.node);
+    if (!found) return refusal(Kind::Change, "error: no such container: " + label(intent.node));
+    const Id node = *found;
     if (node == document_.root()) {
-        return refusal(Kind::Change, "the root is the document itself and cannot be ungrouped");
+        return refusal(Kind::Change, "error: cannot ungroup top-level container: " + top_level_name(document_));
     }
 
     const std::optional<Node> payload = document_.node(node);
-    if (!payload) return refusal(Kind::Change, "no node lives at that handle");
-    if (!std::holds_alternative<SVGNode>(*payload) ||
-        !std::holds_alternative<Container>(std::get<SVGNode>(*payload).data)) {
-        return refusal(Kind::Change,
-                       "only a container can be ungrouped: a shape has nothing inside it, and a text element holds "
-                       "its words rather than children that could stand where it stands");
+    if (!payload || !is_container(*payload)) {
+        return refusal(Kind::Change, "error: cannot ungroup composite shape: " + label(intent.node));
     }
 
     const std::optional<Id> parent = document_.parent(node);
-    if (!parent) return refusal(Kind::Change, "the root is the document itself and cannot be ungrouped");
+    if (!parent) return refusal(Kind::Change, "error: cannot ungroup top-level container: " + top_level_name(document_));
 
     const std::vector<Id> members = document_.children(node);
     // What stood after the group keeps standing after its children: each of them is

@@ -62,6 +62,10 @@ private:
     // A reference turned into a node, or the refusal for one that names nothing.
     Id resolve(const NodeRef& reference) const;
 
+    // A reference that has to name a container: one that exists and can hold shapes or
+    // other containers. A text holds character data but is not this kind of container.
+    Id resolve_container(const NodeRef& reference) const;
+
     // What one create brings: the tag a message names it by, the element itself, and the
     // words to put inside it when the element is a text. A text holds character data in
     // a child node rather than in an attribute, which is why that is a second node.

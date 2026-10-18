@@ -262,8 +262,9 @@ int main() {
     // collapse, and this cannot
     Node kept_factor = rect(user_units(1), user_units(1));
     CHECK(!resized(kept_factor, 0.0F, problem));
-    CHECK(problem.find("has to be greater than zero") != std::string::npos);
+    CHECK(problem == "error: scale factor must be positive");
     CHECK(!resized(kept_factor, -1.0F, problem));
+    CHECK(problem == "error: scale factor must be positive");
     CHECK(to_text(std::get<Shape::Rect>(shape_of(kept_factor).specific).x) == "1");
 
     if (failures != 0) {

@@ -112,7 +112,7 @@ bool set_child_attr(Node& node, const ChildAttr& attr) {
     return placed;
 }
 
-TreeStore::TreeStore() { reset(std::nullopt, std::nullopt); }
+TreeStore::TreeStore() = default;
 
 void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
     // Forgetting everything means releasing the snapshots too: the guards would keep the
@@ -136,6 +136,7 @@ void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<Lengt
 }
 
 TreeStore::Edit TreeStore::begin() {
+    if (!view_) throw std::logic_error("TreeStore: no document");
     rewind_head_to_view();
     return nodes_.begin_transaction();
 }
@@ -180,6 +181,7 @@ std::size_t TreeStore::depth() const { return checkpoints_.empty() ? 0 : checkpo
 std::size_t TreeStore::position() const { return applied_; }
 
 void TreeStore::clear_history() {
+    if (!view_) return;
     rewind_head_to_view();
 
     // The head is the tree being kept. Dropping every checkpoint first releases the
@@ -202,6 +204,7 @@ void TreeStore::clear_history() {
 // rewritten; a row that was created after the visible state becomes a Removed record,
 // and one that is visible there is copied back from the snapshot.
 void TreeStore::rewind_head_to_view() {
+    if (!view_) return;
     const Snapshot head = nodes_.head();
     if (head.commit_id() == view_->commit_id()) return;
     if (head.commit_id() < view_->commit_id()) {

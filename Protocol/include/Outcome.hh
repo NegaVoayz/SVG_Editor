@@ -38,3 +38,8 @@ struct Outcome {
 // user. A view and a change both refuse this way, so the layers that can write a sentence
 // build the struct here instead of each in its own words.
 inline Outcome refusal(Kind kind, std::string message) { return Outcome{false, kind, std::move(message)}; }
+
+// The one refusal every command but `init` and `read` shares before a document exists.
+inline Outcome no_document(Kind kind) {
+    return refusal(kind, "error: no document. use 'init' or 'read' first");
+}

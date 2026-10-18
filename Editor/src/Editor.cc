@@ -7,6 +7,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <variant>
 
 #include "NodeRef.hh"
@@ -24,16 +25,27 @@ Outcome Editor::translate(const ChangeIntent& intent) {
     } catch (const std::exception& error) {
         // Whatever refused - a handle that names nothing, a tree that would become
         // illegal - the transaction that was open is gone and the Model rolled it
-        // back. All that is left is the sentence for the user.
-        return refusal(Kind::Change, "the edit was not applied: " + std::string(error.what()));
+        // back. All that is left is the sentence for the user. A sentence that already
+        // names its kind keeps it; one from a lower layer gets the same prefix here.
+        std::string message = error.what();
+        if (!message.starts_with("error: ")) message = "error: " + message;
+        return refusal(Kind::Change, std::move(message));
     }
 }
 
 Id Editor::resolve(const NodeRef& reference) const {
     const std::optional<Id> found = look_up(document_, reference);
     if (found) return *found;
-    if (std::holds_alternative<HandleRef>(reference)) {
-        throw std::invalid_argument("no node lives at handle #" + std::to_string(std::get<HandleRef>(reference).id));
+    throw std::invalid_argument("error: no such shape: " + label(reference));
+}
+
+Id Editor::resolve_container(const NodeRef& reference) const {
+    const std::optional<Id> found = look_up(document_, reference);
+    if (!found) throw std::invalid_argument("error: no such container: " + label(reference));
+
+    const std::optional<Node> payload = document_.node(*found);
+    if (!payload || !is_container(*payload)) {
+        throw std::invalid_argument("error: not a container: " + label(reference));
     }
-    throw std::invalid_argument("no node is called " + describe(reference));
+    return *found;
 }
