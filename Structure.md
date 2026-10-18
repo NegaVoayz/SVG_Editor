@@ -276,7 +276,7 @@ svg> init
 svg> create g markers
 [change] created #1 <g> id="markers" in the root
 svg> create rect box 0 0 10 10 #ff0000 in markers
-[change] created #2 <rect> id="box" in "markers"
+[change] created #2 <rect> id="box" in markers
 svg> create text title 20 40 "My Diagram"
 [change] created #3 <text> id="title" in the root
 svg> tree

@@ -277,12 +277,19 @@ namespace {
 // The two ways a reference is named in an answer: with its own spelling in a clause, and
 // as the thing an error is about. Both are presentation, which is why they live here and
 // not next to the protocol's NodeRef.
+std::string quote_if_needed(std::string_view text) {
+    if (!text.empty() && text.find_first_of(" \t\r\n") == std::string_view::npos) {
+        return std::string{text};
+    }
+    return "\"" + std::string{text} + "\"";
+}
+
 std::string label(const NodeRef& reference) {
     if (std::holds_alternative<RootRef>(reference)) return "/";
     if (std::holds_alternative<HandleRef>(reference)) {
         return "#" + std::to_string(std::get<HandleRef>(reference).id);
     }
-    return std::get<SvgIdRef>(reference).name;
+    return quote_if_needed(std::get<SvgIdRef>(reference).name);
 }
 
 std::string describe(const NodeRef& reference) {
@@ -290,7 +297,7 @@ std::string describe(const NodeRef& reference) {
     if (std::holds_alternative<HandleRef>(reference)) {
         return "#" + std::to_string(std::get<HandleRef>(reference).id);
     }
-    return "\"" + std::get<SvgIdRef>(reference).name + "\"";
+    return quote_if_needed(std::get<SvgIdRef>(reference).name);
 }
 
 std::string_view system_name(Length::Unit unit) {
@@ -340,7 +347,7 @@ struct EventText {
                " and erased " + describe(released.named);
     }
     std::string operator()(const event::AttributeSet& set) const {
-        return "set " + set.attribute + " on #" + std::to_string(set.node);
+        return "set " + quote_if_needed(set.attribute) + " on #" + std::to_string(set.node);
     }
     std::string operator()(const event::ContentSet& set) const {
         return "set content on #" + std::to_string(set.node);
@@ -366,9 +373,9 @@ struct EventText {
     std::string operator()(const event::Initialized&) const {
         return "an empty document, with the canvas it was given";
     }
-    std::string operator()(const event::Opened& opened) const { return "read " + opened.path; }
+    std::string operator()(const event::Opened& opened) const { return "read " + quote_if_needed(opened.path); }
     std::string operator()(const event::Saved& saved) const {
-        return "saved " + saved.path + ", and the history starts from here";
+        return "saved " + quote_if_needed(saved.path) + ", and the history starts from here";
     }
 };
 
@@ -386,10 +393,10 @@ struct RefusalText {
         return "error: not a container: " + label(wrong.node);
     }
     std::string operator()(const fault::DuplicateId& taken) const {
-        return "error: id already exists: " + taken.id;
+        return "error: id already exists: " + quote_if_needed(taken.id);
     }
     std::string operator()(const fault::UnknownAttribute& attribute) const {
-        return "error: unknown attribute: " + attribute.name;
+        return "error: unknown attribute: " + quote_if_needed(attribute.name);
     }
     std::string operator()(const fault::CannotUngroupCompositeShape& composite) const {
         return "error: cannot ungroup composite shape: " + label(composite.node);
@@ -398,10 +405,10 @@ struct RefusalText {
         return "error: cannot group a container into its own descendant: " + label(descendant.node);
     }
     std::string operator()(const fault::CannotGroupTopLevelContainer& top) const {
-        return "error: cannot group top-level container: " + top.name;
+        return "error: cannot group top-level container: " + quote_if_needed(top.name);
     }
     std::string operator()(const fault::CannotUngroupTopLevelContainer& top) const {
-        return "error: cannot ungroup top-level container: " + top.name;
+        return "error: cannot ungroup top-level container: " + quote_if_needed(top.name);
     }
     std::string operator()(const fault::ScaleFactorNotPositive&) const {
         return "error: scale factor must be positive";
@@ -430,10 +437,10 @@ struct RefusalText {
         return "error: this document came from nowhere yet: save <path> says where to write it";
     }
     std::string operator()(const fault::CannotReadFile& missing) const {
-        return "error: cannot read file: " + missing.path;
+        return "error: cannot read file: " + quote_if_needed(missing.path);
     }
     std::string operator()(const fault::CannotWriteFile& missing) const {
-        return "error: cannot write file: " + missing.path;
+        return "error: cannot write file: " + quote_if_needed(missing.path);
     }
     std::string operator()(const fault::ParserNotImplemented& parser) const {
         return "error: the SVG parser is not implemented yet, after reading " + std::to_string(parser.bytes) +

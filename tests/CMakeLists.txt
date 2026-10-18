@@ -57,6 +57,18 @@ set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME cli_units COMMAND $<TARGET_FILE:Cli> "init; create rect r 1cm 0 10mm 10mm; move r 1in 0")
 set_tests_properties(cli_units PROPERTIES PASS_REGULAR_EXPRESSION "1in is imperial and 1cm is metric")
 
+# A parameter with a space is one word when it is quoted, and the answer prints it back
+# the same way so the reader can copy it into another instruction.
+add_test(NAME cli_quoted_id COMMAND $<TARGET_FILE:Cli>
+    "init; create g \"my layer\"; create rect \"my box\" 0 0 10 10 in \"my layer\"; tree")
+set_tests_properties(cli_quoted_id PROPERTIES PASS_REGULAR_EXPRESSION "g#my layer")
+
+add_test(NAME cli_quoted_id_error COMMAND $<TARGET_FILE:Cli> "init; delete \"id with space\"")
+set_tests_properties(cli_quoted_id_error PROPERTIES PASS_REGULAR_EXPRESSION "error: no such shape: \"id with space\"")
+
+add_test(NAME cli_quoted_path COMMAND $<TARGET_FILE:Cli> "read \"no such file.svg\"")
+set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: cannot read file: \"no such file.svg\"")
+
 add_test(NAME cli_help COMMAND $<TARGET_FILE:Cli> "help")
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "create <kind> <id>")
 
