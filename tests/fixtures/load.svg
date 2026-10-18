@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A file with every kind of node the model can hold. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200">
+  <g id="layer" fill="red" stroke="url(#paint) red" transform="translate(2 3)">
+    <rect x="1" y="2" width="30" height="40" fill="#3366ff"/>
+    <circle cx="50" cy="60" r="10" stroke="darkslategrey" stroke-width="2"/>
+    <ellipse cx="70" cy="80" rx="12" ry="8"/>
+    <line x1="0" y1="0" x2="20" y2="30" stroke="rgb(1, 2, 3)"/>
+  </g>
+  <defs><symbol id="mark"/></defs>
+  <switch><g id="fallback"/></switch>
+  <text x="20" y="40">Hello &amp; &lt;SVG&gt;<tspan id="small" fill="rebeccapurple"> again</tspan><textPath id="along" href="#mark" startOffset="10%">path</textPath></text>
+</svg>

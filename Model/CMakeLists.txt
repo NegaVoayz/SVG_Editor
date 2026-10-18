@@ -2,9 +2,17 @@
 # API that edits it. MVCCHive is its dependency, so this directory is the only
 # place in the build where the hive is used.
 include(cmake/MVCCHive.cmake)
+include(cmake/TinyXml2.cmake)
 
 add_library(Model
+    src/Color.cc
     src/Document.cc
+    src/LoadDocument.cc
+    src/SvgReader.cc
+    src/SvgValueReader.cc
+    src/SvgWriter.cc
+    src/TinyXml2Adapter.cc
+    src/XmlSnapshot.cc
     src/TreeStore.cc)
 add_library(SvgEditor::Model ALIAS Model)
 
@@ -21,6 +29,7 @@ target_link_libraries(Model
     PUBLIC
         mvcc_hive
     PRIVATE
+        tinyxml2::tinyxml2
         SvgEditor::Warnings)
 
 # The file layer is Model's own business: nothing outside Model includes it, and

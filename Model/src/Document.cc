@@ -5,19 +5,11 @@
 #include <variant>
 
 #include "FileSystem.hh"
+#include "LoadDocument.hh"
+#include "SvgReader.hh"
+#include "SvgWriter.hh"
+#include "TinyXml2Adapter.hh"
 #include "TreeStore.hh"
-
-namespace {
-
-// TODO: the missing half of the Model. The serializer walks the tree and writes
-// SVG source; until it exists save() can only report that much.
-Status serialize(const TreeStore& store, std::string& out_svg) {
-    static_cast<void>(store);
-    static_cast<void>(out_svg);
-    return model_status::SerializerNotImplemented{};
-}
-
-}  // namespace
 
 Id Document::root() const { return store_.root(); }
 
@@ -72,11 +64,23 @@ Status Document::open(std::string_view path) {
     const FileResult file = FileSystem::read(path);
     if (!std::holds_alternative<FileBytes>(file)) return model_status::CannotReadFile{std::string{path}};
     const FileBytes& bytes = std::get<FileBytes>(file);
-    // TODO: reset the document, parse the bytes into it, and only then take the path
-    // as the document's own. Until the parser exists the read is only reported, and
-    // the document is left as it was - which is why a read that failed leaves no
-    // path behind either.
-    return model_status::ParserNotImplemented{bytes.bytes.size()};
+
+    const XmlReadResult xml = read_xml(bytes.bytes);
+    if (const XmlReadError* error = std::get_if<XmlReadError>(&xml)) {
+        const SvgProblem problem =
+            error->kind == XmlReadError::Kind::NoRoot ? SvgProblem::NoRootElement : SvgProblem::MalformedXml;
+        return model_status::InvalidSvg{SvgDiagnostic{problem, error->line, {}, {}, {}, error->detail}};
+    }
+
+    const SvgReadResult parsed = read_svg(std::get<XmlSnapshot>(xml));
+    if (const SvgDiagnostic* diagnostic = std::get_if<SvgDiagnostic>(&parsed)) {
+        return model_status::InvalidSvg{*diagnostic};
+    }
+
+    const ParsedSvg& document = std::get<ParsedSvg>(parsed);
+    load_parsed(store_, document);
+    source_path_ = std::string{path};
+    return model_status::Opened{document.assigned_ids};
 }
 
 const std::string& Document::source_path() const { return source_path_; }
@@ -91,9 +95,7 @@ Status Document::save(std::optional<std::string_view> path) {
         return model_status::MissingSourcePath{};
     }
 
-    std::string svg;
-    const Status serialized = serialize(store_, svg);
-    if (!ok(serialized)) return serialized;
+    const std::string svg = write_svg(store_);
     const FileResult file = FileSystem::write(target, svg);
     if (!std::holds_alternative<FileWritten>(file)) return model_status::CannotWriteFile{target};
     // What was written is what the file says from here on, so the way back to the

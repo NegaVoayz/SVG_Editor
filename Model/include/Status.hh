@@ -3,6 +3,9 @@
 #include <cstddef>
 #include <string>
 #include <variant>
+#include <vector>
+
+#include "SvgDiagnostic.hh"
 
 // The result of an operation that can fail for a reason the user has to be told about.
 // Like the protocol's outcome, this is data rather than a sentence: the ui layer decides
@@ -10,6 +13,9 @@
 namespace model_status {
 
 struct Ok {};
+struct Opened {
+    std::vector<AssignedId> assigned_ids;
+};
 struct NoDocument {};
 struct MissingSourcePath {};
 struct CannotReadFile {
@@ -18,15 +24,16 @@ struct CannotReadFile {
 struct CannotWriteFile {
     std::string path;
 };
-struct ParserNotImplemented {
-    std::size_t bytes;
+struct InvalidSvg {
+    SvgDiagnostic diagnostic;
 };
-struct SerializerNotImplemented {};
 
 }  // namespace model_status
 
-using Status = std::variant<model_status::Ok, model_status::NoDocument, model_status::MissingSourcePath,
-                            model_status::CannotReadFile, model_status::CannotWriteFile,
-                            model_status::ParserNotImplemented, model_status::SerializerNotImplemented>;
+using Status = std::variant<model_status::Ok, model_status::Opened, model_status::NoDocument,
+                            model_status::MissingSourcePath, model_status::CannotReadFile,
+                            model_status::CannotWriteFile, model_status::InvalidSvg>;
 
-inline bool ok(const Status& status) { return std::holds_alternative<model_status::Ok>(status); }
+inline bool ok(const Status& status) {
+    return std::holds_alternative<model_status::Ok>(status) || std::holds_alternative<model_status::Opened>(status);
+}
