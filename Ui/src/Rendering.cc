@@ -445,6 +445,9 @@ struct RefusalText {
     std::string operator()(const fault::DuplicateId& taken) const {
         return "error: id already exists: " + quote_if_needed(taken.id);
     }
+    std::string operator()(const fault::DuplicateGroupMember& duplicate) const {
+        return "error: duplicate node in group: " + label(duplicate.node);
+    }
     std::string operator()(const fault::UnknownAttribute& attribute) const {
         return "error: unknown attribute: " + quote_if_needed(attribute.name);
     }

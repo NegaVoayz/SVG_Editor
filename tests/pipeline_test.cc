@@ -684,6 +684,9 @@ int main() {
     const Outcome group_cycle = planner.dispatch(Group{"cycle", {SvgIdRef{"inner"}, SvgIdRef{"layer"}}});
     CHECK(!group_cycle.ok());
     CHECK(refused_with<fault::CannotGroupIntoOwnDescendant>(group_cycle));
+    const Outcome group_duplicate = planner.dispatch(Group{"again", {SvgIdRef{"box"}, SvgIdRef{"box"}}});
+    CHECK(!group_duplicate.ok());
+    CHECK(refused_with<fault::DuplicateGroupMember>(group_duplicate));
 
     // The canvas is the root element's own size, and setting it is a checkpoint: the
     // frame behind the drawing is what the document is now, so nothing before it can

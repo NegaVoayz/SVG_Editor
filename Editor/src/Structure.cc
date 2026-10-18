@@ -46,14 +46,17 @@ std::string node_name(const Document& document, Id node) {
 }
 
 // How many nodes a delete takes with the node itself. A leaf says nothing about
-// descendants; a container reports the size of the subtree it removes.
+// descendants; a container reports the size of the subtree it removes. Character data
+// belongs to the text element that holds it and is not a node a user can find, move or
+// delete on its own, so a delete neither counts it nor reports it as removed.
 std::size_t descendant_count(const Document& document, Id node) {
     std::size_t count = 0;
     std::vector<Id> pending = document.children(node);
     while (!pending.empty()) {
         const Id current = pending.back();
         pending.pop_back();
-        ++count;
+        const std::optional<Node> payload = document.node(current);
+        if (payload && !std::holds_alternative<PlainText>(*payload)) ++count;
         for (const Id child : document.children(current)) pending.push_back(child);
     }
     return count;
@@ -140,6 +143,9 @@ template<> Outcome Editor::handle<Group>(const Group& intent) {
     for (const NodeRef& reference : intent.nodes) {
         const std::expected<Id, Refusal> member = resolve(reference);
         if (!member) return refused(Kind::Change, member.error());
+        if (std::find(members.begin(), members.end(), *member) != members.end()) {
+            return refused(Kind::Change, fault::DuplicateGroupMember{reference});
+        }
         members.push_back(*member);
     }
 
