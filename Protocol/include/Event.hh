@@ -9,6 +9,7 @@
 #include "History.hh"
 #include "NodeRef.hh"
 #include "SVGNode.hh"
+#include "SvgDiagnostic.hh"
 
 // What a successful instruction did, as data. An event names handles and values rather
 // than a sentence: the text front end prints it, a graphical front end can use the same
@@ -117,6 +118,7 @@ struct Initialized {
 
 struct Opened {
     std::string path;
+    std::vector<AssignedId> assigned_ids;
 };
 
 struct Saved {

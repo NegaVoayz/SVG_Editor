@@ -6,6 +6,7 @@
 
 #include "NodeRef.hh"
 #include "SVGNode.hh"
+#include "SvgDiagnostic.hh"
 
 // Why an instruction could not be carried out, as data. A refusal carries the handles and
 // values a front end needs to say what went wrong; it never carries the sentence itself.
@@ -79,11 +80,9 @@ struct CannotWriteFile {
     std::string path;
 };
 
-struct ParserNotImplemented {
-    std::size_t bytes;
+struct InvalidSvg {
+    SvgDiagnostic diagnostic;
 };
-
-struct SerializerNotImplemented {};
 
 // Two values that have no exact sum: a percentage with a length, or lengths from the
 // metric and imperial systems. The ui layer knows how to explain the difference.
@@ -118,7 +117,7 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,
                              fault::NothingToUndo, fault::NothingToRedo, fault::NoRootElement,
                              fault::RootIsNotContainer, fault::RootIsNotSvg, fault::MissingSourcePath,
-                             fault::CannotReadFile, fault::CannotWriteFile, fault::ParserNotImplemented,
-                             fault::SerializerNotImplemented, fault::IncompatibleLengths,
+                             fault::CannotReadFile, fault::CannotWriteFile, fault::InvalidSvg,
+                             fault::IncompatibleLengths,
                              fault::MatrixNeedsUserUnitsForMove, fault::MatrixNeedsUserUnitsForScale,
                              fault::TextCannotMove, fault::TextCannotScale, fault::InternalError>;

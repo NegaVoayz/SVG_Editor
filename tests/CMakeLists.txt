@@ -69,6 +69,24 @@ set_tests_properties(cli_quoted_id_error PROPERTIES PASS_REGULAR_EXPRESSION "err
 add_test(NAME cli_quoted_path COMMAND $<TARGET_FILE:Cli> "read \"no such file.svg\"")
 set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: cannot read file: \"no such file.svg\"")
 
+# File input reports the ids it had to invent, and the tree is the loaded document.
+add_test(NAME cli_read
+    COMMAND $<TARGET_FILE:Cli> "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg; tree")
+set_tests_properties(cli_read PROPERTIES PASS_REGULAR_EXPRESSION
+    "warning: assigned id rect1 to unnamed <rect>")
+
+add_test(NAME cli_read_tree
+    COMMAND $<TARGET_FILE:Cli> "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg; tree")
+set_tests_properties(cli_read_tree PROPERTIES PASS_REGULAR_EXPRESSION
+    "rect#rect1 +x=1 y=2 w=30 h=40 fill=#3366ff")
+
+# A save writes the current model tree, and reading it back preserves the named paints
+# and the ids that the first read assigned.
+add_test(NAME cli_save_roundtrip
+    COMMAND $<TARGET_FILE:Cli>
+        "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg; save ${CMAKE_CURRENT_BINARY_DIR}/cli_roundtrip.svg; read ${CMAKE_CURRENT_BINARY_DIR}/cli_roundtrip.svg; tree")
+set_tests_properties(cli_save_roundtrip PROPERTIES PASS_REGULAR_EXPRESSION "fill=rebeccapurple")
+
 # A create reports the element by the name a tree would print it by, and the parent by
 # the same kind#id pair.
 add_test(NAME cli_create_default COMMAND $<TARGET_FILE:Cli> "init; create g node1")

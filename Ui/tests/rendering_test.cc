@@ -131,6 +131,8 @@ int main() {
     // A single node is one line, and it is the same line the tree would print for it
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {}}) ==
           "rect#box x=200 y=80 w=60 h=60 fill=#3366ff");
+    CHECK(render(NodeView{3, rect("red", 0, 0, 1, 1, Color{Color::Named{Color::NamedColorId::RebeccaPurple}}), {}}) ==
+          "rect#red x=0 y=0 w=1 h=1 fill=rebeccapurple");
     CHECK(render(NodeView{1, group("markers"), {}}) == "g#markers");
     CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram"}) == "text#title (20,40) \"My Diagram\"");
 
@@ -155,6 +157,8 @@ int main() {
     CHECK(render(event::Created{3, "text", "start label", 1, "g", "node 1", true}) ==
           "text#\"start label\" created in g#\"node 1\"");
     CHECK(render(event::Moved{2, units(5), units(7)}) == "moved #2 by 5 7");
+    CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}}) ==
+          "read a.svg\nwarning: assigned id rect1 to unnamed <rect>");
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==
           "error: the offset 1in does not add up with 1cm: 1in is imperial and 1cm is metric - mm and cm are "

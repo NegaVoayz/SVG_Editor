@@ -4,6 +4,7 @@
 // which the cli tests cover - and parsing is not in here either.
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -208,8 +209,8 @@ int main() {
     CHECK(document.find("box").has_value());
     CHECK(document.children(document.root()).size() == 2);
 
-    // a context change is the Model's file layer, and it reports that there is no
-    // parser yet instead of pretending it opened something
+    // a context change is the Model's file layer: a missing file and a file that is not
+    // valid SVG are both refused as structured context failures
     const Outcome missing = planner.dispatch(Read{"no-such-file.svg"});
     CHECK(!missing.ok());
     CHECK(missing.kind == Kind::Context);
@@ -218,7 +219,7 @@ int main() {
     const Outcome unparsed = planner.dispatch(Read{std::string(SVG_EDITOR_SOURCE_DIR) + "/docs/Structure.md"});
     CHECK(!unparsed.ok());
     CHECK(unparsed.kind == Kind::Context);
-    CHECK(refused_with<fault::ParserNotImplemented>(unparsed));
+    CHECK(refused_with<fault::InvalidSvg>(unparsed));
 
     // A reference that names nothing is refused by the layer that owns the write path,
     // and the document is left exactly as it was.
@@ -653,17 +654,19 @@ int main() {
     }
 
     // `save` writes where the document was read from unless it is given a path of its
-    // own, and a document that came from nowhere has no such path: that, and not the
-    // missing serializer, is what a bare save reports first.
+    // own, and a document that came from nowhere has no such path.
     const Outcome nowhere = planner.dispatch(Save{std::nullopt});
     CHECK(!nowhere.ok());
     CHECK(nowhere.kind == Kind::Context);
     CHECK(refused_with<fault::MissingSourcePath>(nowhere));
     CHECK(document.depth() == 0);  // and a save that failed is not a checkpoint
 
-    const Outcome unsaved = planner.dispatch(Save{std::string{"out.svg"}});
-    CHECK(!unsaved.ok());
-    CHECK(refused_with<fault::SerializerNotImplemented>(unsaved));
+    const std::filesystem::path save_directory = std::filesystem::temp_directory_path() / "svg_editor_pipeline";
+    std::filesystem::create_directories(save_directory);
+    const std::string save_path = (save_directory / "pipeline_out.svg").string();
+    const Outcome saved = planner.dispatch(Save{save_path});
+    CHECK(saved.ok());
+    CHECK(happened_with<event::Saved>(saved));
 
     // `init` replaces the document instead of editing it: the tree, the history, the
     // file behind it and the canvas all start over, and the canvas it names is what

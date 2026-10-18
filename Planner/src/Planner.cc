@@ -69,22 +69,22 @@ struct OpenStatus {
     std::string path;
 
     Outcome operator()(const model_status::Ok&) const {
-        return happened(kind, event::Opened{path});
+        return happened(kind, event::Opened{path, {}});
+    }
+    Outcome operator()(const model_status::Opened& opened) const {
+        return happened(kind, event::Opened{path, opened.assigned_ids});
     }
     Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
     Outcome operator()(const model_status::CannotReadFile& problem) const {
         return refused(kind, fault::CannotReadFile{problem.path});
     }
-    Outcome operator()(const model_status::ParserNotImplemented& problem) const {
-        return refused(kind, fault::ParserNotImplemented{problem.bytes});
+    Outcome operator()(const model_status::InvalidSvg& problem) const {
+        return refused(kind, fault::InvalidSvg{problem.diagnostic});
     }
     Outcome operator()(const model_status::MissingSourcePath&) const {
         return refused(kind, fault::InternalError{});
     }
     Outcome operator()(const model_status::CannotWriteFile&) const {
-        return refused(kind, fault::InternalError{});
-    }
-    Outcome operator()(const model_status::SerializerNotImplemented&) const {
         return refused(kind, fault::InternalError{});
     }
 };
@@ -95,19 +95,17 @@ struct SaveStatus {
 
     Outcome operator()(const model_status::Ok&) const { return happened(kind, event::Saved{path}); }
     Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
+    Outcome operator()(const model_status::Opened&) const { return refused(kind, fault::InternalError{}); }
     Outcome operator()(const model_status::MissingSourcePath&) const {
         return refused(kind, fault::MissingSourcePath{});
     }
     Outcome operator()(const model_status::CannotWriteFile& problem) const {
         return refused(kind, fault::CannotWriteFile{problem.path});
     }
-    Outcome operator()(const model_status::SerializerNotImplemented&) const {
-        return refused(kind, fault::SerializerNotImplemented{});
-    }
     Outcome operator()(const model_status::CannotReadFile&) const {
         return refused(kind, fault::InternalError{});
     }
-    Outcome operator()(const model_status::ParserNotImplemented&) const {
+    Outcome operator()(const model_status::InvalidSvg&) const {
         return refused(kind, fault::InternalError{});
     }
 };

@@ -100,31 +100,6 @@ struct AttrsText {
     std::string operator()(const Text& text) const { return position_text(text); }
 };
 
-std::string hex_text(uint8_t value) {
-    constexpr char digits[] = "0123456789abcdef";
-    return std::string{digits[value / 16], digits[value % 16]};
-}
-
-// The colours that need a table this does not have - a system colour, or a named one,
-// which the model has no ids for - read as nothing.
-struct ColorText {
-    std::string operator()(const Color::None&) const { return "none"; }
-    std::string operator()(const Color::Current&) const { return "currentColor"; }
-    std::string operator()(const Color::System&) const { return {}; }
-    std::string operator()(const Color::Named&) const { return {}; }
-    std::string operator()(const Color::RGB& rgb) const {
-        return "#" + hex_text(rgb.r) + hex_text(rgb.g) + hex_text(rgb.b);
-    }
-    std::string operator()(const Color::FuncRGB& rgb) const {
-        return "rgb(" + std::to_string(rgb.r) + "," + std::to_string(rgb.g) + "," + std::to_string(rgb.b) + ")";
-    }
-};
-
-struct PaintText {
-    std::string operator()(const Color& color) const { return std::visit(ColorText{}, color.specific); }
-    std::string operator()(const PaintServer&) const { return {}; }  // a paint server needs a lookup by url
-};
-
 struct TransformText {
     std::string operator()(const Translate& translate) const {
         return "translate(" + to_text(translate.x) + " " + to_text(translate.y) + ")";
@@ -175,11 +150,11 @@ Words element_words(const SVGNode& element, const std::string& text) {
         append_word(words, "transform=" + std::visit(TransformText{}, *element.transform_attr.transform));
     }
     if (element.paint_attr.fill) {
-        const std::string paint = std::visit(PaintText{}, *element.paint_attr.fill);
+        const std::string paint = to_text(*element.paint_attr.fill);
         if (!paint.empty()) append_word(words, "fill=" + paint);
     }
     if (element.paint_attr.stroke) {
-        const std::string paint = std::visit(PaintText{}, *element.paint_attr.stroke);
+        const std::string paint = to_text(*element.paint_attr.stroke);
         if (!paint.empty()) append_word(words, "stroke=" + paint);
     }
     if (element.paint_attr.stroke_width) {
@@ -382,7 +357,13 @@ struct EventText {
     std::string operator()(const event::Initialized&) const {
         return "an empty document, with the canvas it was given";
     }
-    std::string operator()(const event::Opened& opened) const { return "read " + quote_if_needed(opened.path); }
+    std::string operator()(const event::Opened& opened) const {
+        std::string message = "read " + quote_if_needed(opened.path);
+        for (const AssignedId& assigned : opened.assigned_ids) {
+            message += "\nwarning: assigned id " + assigned.id + " to unnamed <" + assigned.element + ">";
+        }
+        return message;
+    }
     std::string operator()(const event::Saved& saved) const {
         return "saved " + quote_if_needed(saved.path) + ", and the history starts from here";
     }
@@ -451,12 +432,28 @@ struct RefusalText {
     std::string operator()(const fault::CannotWriteFile& missing) const {
         return "error: cannot write file: " + quote_if_needed(missing.path);
     }
-    std::string operator()(const fault::ParserNotImplemented& parser) const {
-        return "error: the SVG parser is not implemented yet, after reading " + std::to_string(parser.bytes) +
-               " bytes";
-    }
-    std::string operator()(const fault::SerializerNotImplemented&) const {
-        return "error: the SVG serializer is not implemented yet";
+    std::string operator()(const fault::InvalidSvg& invalid) const {
+        const SvgDiagnostic& diagnostic = invalid.diagnostic;
+        std::string message = "error: cannot parse SVG";
+        if (diagnostic.line != 0) message += " at line " + std::to_string(diagnostic.line);
+        message += ": ";
+        switch (diagnostic.problem) {
+            case SvgProblem::MalformedXml: return message + "malformed XML";
+            case SvgProblem::NoRootElement: return message + "the XML has no root element";
+            case SvgProblem::RootIsNotSvg: return message + "the root element must be <svg>";
+            case SvgProblem::UnsupportedElement:
+                return message + "unsupported element <" + diagnostic.element + ">";
+            case SvgProblem::UnsupportedAttribute:
+                return message + "unsupported attribute " + quote_if_needed(diagnostic.attribute) + " on <" +
+                       diagnostic.element + ">";
+            case SvgProblem::InvalidAttributeValue:
+                return message + "invalid value " + quote_if_needed(diagnostic.value) + " for " +
+                       quote_if_needed(diagnostic.attribute) + " on <" + diagnostic.element + ">";
+            case SvgProblem::DuplicateId:
+                return message + "duplicate id " + quote_if_needed(diagnostic.value);
+            case SvgProblem::UnexpectedText: return message + "text outside a text element";
+        }
+        return message + "invalid SVG";
     }
     std::string operator()(const fault::IncompatibleLengths& lengths) const {
         const std::string offset = to_text(lengths.offset);
