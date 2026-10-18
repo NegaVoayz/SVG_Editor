@@ -352,7 +352,7 @@ void erase(Id node);
 void commit();  void rollback();
 
 // history: the Model owns it, so the Planner never sees a commit id
-std::vector<Id> undo();  std::vector<Id> redo();
+TouchedNodes undo();  TouchedNodes redo();
 bool can_undo() const;  bool can_redo() const;
 
 // the context: which document this is, rather than what is in it
@@ -412,13 +412,7 @@ struct PlainText {
     Id next_sibling = no_id;
 };
 
-struct Removed {  // the MVCC tombstone: a virtual id that has no document node
-    Id parent_id = no_id;
-    Id previous_sibling = no_id;
-    Id next_sibling = no_id;
-};
-
-using Node = std::variant<SVGNode, PlainText, Removed>;
+using Node = std::variant<SVGNode, PlainText>;
 
 struct ChildAttr { Id first_child = no_id; Id last_child = no_id; };
 ```
@@ -429,12 +423,10 @@ stop at `no_id`. A parent keeps both ends, so appending is O(1); a node keeps bo
 of its sibling links, so placing it in front of another child or removing it is
 O(1) too. There is no backwards edge table to consult.
 
-`Removed` is why a handle can come back without allocating a new id. Erasing a
-subtree replaces each record with a `Removed` payload instead of removing the
-row. The active checkpoint treats those rows as absent, while an older snapshot
-still shows the original payloads. A later edit after an undo can therefore put
-the same virtual id back with `replace`, and a handle that named a node before
-the erase names the same node again when that checkpoint is selected.
+Forgetting a node is a hive erase, not an SVG payload. An older snapshot still
+holds the immutable versions that showed the node, so undo brings the same
+virtual id back without allocating a new one. The live model never contains a
+fabricated `<removed />` element.
 
 Which types can do what remains a compile-time fact, checked without listing the
 kinds. `Linked<T>` requires the three link members themselves, and
@@ -464,8 +456,8 @@ The transaction API is one operation per shape of tree edit:
 - `update` replaces the payload and copies the existing place and child-list
   ends into the replacement, so a payload cannot bring another node's links
   with it.
-- `erase_subtree` detaches the root of the subtree and replaces every record in
-  it with `Removed`.
+- `erase_subtree` detaches the root of the subtree and erases every record in
+  it.
 
 The tree refuses what SVG does not allow: only a payload with `ChildAttr` takes
 children, the root cannot be moved or erased, a node cannot be moved inside its
@@ -489,10 +481,9 @@ improvement. Resolving a handle uses `Document::has_node()`, so it does not copy
 record merely to learn that the record exists; only a read that returns the payload pays
 for the copy.
 
-History is the other axis. MVCCHive 2.0.0 keeps commit records and diffs in fixed-size
-blocked vectors, so appending a commit no longer copies the retained commit log;
-`TreeStore` grows its checkpoint list geometrically as well. The remaining history cost
-is block reclamation: `VersionStore::drain_retirements()` calls `release_empty_blocks()`,
+History is the other axis. MVCCHive 2.1.0 keeps commit records and diffs in fixed-size
+blocked vectors, so appending a commit no longer copies the retained commit log. The
+remaining history cost is block reclamation: `VersionStore::drain_retirements()` calls `release_empty_blocks()`,
 which scans every owned version block on every commit. With a 416-byte `Node` that is one
 block per 32 versions, so per-edit latency still rises with retained history even though
 each edit writes one version. Tracking only the blocks a retirement actually empties, or
@@ -507,11 +498,10 @@ insertion, so building 16k nodes in one transaction takes about 0.7 s rather tha
 scaling linearly. The parser should commit a large load in chunks and clear the history
 when the load is finished.
 
-The public history `Diff` in 2.0.0 is a target-free record of
+The public history `Diff` in 2.1.0 is a target-free record of
 `commit_id`, `virtual_id`, and a `DiffKind` of `insert`, `update`, or
-`remove`. `TreeStore` needs only `virtual_id` to build a touched list; the
-kind is available to a caller that wants to distinguish a new row from a
-removed or updated one without inspecting storage targets.
+`remove`. `TreeStore` uses `virtual_id` for the touched node and `kind` for
+the `TouchedKind`; no storage target or payload copy is needed to classify it.
 
 Handles are MVCCHive virtual ids. They are monotonically allocated and never
 reused, so a handle cannot silently name a different node later. The durable
@@ -528,42 +518,38 @@ is false, and the Planner refuses every instruction except `init` and `read` wit
 and from then on the root is the baseline, so "undo everything" lands on an empty
 document rather than no document.
 
-### Model: history, snapshots and checkpoints
+### Model: history, checkout and touched changes
 
-`TreeStore` keeps a `Snapshot` for each user-level commit, and `Document`
-undoes by selecting an earlier snapshot. The tree is not rewritten to undo:
-the snapshot already holds the immutable versions that were visible then.
+MVCCHive owns a recoverable checkout. `undo()` moves the checkout to the parent
+commit and rebuilds the current-target view; `redo()` moves it forward while the
+redo tail is intact. `TreeStore` keeps only the current checkout snapshot and
+the depth/position counters. It deliberately does not keep snapshots for later
+redo states: a future snapshot pins that commit, and a new edit after undo must
+be free to truncate the abandoned tail.
 
-The one place where that is not enough is an edit made after an undo. MVCCHive
-transactions extend the head and cannot branch from an old commit, so before
-opening the new transaction `TreeStore` rewinds the head to the visible
-checkpoint. It reads the normalized diffs between the two commits, and for each
-touched virtual id writes the visible payload back, or a `Removed` record when
-the visible checkpoint did not have that id. That rewind is one commit; the new
-edit follows it, the redo branch is dropped, and the checkpoints before the
-visible one stay usable. In other words, undo is snapshot navigation, and
-editing after undo is a new branch expressed as a head-to-visible catch-up
-followed by the edit.
+`commit()` from an older checkout writes a new commit on top of it and discards
+the redo tail. An empty transaction makes no commit and leaves the tail intact.
+Undo does not rewrite the tree: the checkout already holds the immutable
+versions that were visible at that point, and an edit after undo starts directly
+from that checkout.
 
-`clear_history()` first makes the head match the visible checkpoint, then asks
-the hive to prune its older commits and keeps the current head as the baseline.
-`reset()` is stronger: it drops every snapshot, replaces the whole hive
-generation, and builds a new root. A document that holds that hive by value
-cannot be moved, which is why `Document` is non-copyable and non-movable.
+`clear_history()` releases the current snapshot, asks the hive to truncate and
+prune the history around the checkout, and makes that checkout the baseline.
+`reset()` is stronger: it drops the whole hive generation and builds a new root.
+A document that holds that hive by value cannot be moved, which is why
+`Document` is non-copyable and non-movable.
 
-The number of checkpoints is the history depth. The hive's own retention
-controls (`prune_before`, `clear_history`) are exposed only through those
-checkpoint operations; no other module sees a commit id.
-
-Undo and redo return the virtual ids whose records differ across the two
-checkpoints. `TreeStore` gets them from the hive's `diffs(commit_id)` for the
-commit that produced the newer checkpoint, and maps each `Diff::virtual_id`
-to an `Id`. The list includes neighbours whose links changed, not only the
-node an instruction named, and a deleted subtree appears as every tombstoned
-id. The cost is proportional to that touched set: the hive copies its 24-byte
-diff entries, then the document keeps an 8-byte id for each one. The snapshot
-switch itself stays O(1); the ids are the price of telling a front end what to
-refresh.
+The number of user edits is `depth_`; `position_` is where the checkout stands.
+Undo and redo return `TouchedNodes`: one entry per changed virtual id with a
+`TouchedKind` of `Insert`, `Update`, or `Remove`. The ids come from the hive's
+public `diffs(commit_id)`, and the kind comes directly from `DiffKind`,
+inverted for undo (`insert` becomes `remove`, `remove` becomes `insert`, and
+`update` stays `update`). The list includes neighbours whose links changed, not
+only the node an instruction named, and an erased subtree appears as every
+removed id. The cost is proportional to that touched set: the hive copies its
+24-byte diff entries, then the document keeps an id and a kind for each one.
+The checkout switch itself stays O(1); the touched list is the price of telling
+a front end what to refresh.
 
 ### Model: the transform
 
@@ -626,9 +612,8 @@ either yet.
 - a `find()` index: the view walks the tree on every call, which cannot go stale
   and is cheap enough while the tree is small.
 - retention: the hive offers `prune_before` and `clear_history`, and `TreeStore` uses
-  the latter at checkpoints, but a document with many undo steps keeps one snapshot
-  guard per step. Removed records also stay as `Removed` rows until a reset, because
-  an older checkpoint may still show them. A retention policy that drops old
-  checkpoints and then prunes the hive is the next piece; it is not exposed yet.
+  the latter at checkpoints. It holds only the current checkout snapshot, not one per
+  history step. A retention policy that drops old commits and then prunes the hive is
+  still not exposed.
 - escaping in the front end: a quoted run is one word and there is no way to put a quote
   inside one, so a text cannot spell `"` yet.

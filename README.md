@@ -41,7 +41,7 @@ dependency instead of taking it from next door:
 ```sh
 cmake --preset default \
   -DSVG_EDITOR_MVCCHIVE_REPOSITORY=https://host/mirror/MVCCHive.git \
-  -DSVG_EDITOR_MVCCHIVE_TAG=v2.0.0
+  -DSVG_EDITOR_MVCCHIVE_TAG=v2.1.0
 ```
 
 ## Running
