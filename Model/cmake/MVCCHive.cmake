@@ -8,7 +8,7 @@ include(FetchContent)
 
 set(SVG_EDITOR_MVCCHIVE_REPOSITORY "https://github.com/NegaVoayz/MVCCHive.git"
     CACHE STRING "Repository the MVCCHive dependency is fetched from")
-set(SVG_EDITOR_MVCCHIVE_TAG "v2.1.0"
+set(SVG_EDITOR_MVCCHIVE_TAG "b46a08f8b2a9becd5515b30d177c099508a78a70"
     CACHE STRING "Tag or commit of MVCCHive to check out")
 
 # A package config found by find_package wins, and the local-dep preset points
