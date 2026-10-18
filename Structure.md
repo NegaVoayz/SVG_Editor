@@ -52,6 +52,11 @@ place, which is why the document is owned above the Planner rather than inside i
    it, a sentence about what happened, and - when what was asked for was a read - what
    the read found, as data. [M Protocol] [M Ui]
 
+A document starts absent: `Document::root()` is `no_id` until `init` makes one or
+`read` loads one. The Planner answers those two without a document; every other
+instruction, views included, is refused with
+`error: no document. use 'init' or 'read' first`.
+
 ### What the protocol is made of
 
 The vocabulary is one thing to the layers that speak it, and four things to a reader, so
@@ -247,6 +252,8 @@ view is printed as the thing it describes rather than as a sentence about it. An
 else is the sentence it already is, with the branch that answered it in front:
 
 ```
+svg> init
+[context] an empty document, with the canvas it was given
 svg> create g markers
 [change] created #1 <g> id="markers" in the root
 svg> create rect box 0 0 10 10 #ff0000 in markers
@@ -353,7 +360,8 @@ document instead of editing it. What the first two have in common is that the tr
 leave behind is the state the file, or the frame behind the drawing, says it is - so the
 way back to the state before them is a state nobody wrote down. `clear_history()` is that
 drop: the tree stays as it is and becomes the baseline. `init` goes
-further: the canvas comes with the new root, and there is nothing of the old document
+further: it creates the root when none exists, and otherwise replaces the whole
+document. The canvas comes with the new root, and there is nothing of the old document
 left to undo into, so it lands on the Model's `reset()` rather than in a transaction.
 
 ### Model: the tree in a hive
@@ -484,8 +492,11 @@ there is - anything not reachable from the root is unreachable.
 `no_id` is `std::numeric_limits<Id>::max()`, and `Id` has the same 64-bit width
 as a hive virtual id. Nothing is reserved in front of the first record: the root
 is virtual id 0, and `no_id` is what every link that leads nowhere points at.
-The root is the baseline, so "undo everything" lands on an empty document rather
-than no document.
+The document itself starts without a root: `root()` is `no_id`, `has_document()`
+is false, and the Planner refuses every instruction except `init` and `read` with
+`error: no document. use 'init' or 'read' first`. `init` is what creates the root,
+and from then on the root is the baseline, so "undo everything" lands on an empty
+document rather than no document.
 
 ### Model: history, snapshots and checkpoints
 

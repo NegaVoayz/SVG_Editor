@@ -48,14 +48,19 @@ cmake --preset default \
 
 ```sh
 build/ninja-local-dep/Ui/svg-editor.exe     # the prompt, one instruction per line
-build/ninja-local-dep/Ui/svg-editor.exe "create g markers; create rect box 0 0 10 10 #ff0000 in markers; tree"
+build/ninja-local-dep/Ui/svg-editor.exe "init; create g markers; create rect box 0 0 10 10 #ff0000 in markers; tree"
 ```
 
 The prompt is `svg>`, `help` lists the commands, and one line may hold several
 instructions separated by `;`. A view is printed as what it describes, and anything
-else as the sentence that says what happened:
+else as the sentence that says what happened. A session starts without a document:
+`init` makes an empty one, and `read` will make one from a file. Before either, every
+pipeline command is refused with `error: no document. use 'init' or 'read' first`;
+`help` is answered by the front end itself and still works.
 
 ```
+svg> init
+[context] an empty document, with the canvas it was given
 svg> create g markers
 [change] created #1 <g> id="markers" in the root
 svg> create rect box 0 0 10 10 #ff0000 in markers
