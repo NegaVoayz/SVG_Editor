@@ -4,9 +4,8 @@
 #include "Editor.hh"
 
 #include <exception>
+#include <expected>
 #include <optional>
-#include <stdexcept>
-#include <string>
 #include <utility>
 #include <variant>
 
@@ -24,28 +23,27 @@ Outcome Editor::translate(const ChangeIntent& intent) {
         return std::visit([this](const auto& value) { return handle(value); }, intent);
     } catch (const std::exception& error) {
         // Whatever refused - a handle that names nothing, a tree that would become
-        // illegal - the transaction that was open is gone and the Model rolled it
-        // back. All that is left is the sentence for the user. A sentence that already
-        // names its kind keeps it; one from a lower layer gets the same prefix here.
-        std::string message = error.what();
-        if (!message.starts_with("error: ")) message = "error: " + message;
-        return refusal(Kind::Change, std::move(message));
+        // illegal - the transaction that was open is gone and the Model rolled it back.
+        // The exception text is a diagnostic, not a user-facing message: the protocol
+        // only carries the refusal kind.
+        static_cast<void>(error);
+        return refused(Kind::Change, fault::InternalError{});
     }
 }
 
-Id Editor::resolve(const NodeRef& reference) const {
+std::expected<Id, Refusal> Editor::resolve(const NodeRef& reference) const {
     const std::optional<Id> found = look_up(document_, reference);
     if (found) return *found;
-    throw std::invalid_argument("error: no such shape: " + label(reference));
+    return std::unexpected(Refusal{fault::MissingShape{reference}});
 }
 
-Id Editor::resolve_container(const NodeRef& reference) const {
+std::expected<Id, Refusal> Editor::resolve_container(const NodeRef& reference) const {
     const std::optional<Id> found = look_up(document_, reference);
-    if (!found) throw std::invalid_argument("error: no such container: " + label(reference));
+    if (!found) return std::unexpected(Refusal{fault::MissingContainer{reference}});
 
     const std::optional<Node> payload = document_.node(*found);
     if (!payload || !is_container(*payload)) {
-        throw std::invalid_argument("error: not a container: " + label(reference));
+        return std::unexpected(Refusal{fault::NotContainer{reference}});
     }
     return *found;
 }

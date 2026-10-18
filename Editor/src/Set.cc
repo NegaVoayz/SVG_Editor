@@ -19,26 +19,20 @@
 
 namespace {
 
-template<typename Attribute>
-std::string unknown_attribute() {
-    return "error: unknown attribute: " + std::string{Attribute::name};
-}
-
 // One attribute of one SVG element: replace the payload, keep its place in the tree, and
 // let the Model copy the old links into the replacement.
 template<typename Attribute, typename Mutation>
 Outcome set_element(Document& document, Id node, Mutation mutation) {
     std::optional<Node> payload = document.node(node);
-    if (!payload) return refusal(Kind::Change, "no node lives at that handle");
+    if (!payload) return refused(Kind::Change, fault::InternalError{});
     if (!std::holds_alternative<SVGNode>(*payload) || !mutation(std::get<SVGNode>(*payload))) {
-        return refusal(Kind::Change, unknown_attribute<Attribute>());
+        return refused(Kind::Change, fault::UnknownAttribute{std::string{Attribute::name}});
     }
 
     Transaction edit = document.transaction();
     edit.update(node, std::move(*payload));
     edit.commit();
-    return Outcome{true, Kind::Change,
-                   "set " + std::string{Attribute::name} + " on #" + std::to_string(node)};
+    return happened(Kind::Change, event::AttributeSet{node, std::string{Attribute::name}});
 }
 
 // A shape member exists on some alternatives of Shape and not on others. The visitor asks
@@ -334,7 +328,7 @@ Outcome apply(Document& document, Id node, const SetHref& intent) {
 // once. A PlainText handle names the character data directly and needs no walk.
 Outcome apply(Document& document, Id node, const SetContent& intent) {
     std::optional<Node> payload = document.node(node);
-    if (!payload) return refusal(Kind::Change, "no node lives at that handle");
+    if (!payload) return refused(Kind::Change, fault::InternalError{});
 
     if (std::holds_alternative<PlainText>(*payload)) {
         PlainText text = std::get<PlainText>(*payload);
@@ -342,12 +336,12 @@ Outcome apply(Document& document, Id node, const SetContent& intent) {
         Transaction edit = document.transaction();
         edit.update(node, Node{std::move(text)});
         edit.commit();
-        return Outcome{true, Kind::Change, "set content on #" + std::to_string(node)};
+        return happened(Kind::Change, event::ContentSet{node});
     }
 
     if (!std::holds_alternative<SVGNode>(*payload) ||
         !std::holds_alternative<Text>(std::get<SVGNode>(*payload).data)) {
-        return refusal(Kind::Change, unknown_attribute<SetContent>());
+        return refused(Kind::Change, fault::UnknownAttribute{std::string{SetContent::name}});
     }
 
     std::vector<Id> text_children;
@@ -370,7 +364,7 @@ Outcome apply(Document& document, Id node, const SetContent& intent) {
         for (std::size_t index = 1; index < text_children.size(); ++index) edit.erase(text_children[index]);
     }
     edit.commit();
-    return Outcome{true, Kind::Change, "set content on #" + std::to_string(node)};
+    return happened(Kind::Change, event::ContentSet{node});
 }
 
 }  // namespace
@@ -378,6 +372,7 @@ Outcome apply(Document& document, Id node, const SetContent& intent) {
 template<> Outcome Editor::handle<Set>(const Set& intent) {
     const NodeRef& reference =
         std::visit([](const auto& attribute) -> const NodeRef& { return attribute.node; }, intent);
-    const Id node = resolve(reference);
-    return std::visit([this, node](const auto& attribute) { return apply(document_, node, attribute); }, intent);
+    const std::expected<Id, Refusal> node = resolve(reference);
+    if (!node) return refused(Kind::Change, node.error());
+    return std::visit([this, node = *node](const auto& attribute) { return apply(document_, node, attribute); }, intent);
 }

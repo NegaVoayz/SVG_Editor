@@ -1,13 +1,16 @@
 #pragma once
 
-#include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
+#include "Event.hh"
+#include "Refusal.hh"
 #include "View.hh"
 
-// What comes back out of the pipeline: whether it worked, which branch produced it, a
-// sentence about what happened, and what a read found when what was asked for was a read.
+// What comes back out of the pipeline: which branch produced it, and one of the three
+// answers that branch can give - a view, an event saying what changed, or a refusal saying
+// why nothing happened. None of the three is prose; the ui layer writes the words.
 
 // What the Planner decided a request is.
 enum class Kind {
@@ -28,18 +31,20 @@ inline std::string_view kind_name(Kind kind) {
 }
 
 struct Outcome {
-    bool ok = true;
-    Kind kind = Kind::Unknown;
-    std::string message;
-    View view{};
+    Kind kind;
+    std::variant<View, Event, Refusal> result;
+
+    bool ok() const { return !std::holds_alternative<Refusal>(result); }
+    const View& view() const { return std::get<View>(result); }
+    const Event& event() const { return std::get<Event>(result); }
+    const Refusal& refusal() const { return std::get<Refusal>(result); }
 };
 
-// The one shape a refusal takes: which kind of instruction it was, and the sentence for the
-// user. A view and a change both refuse this way, so the layers that can write a sentence
-// build the struct here instead of each in its own words.
-inline Outcome refusal(Kind kind, std::string message) { return Outcome{false, kind, std::move(message)}; }
+inline Outcome viewed(Kind kind, View view) { return Outcome{kind, std::move(view)}; }
+inline Outcome happened(Kind kind, Event event) { return Outcome{kind, std::move(event)}; }
+inline Outcome refused(Kind kind, Refusal refusal) { return Outcome{kind, std::move(refusal)}; }
 
 // The one refusal every command but `init` and `read` shares before a document exists.
 inline Outcome no_document(Kind kind) {
-    return refusal(kind, "error: no document. use 'init' or 'read' first");
+    return refused(kind, fault::NoDocument{});
 }

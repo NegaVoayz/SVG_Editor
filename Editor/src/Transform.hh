@@ -1,8 +1,8 @@
 #pragma once
 
 #include <optional>
-#include <string>
 
+#include "Refusal.hh"
 #include "SVGNode.hh"
 
 // What a node does with a translation or a scale when it has no values of its own to put
@@ -22,10 +22,10 @@ Matrix rotation_matrix(float degrees);
 // unit, or a percentage, cannot be written into one.
 std::optional<float> user_units_of(LengthPercentage value);
 
-// A translation written into the node's transform.
-bool move_transform(SVGNode& element, LengthPercentage dx, LengthPercentage dy, std::string& problem);
+// A translation written into the node's transform, or why it cannot be.
+std::optional<Refusal> move_transform(SVGNode& element, LengthPercentage dx, LengthPercentage dy);
 
 // A scale written into the node's transform, behind whatever the node already carries.
-bool scale_transform(SVGNode& element, float factor, std::string& problem);
+std::optional<Refusal> scale_transform(SVGNode& element, float factor);
 
 }  // namespace Geometry

@@ -149,6 +149,20 @@ int main() {
     // it is made of.
     CHECK(render(NodeView{7, Node{PlainText{"hello"}}, "hello"}) == "<text-node> \"hello\"");
 
+    // The other half of the boundary: an event and a refusal are data until this file
+    // turns them into words, and the branch that answered is still visible in front.
+    CHECK(render(event::Created{2, "rect", "box", SvgIdRef{"markers"}}) ==
+          "created #2 <rect> id=\"box\" in \"markers\"");
+    CHECK(render(event::Moved{2, units(5), units(7)}) == "moved #2 by 5 7");
+    CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
+    CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==
+          "error: the offset 1in does not add up with 1cm: 1in is imperial and 1cm is metric - mm and cm are "
+          "metric, in, pt and px are defined against the inch, and the two systems are not mixed");
+    CHECK(render(Outcome{Kind::Change, Refusal{fault::UnknownAttribute{"x"}}}) ==
+          "[change] failed: error: unknown attribute: x");
+    CHECK(render(Outcome{Kind::Change, Event{event::NothingMoved{}}}) ==
+          "[change] the offset is zero, nothing moved");
+
     if (failures != 0) {
         std::printf("rendering: %d check(s) failed\n", failures);
         return 1;

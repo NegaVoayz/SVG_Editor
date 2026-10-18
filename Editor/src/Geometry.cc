@@ -5,7 +5,6 @@
 #include "Geometry.hh"
 
 #include <optional>
-#include <string>
 #include <variant>
 
 #include "Transform.hh"
@@ -17,21 +16,15 @@ namespace {
 
 // Adds the offset to both coordinates of one point, and leaves both of them alone when one
 // of the two cannot take it.
-bool move_point(LengthPercentage& x, LengthPercentage dx, LengthPercentage& y, LengthPercentage dy,
-                std::string& problem) {
+std::optional<Refusal> move_point(LengthPercentage& x, LengthPercentage dx, LengthPercentage& y,
+                                  LengthPercentage dy) {
     const std::optional<LengthPercentage> moved_x = sum(x, dx);
-    if (!moved_x) {
-        problem = no_sum(to_text(dx), dx, to_text(x), x);
-        return false;
-    }
+    if (!moved_x) return Refusal{fault::IncompatibleLengths{dx, x}};
     const std::optional<LengthPercentage> moved_y = sum(y, dy);
-    if (!moved_y) {
-        problem = no_sum(to_text(dy), dy, to_text(y), y);
-        return false;
-    }
+    if (!moved_y) return Refusal{fault::IncompatibleLengths{dy, y}};
     x = *moved_x;
     y = *moved_y;
-    return true;
+    return std::nullopt;
 }
 
 // Every value a shape owns: a rect's corner and sides, a circle's centre and radius, an
@@ -68,14 +61,13 @@ struct ScaleShape {
 
 }  // namespace
 
-bool translate(Node& payload, LengthPercentage dx, LengthPercentage dy, std::string& problem) {
+std::optional<Refusal> translate(Node& payload, LengthPercentage dx, LengthPercentage dy) {
     if (!std::holds_alternative<SVGNode>(payload)) {
-        problem = "a text node has no coordinates and no transform to move";
-        return false;
+        return Refusal{fault::TextCannotMove{}};
     }
 
     SVGNode& element = std::get<SVGNode>(payload);
-    if (!std::holds_alternative<Shape>(element.data)) return move_transform(element, dx, dy, problem);
+    if (!std::holds_alternative<Shape>(element.data)) return move_transform(element, dx, dy);
 
     // Every shape moves its own coordinates and nothing else: a rect its corner, a circle
     // and an ellipse their centre, a line both of its ends. Radii and sides stay where they
@@ -83,41 +75,39 @@ bool translate(Node& payload, LengthPercentage dx, LengthPercentage dy, std::str
     Shape& shape = std::get<Shape>(element.data);
     if (std::holds_alternative<Shape::Rect>(shape.specific)) {
         Shape::Rect& rect = std::get<Shape::Rect>(shape.specific);
-        return move_point(rect.x, dx, rect.y, dy, problem);
+        return move_point(rect.x, dx, rect.y, dy);
     }
     if (std::holds_alternative<Shape::Circle>(shape.specific)) {
         Shape::Circle& circle = std::get<Shape::Circle>(shape.specific);
-        return move_point(circle.cx, dx, circle.cy, dy, problem);
+        return move_point(circle.cx, dx, circle.cy, dy);
     }
     if (std::holds_alternative<Shape::Ellipse>(shape.specific)) {
         Shape::Ellipse& ellipse = std::get<Shape::Ellipse>(shape.specific);
-        return move_point(ellipse.cx, dx, ellipse.cy, dy, problem);
+        return move_point(ellipse.cx, dx, ellipse.cy, dy);
     }
 
     Shape::Line& line = std::get<Shape::Line>(shape.specific);
-    if (!move_point(line.x1, dx, line.y1, dy, problem)) return false;
-    return move_point(line.x2, dx, line.y2, dy, problem);
+    if (std::optional<Refusal> problem = move_point(line.x1, dx, line.y1, dy)) return problem;
+    return move_point(line.x2, dx, line.y2, dy);
 }
 
-bool scale(Node& payload, float factor, std::string& problem) {
+std::optional<Refusal> scale(Node& payload, float factor) {
     // A factor of nothing collapses the node and a negative one mirrors it. Both are things
     // SVG can write, and neither is written here yet, so they are refused rather than
     // approximated - and a factor that is not a number at all lands here too, because "not
     // greater than zero" is what both cases are.
     if (!(factor > 0.0F)) {
-        problem = "error: scale factor must be positive";
-        return false;
+        return Refusal{fault::ScaleFactorNotPositive{}};
     }
     if (!std::holds_alternative<SVGNode>(payload)) {
-        problem = "a text node has no coordinates and no transform to scale";
-        return false;
+        return Refusal{fault::TextCannotScale{}};
     }
 
     SVGNode& element = std::get<SVGNode>(payload);
-    if (!std::holds_alternative<Shape>(element.data)) return scale_transform(element, factor, problem);
+    if (!std::holds_alternative<Shape>(element.data)) return scale_transform(element, factor);
 
     std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific);
-    return true;
+    return std::nullopt;
 }
 
 }  // namespace Geometry

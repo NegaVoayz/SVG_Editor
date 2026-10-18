@@ -37,90 +37,96 @@ std::string top_level_name(const Document& document) {
 }  // namespace
 
 template<> Outcome Editor::handle<Delete>(const Delete& intent) {
-    const Id node = resolve(intent.node);
+    const std::expected<Id, Refusal> node = resolve(intent.node);
+    if (!node) return refused(Kind::Change, node.error());
+    if (*node == document_.root()) return refused(Kind::Change, fault::RootCannotBeErased{});
 
     Transaction edit = document_.transaction();
-    edit.erase(node);
+    edit.erase(*node);
     edit.commit();
-    return Outcome{true, Kind::Change, "deleted " + describe(intent.node) + " (#" + std::to_string(node) +
-                                           ") and everything under it"};
+    return happened(Kind::Change, event::Deleted{*node, intent.node});
 }
 
 template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {
-    const Id parent = resolve_container(intent.parent);
-    const Id node = resolve(intent.node);
-    if (inside(document_, parent, node)) {
-        return refusal(Kind::Change,
-                       "error: cannot group a container into its own descendant: " + label(intent.node));
+    const std::expected<Id, Refusal> parent = resolve_container(intent.parent);
+    if (!parent) return refused(Kind::Change, parent.error());
+    const std::expected<Id, Refusal> node = resolve(intent.node);
+    if (!node) return refused(Kind::Change, node.error());
+    if (inside(document_, *parent, *node)) {
+        return refused(Kind::Change, fault::CannotGroupIntoOwnDescendant{intent.node});
     }
 
     Transaction edit = document_.transaction();
-    edit.attach_last(parent, node);
+    edit.attach_last(*parent, *node);
     edit.commit();
-    return Outcome{true, Kind::Change,
-                   "moved #" + std::to_string(node) + " to the end of #" + std::to_string(parent)};
+    return happened(Kind::Change, event::AddedTo{*node, *parent});
 }
 
 template<> Outcome Editor::handle<Front>(const Front& intent) {
-    const Id node = resolve(intent.node);
-    const std::optional<Id> parent = document_.parent(node);
+    const std::expected<Id, Refusal> node = resolve(intent.node);
+    if (!node) return refused(Kind::Change, node.error());
+    const std::optional<Id> parent = document_.parent(*node);
     if (!parent) {
-        return refusal(Kind::Change, "the root is the whole document: it has no siblings to stand in front of");
+        return refused(Kind::Change, fault::RootHasNoSiblings{});
     }
 
     const std::vector<Id> siblings = document_.children(*parent);
-    if (!siblings.empty() && siblings.front() == node) {
-        return Outcome{true, Kind::Change, describe(intent.node) + " is already the first child"};
+    if (!siblings.empty() && siblings.front() == *node) {
+        return happened(Kind::Change, event::AlreadyFront{intent.node});
     }
 
     Transaction edit = document_.transaction();
-    edit.attach_at(*parent, siblings.front(), node);
+    edit.attach_at(*parent, siblings.front(), *node);
     edit.commit();
-    return Outcome{true, Kind::Change,
-                   "moved #" + std::to_string(node) + " to the front of #" + std::to_string(*parent)};
+    return happened(Kind::Change, event::MovedToFront{*node, *parent});
 }
 
 template<> Outcome Editor::handle<Back>(const Back& intent) {
-    const Id node = resolve(intent.node);
-    const std::optional<Id> parent = document_.parent(node);
+    const std::expected<Id, Refusal> node = resolve(intent.node);
+    if (!node) return refused(Kind::Change, node.error());
+    const std::optional<Id> parent = document_.parent(*node);
     if (!parent) {
-        return refusal(Kind::Change, "the root is the whole document: it has no siblings to stand behind");
+        return refused(Kind::Change, fault::RootHasNoSiblings{});
     }
 
     const std::vector<Id> siblings = document_.children(*parent);
-    if (!siblings.empty() && siblings.back() == node) {
-        return Outcome{true, Kind::Change, describe(intent.node) + " is already the last child"};
+    if (!siblings.empty() && siblings.back() == *node) {
+        return happened(Kind::Change, event::AlreadyLast{intent.node});
     }
 
     Transaction edit = document_.transaction();
-    edit.attach_last(*parent, node);
+    edit.attach_last(*parent, *node);
     edit.commit();
-    return Outcome{true, Kind::Change,
-                   "moved #" + std::to_string(node) + " to the back of #" + std::to_string(*parent)};
+    return happened(Kind::Change, event::MovedToBack{*node, *parent});
 }
 
 template<> Outcome Editor::handle<Group>(const Group& intent) {
-    if (intent.nodes.empty()) return refusal(Kind::Change, "a group needs at least one node to hold");
+    if (intent.nodes.empty()) return refused(Kind::Change, fault::EmptyGroup{});
     if (document_.find(intent.id)) {
-        return refusal(Kind::Change, "error: id already exists: " + intent.id);
+        return refused(Kind::Change, fault::DuplicateId{intent.id});
     }
 
     std::vector<Id> members;
     members.reserve(intent.nodes.size());
-    for (const NodeRef& reference : intent.nodes) members.push_back(resolve(reference));
+    for (const NodeRef& reference : intent.nodes) {
+        const std::expected<Id, Refusal> member = resolve(reference);
+        if (!member) return refused(Kind::Change, member.error());
+        members.push_back(*member);
+    }
 
     // The group takes the place of the first node it takes, which means standing in front
     // of the first sibling after that node which is not being taken itself.
     const Id first = members.front();
     const std::optional<Id> parent = document_.parent(first);
-    if (!parent) return refusal(Kind::Change, "error: cannot group top-level container: " + top_level_name(document_));
+    if (!parent) {
+        return refused(Kind::Change, fault::CannotGroupTopLevelContainer{top_level_name(document_)});
+    }
 
     // The new group is made under `parent`, so taking one of parent's own ancestors would
     // put that container inside a group that is already inside it.
     for (std::size_t index = 0; index < members.size(); ++index) {
         if (inside(document_, *parent, members[index])) {
-            return refusal(Kind::Change, "error: cannot group a container into its own descendant: " +
-                                             label(intent.nodes[index]));
+            return refused(Kind::Change, fault::CannotGroupIntoOwnDescendant{intent.nodes[index]});
         }
     }
 
@@ -145,25 +151,26 @@ template<> Outcome Editor::handle<Group>(const Group& intent) {
     // In the order they were written, so the group reads the way the command did.
     for (const Id member : members) edit.attach_last(made, member);
     edit.commit();
-    return Outcome{true, Kind::Change, "created #" + std::to_string(made) + " <g> id=\"" + intent.id + "\" holding " +
-                                           std::to_string(members.size()) + " node(s)"};
+    return happened(Kind::Change, event::Grouped{made, intent.id, *parent, members.size()});
 }
 
 template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
     const std::optional<Id> found = look_up(document_, intent.node);
-    if (!found) return refusal(Kind::Change, "error: no such container: " + label(intent.node));
+    if (!found) return refused(Kind::Change, fault::MissingContainer{intent.node});
     const Id node = *found;
     if (node == document_.root()) {
-        return refusal(Kind::Change, "error: cannot ungroup top-level container: " + top_level_name(document_));
+        return refused(Kind::Change, fault::CannotUngroupTopLevelContainer{top_level_name(document_)});
     }
 
     const std::optional<Node> payload = document_.node(node);
     if (!payload || !is_container(*payload)) {
-        return refusal(Kind::Change, "error: cannot ungroup composite shape: " + label(intent.node));
+        return refused(Kind::Change, fault::CannotUngroupCompositeShape{intent.node});
     }
 
     const std::optional<Id> parent = document_.parent(node);
-    if (!parent) return refusal(Kind::Change, "error: cannot ungroup top-level container: " + top_level_name(document_));
+    if (!parent) {
+        return refused(Kind::Change, fault::CannotUngroupTopLevelContainer{top_level_name(document_)});
+    }
 
     const std::vector<Id> members = document_.children(node);
     // What stood after the group keeps standing after its children: each of them is
@@ -176,6 +183,5 @@ template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
     for (const Id member : members) edit.attach_at(*parent, anchor, member);
     edit.erase(node);
     edit.commit();
-    return Outcome{true, Kind::Change, "released " + std::to_string(members.size()) + " node(s) into #" +
-                                           std::to_string(*parent) + " and erased " + describe(intent.node)};
+    return happened(Kind::Change, event::Ungrouped{node, intent.node, *parent, members.size()});
 }

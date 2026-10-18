@@ -36,7 +36,7 @@ private:
             return editor_.translate(ChangeIntent{intent});
         } else {
             static_assert(false, "the Planner has no route for this intent");
-            return Outcome{false, Kind::Unknown, "no route"};
+            return refused(Kind::Unknown, fault::InternalError{});
         }
     }
 

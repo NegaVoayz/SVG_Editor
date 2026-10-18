@@ -39,19 +39,11 @@ struct RunInstruction {
     bool operator()(const Intent& intent) const {
         try {
             const Outcome outcome = planner.dispatch(intent);
-            // A view is what it describes, printed as that and nothing else, which is what
-            // makes a tree look like a tree. Anything else is the sentence it already is,
-            // with the branch that answered it in front: whether an instruction was read,
-            // edited or asked of the file layer is the interesting part of it.
-            if (std::holds_alternative<TreeView>(outcome.view)) {
-                std::cout << render(std::get<TreeView>(outcome.view)) << "\n";
-            } else if (std::holds_alternative<NodeView>(outcome.view)) {
-                std::cout << render(std::get<NodeView>(outcome.view)) << "\n";
-            } else {
-                std::cout << "[" << kind_name(outcome.kind) << "] " << (outcome.ok ? "" : "failed: ") << outcome.message
-                          << "\n";
-            }
-            return outcome.ok;
+            // The renderer owns both directions of the boundary's wording: a view is the
+            // drawing itself, an event is a sentence about what changed, and a refusal is
+            // the sentence that explains why nothing did.
+            std::cout << render(outcome) << "\n";
+            return outcome.ok();
         } catch (const std::exception& error) {
             // The front end is the boundary: whatever a lower layer throws comes out
             // as a line here, never as a crash.

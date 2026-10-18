@@ -8,9 +8,12 @@
 #include <utility>
 #include <variant>
 
+#include "Event.hh"
 #include "Intent.hh"
 #include "NodeRef.hh"
 #include "Outcome.hh"
+#include "Refusal.hh"
+#include "Status.hh"
 #include "View.hh"
 
 namespace {
@@ -27,6 +30,18 @@ std::string content_of(const Document& document, Id node) {
         }
     }
     return text;
+}
+
+// The root's canvas, when it has one. `init` reports the size it actually created,
+// including the side it filled in with the default.
+std::optional<Container::SVG> canvas_of(const Document& document) {
+    const std::optional<Node> payload = document.node(document.root());
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
+    const SVGNode& element = std::get<SVGNode>(*payload);
+    if (!std::holds_alternative<Container>(element.data)) return std::nullopt;
+    const Container& container = std::get<Container>(element.data);
+    if (!std::holds_alternative<Container::SVG>(container.specific)) return std::nullopt;
+    return std::get<Container::SVG>(container.specific);
 }
 
 // Reading the tree is the Planner's half of a view: the walk that turns the document
@@ -46,6 +61,57 @@ void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, 
     }
 }
 
+// The file layer's structured status, translated into the same result vocabulary every
+// other route uses. The translation is a visitor rather than a chain over codes: a new
+// status is a build error here until it has an answer.
+struct OpenStatus {
+    Kind kind;
+    std::string path;
+
+    Outcome operator()(const model_status::Ok&) const {
+        return happened(kind, event::Opened{path});
+    }
+    Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
+    Outcome operator()(const model_status::CannotReadFile& problem) const {
+        return refused(kind, fault::CannotReadFile{problem.path});
+    }
+    Outcome operator()(const model_status::ParserNotImplemented& problem) const {
+        return refused(kind, fault::ParserNotImplemented{problem.bytes});
+    }
+    Outcome operator()(const model_status::MissingSourcePath&) const {
+        return refused(kind, fault::InternalError{});
+    }
+    Outcome operator()(const model_status::CannotWriteFile&) const {
+        return refused(kind, fault::InternalError{});
+    }
+    Outcome operator()(const model_status::SerializerNotImplemented&) const {
+        return refused(kind, fault::InternalError{});
+    }
+};
+
+struct SaveStatus {
+    Kind kind;
+    std::string path;
+
+    Outcome operator()(const model_status::Ok&) const { return happened(kind, event::Saved{path}); }
+    Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
+    Outcome operator()(const model_status::MissingSourcePath&) const {
+        return refused(kind, fault::MissingSourcePath{});
+    }
+    Outcome operator()(const model_status::CannotWriteFile& problem) const {
+        return refused(kind, fault::CannotWriteFile{problem.path});
+    }
+    Outcome operator()(const model_status::SerializerNotImplemented&) const {
+        return refused(kind, fault::SerializerNotImplemented{});
+    }
+    Outcome operator()(const model_status::CannotReadFile&) const {
+        return refused(kind, fault::InternalError{});
+    }
+    Outcome operator()(const model_status::ParserNotImplemented&) const {
+        return refused(kind, fault::InternalError{});
+    }
+};
+
 }  // namespace
 
 Planner::Planner(Document& document, Editor& editor) : document_(document), editor_(editor) {}
@@ -57,23 +123,23 @@ Planner::Planner(Document& document, Editor& editor) : document_(document), edit
 template<> Outcome Planner::handle<ShowTree>(const ShowTree& intent) {
     if (!document_.has_document()) return no_document(Kind::View);
     const std::optional<Id> node = look_up(document_, intent.node);
-    if (!node) return refusal(Kind::View, "error: no such shape: " + label(intent.node));
+    if (!node) return refused(Kind::View, fault::MissingShape{intent.node});
 
     // The root of the view is the row the front end prints first, and its children are
     // the rows under it - which is why the walk starts at depth 0.
     TreeView view;
     append_rows(view.rows, document_, *node, 0, true);
-    return Outcome{true, Kind::View, {}, std::move(view)};
+    return viewed(Kind::View, View{std::move(view)});
 }
 
 template<> Outcome Planner::handle<Show>(const Show& intent) {
     if (!document_.has_document()) return no_document(Kind::View);
     const std::optional<Id> node = look_up(document_, intent.node);
-    if (!node) return refusal(Kind::View, "error: no such shape: " + label(intent.node));
+    if (!node) return refused(Kind::View, fault::MissingShape{intent.node});
 
     const std::optional<Node> payload = document_.node(*node);
-    if (!payload) return refusal(Kind::View, "the node went missing");  // cannot happen: look_up
-    return Outcome{true, Kind::View, {}, NodeView{*node, *payload, content_of(document_, *node)}};
+    if (!payload) return refused(Kind::View, fault::InternalError{});  // cannot happen: look_up
+    return viewed(Kind::View, View{NodeView{*node, *payload, content_of(document_, *node)}});
 }
 
 // `init` replaces the document, file and all, rather than editing the tree in it: the
@@ -81,12 +147,14 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
 // the old document to undo back into.
 template<> Outcome Planner::handle<Init>(const Init& intent) {
     document_.reset(intent.width, intent.height);
-    return Outcome{true, Kind::Context, "an empty document, with the canvas it was given"};
+    const std::optional<Container::SVG> canvas = canvas_of(document_);
+    if (!canvas) return refused(Kind::Context, fault::InternalError{});
+    return happened(Kind::Context, event::Initialized{canvas->width, canvas->height});
 }
 
 template<> Outcome Planner::handle<Read>(const Read& intent) {
     const Status status = document_.open(intent.path);
-    return Outcome{status.ok, Kind::Context, status.message};
+    return std::visit(OpenStatus{Kind::Context, intent.path}, status);
 }
 
 // A save with no path writes where the document was read from, which is the Model's to
@@ -94,7 +162,8 @@ template<> Outcome Planner::handle<Read>(const Read& intent) {
 template<> Outcome Planner::handle<Save>(const Save& intent) {
     if (!document_.has_document()) return no_document(Kind::Context);
     const Status status = document_.save(intent.path);
-    return Outcome{status.ok, Kind::Context, status.message};
+    const std::string target = intent.path ? *intent.path : document_.source_path();
+    return std::visit(SaveStatus{Kind::Context, target}, status);
 }
 
 Outcome Planner::dispatch(const Intent& intent) {

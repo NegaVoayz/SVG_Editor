@@ -1,5 +1,6 @@
 #pragma once
 
+#include <expected>
 #include <string>
 #include <string_view>
 #include <optional>
@@ -55,18 +56,18 @@ private:
             // specialization that is not a create, and a static_assert that is false in a
             // discarded branch is what C++23 allows here.
             static_assert(false, "the Editor has no translation for this intent");
-            return refusal(Kind::Change, "no translation");
+            return refused(Kind::Change, fault::InternalError{});
         }
     }
 
     // A reference turned into a node, or the refusal for one that names nothing.
-    Id resolve(const NodeRef& reference) const;
+    std::expected<Id, Refusal> resolve(const NodeRef& reference) const;
 
     // A reference that has to name a container: one that exists and can hold shapes or
     // other containers. A text holds character data but is not this kind of container.
-    Id resolve_container(const NodeRef& reference) const;
+    std::expected<Id, Refusal> resolve_container(const NodeRef& reference) const;
 
-    // What one create brings: the tag a message names it by, the element itself, and the
+    // What one create brings: the tag an event names it by, the element itself, and the
     // words to put inside it when the element is a text. A text holds character data in
     // a child node rather than in an attribute, which is why that is a second node.
     struct NewElement {

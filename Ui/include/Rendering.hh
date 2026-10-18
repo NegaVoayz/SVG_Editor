@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "View.hh"
+#include "Outcome.hh"
 
 // The other direction of the same boundary the parser guards: the Planner hands over
 // what it read, and the words around it - what an element is called, how a length is
@@ -12,3 +12,9 @@
 std::string render(const TreeView& view);
 std::string render(const NodeView& view);
 std::string render(const View& view);
+std::string render(const Event& event);
+std::string render(const Refusal& refusal);
+
+// The whole answer, including the branch it came from and the `failed:` marker a
+// refusal carries. The wording of both the branch and the reason is this layer's.
+std::string render(const Outcome& outcome);

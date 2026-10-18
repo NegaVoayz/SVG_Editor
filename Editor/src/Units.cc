@@ -15,8 +15,6 @@
 #include "Units.hh"
 
 #include <optional>
-#include <string>
-#include <string_view>
 #include <variant>
 
 namespace Geometry {
@@ -75,24 +73,6 @@ bool is_zero(LengthPercentage value) {
     return std::get<Length>(value).value == 0.0F;
 }
 
-// What a length counts in, in words. An offset that does not add up is the one refusal a
-// user is most likely to have written by mistake - "1cm + 1in" - and what went wrong there
-// is not visible in the two numbers, so the sentence says which system each side is in
-// rather than only that they differ.
-std::string_view system_name(Length::Unit unit) {
-    switch (unit) {
-        case Length::Unit::Mm: [[fallthrough]]
-        case Length::Unit::Cm: return "metric";
-        case Length::Unit::In: [[fallthrough]]
-        case Length::Unit::Pt: [[fallthrough]]
-        case Length::Unit::Px: return "imperial";
-        case Length::Unit::UserUnit: return "a user unit, which is whatever the viewport says";
-        case Length::Unit::Em: return "an em, which is a font metric";
-        case Length::Unit::Ex: return "an ex, which is a font metric";
-    }
-    return "no system";
-}
-
 }  // namespace
 
 std::optional<LengthPercentage> sum(LengthPercentage left, LengthPercentage right) {
@@ -109,19 +89,6 @@ std::optional<LengthPercentage> sum(LengthPercentage left, LengthPercentage righ
     const std::optional<float> factor = factor_between(b.unit, a.unit);
     if (!factor) return std::nullopt;
     return Length{a.value + b.value * *factor, a.unit};
-}
-
-std::string no_sum(std::string_view offset, LengthPercentage offset_value, std::string_view value,
-                   LengthPercentage value_value) {
-    std::string message = "the offset " + std::string{offset} + " does not add up with " + std::string{value};
-    if (std::holds_alternative<Percentage>(offset_value) || std::holds_alternative<Percentage>(value_value)) {
-        message += ": a percentage has no sum with a length";
-    } else {
-        message += ": " + std::string{offset} + " is " + std::string{system_name(std::get<Length>(offset_value).unit)} +
-                   " and " + std::string{value} + " is " + std::string{system_name(std::get<Length>(value_value).unit)};
-    }
-    return message +
-           " - mm and cm are metric, in, pt and px are defined against the inch, and the two systems are not mixed";
 }
 
 LengthPercentage scaled(LengthPercentage value, float factor) {

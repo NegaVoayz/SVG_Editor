@@ -8,6 +8,8 @@
 //   Intent.hh   what a front end can ask for, and the idiom every layer that answers an
 //               intent is built with
 //   View.hh     what a read hands back
+//   Event.hh    what a successful change did
+//   Refusal.hh  why a change did not happen
 //   Outcome.hh  what comes back out, whichever of the three branches answered
 //
 // The order is the order they depend on each other, which is why there is no loop in the

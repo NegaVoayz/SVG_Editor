@@ -9,17 +9,15 @@
 // The parameter has no name: undo and redo are instructions with nothing in them, and a
 // name for nothing reads as if there were something.
 template<> Outcome Editor::handle<Undo>(const Undo&) {
-    if (!document_.can_undo()) return refusal(Kind::Change, "there is nothing left to undo");
+    if (!document_.can_undo()) return refused(Kind::Change, fault::NothingToUndo{});
 
     document_.undo();
-    return Outcome{true, Kind::Change, "undone, at " + std::to_string(document_.position()) + " of " +
-                                           std::to_string(document_.depth()) + " edits"};
+    return happened(Kind::Change, event::Undone{document_.position(), document_.depth()});
 }
 
 template<> Outcome Editor::handle<Redo>(const Redo&) {
-    if (!document_.can_redo()) return refusal(Kind::Change, "there is nothing left to redo");
+    if (!document_.can_redo()) return refused(Kind::Change, fault::NothingToRedo{});
 
     document_.redo();
-    return Outcome{true, Kind::Change, "redone, at " + std::to_string(document_.position()) + " of " +
-                                           std::to_string(document_.depth()) + " edits"};
+    return happened(Kind::Change, event::Redone{document_.position(), document_.depth()});
 }

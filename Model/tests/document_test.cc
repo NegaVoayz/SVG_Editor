@@ -115,8 +115,8 @@ int main() {
     CHECK(!document.can_undo());
     CHECK(throws([&] { auto edit = document.transaction(); }));
     const Status early_save = document.save(std::nullopt);
-    CHECK(!early_save.ok);
-    CHECK(early_save.message == "error: no document. use 'init' or 'read' first");
+    CHECK(!ok(early_save));
+    CHECK(std::holds_alternative<model_status::NoDocument>(early_save));
 
     // `init` is what makes the first root; before it there is no document to edit.
     document.reset(std::nullopt, std::nullopt);
@@ -451,8 +451,8 @@ int main() {
     // the serializer exists the other half of that seam is what can be checked: a
     // document with no file behind it has no path to write to, and a save that
     // failed is not a checkpoint.
-    CHECK(!document.save(std::nullopt).ok);
-    CHECK(!document.save("no-such-directory/out.svg").ok);
+    CHECK(!ok(document.save(std::nullopt)));
+    CHECK(!ok(document.save("no-such-directory/out.svg")));
     CHECK(document.source_path().empty());
     CHECK(document.can_undo());
 

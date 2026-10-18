@@ -89,18 +89,18 @@ template<typename T>
 Outcome Editor::create(const T& intent) {
     NewElement built = new_element(intent);
     if (document_.find(intent.id)) {
-        return refusal(Kind::Change, "error: id already exists: " + intent.id);
+        return refused(Kind::Change, fault::DuplicateId{intent.id});
     }
-    const Id parent = resolve_container(intent.parent);
+    const std::expected<Id, Refusal> parent = resolve_container(intent.parent);
+    if (!parent) return refused(Kind::Change, parent.error());
 
     // The element and its content are two nodes, and one instruction is one
     // transaction, so either both are written or neither is.
     Transaction edit = document_.transaction();
-    const Id node = edit.append_child(parent, std::move(built.payload));
+    const Id node = edit.append_child(*parent, std::move(built.payload));
     if (built.content) edit.append_child(node, characters(std::move(*built.content)));
     edit.commit();
-    return Outcome{true, Kind::Change, "created #" + std::to_string(node) + " <" + std::string{built.kind} + "> id=\"" +
-                                           intent.id + "\" in " + describe(intent.parent)};
+    return happened(Kind::Change, event::Created{node, std::string{built.kind}, intent.id, intent.parent});
 }
 
 // The second level of the dispatch: a create is one instruction, and which element it builds

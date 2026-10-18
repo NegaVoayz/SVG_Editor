@@ -21,14 +21,6 @@ using NodeRef = std::variant<RootRef, HandleRef, SvgIdRef>;
 // The node a reference names, or nothing when nothing is called that.
 std::optional<Id> look_up(const Document& document, const NodeRef& reference);
 
-// How a reference reads in a sentence back to the user: the root, a handle, or the quoted
-// name, which is what the user wrote either way.
-std::string describe(const NodeRef& reference);
-
-// The bare name of a reference, for an error that names the thing itself rather than
-// putting it in a sentence: `r9`, `#3`, or `/`.
-std::string label(const NodeRef& reference);
-
 inline std::optional<Id> look_up(const Document& document, const NodeRef& reference) {
     if (std::holds_alternative<RootRef>(reference)) {
         const Id root = document.root();
@@ -41,16 +33,4 @@ inline std::optional<Id> look_up(const Document& document, const NodeRef& refere
         return id;
     }
     return document.find(std::get<SvgIdRef>(reference).name);
-}
-
-inline std::string describe(const NodeRef& reference) {
-    if (std::holds_alternative<RootRef>(reference)) return "the root";
-    if (std::holds_alternative<HandleRef>(reference)) return "#" + std::to_string(std::get<HandleRef>(reference).id);
-    return "\"" + std::get<SvgIdRef>(reference).name + "\"";
-}
-
-inline std::string label(const NodeRef& reference) {
-    if (std::holds_alternative<RootRef>(reference)) return "/";
-    if (std::holds_alternative<HandleRef>(reference)) return "#" + std::to_string(std::get<HandleRef>(reference).id);
-    return std::get<SvgIdRef>(reference).name;
 }

@@ -272,3 +272,225 @@ std::string render(const View& view) {
     return {};
 }
 
+namespace {
+
+// The two ways a reference is named in an answer: with its own spelling in a clause, and
+// as the thing an error is about. Both are presentation, which is why they live here and
+// not next to the protocol's NodeRef.
+std::string label(const NodeRef& reference) {
+    if (std::holds_alternative<RootRef>(reference)) return "/";
+    if (std::holds_alternative<HandleRef>(reference)) {
+        return "#" + std::to_string(std::get<HandleRef>(reference).id);
+    }
+    return std::get<SvgIdRef>(reference).name;
+}
+
+std::string describe(const NodeRef& reference) {
+    if (std::holds_alternative<RootRef>(reference)) return "the root";
+    if (std::holds_alternative<HandleRef>(reference)) {
+        return "#" + std::to_string(std::get<HandleRef>(reference).id);
+    }
+    return "\"" + std::get<SvgIdRef>(reference).name + "\"";
+}
+
+std::string_view system_name(Length::Unit unit) {
+    switch (unit) {
+        case Length::Unit::Mm:
+        case Length::Unit::Cm: return "metric";
+        case Length::Unit::In:
+        case Length::Unit::Pt:
+        case Length::Unit::Px: return "imperial";
+        case Length::Unit::UserUnit: return "a user unit, which is whatever the viewport says";
+        case Length::Unit::Em: return "an em, which is a font metric";
+        case Length::Unit::Ex: return "an ex, which is a font metric";
+    }
+    return "no system";
+}
+
+struct EventText {
+    std::string operator()(const event::Created& made) const {
+        return "created #" + std::to_string(made.node) + " <" + made.element + "> id=\"" + made.svg_id + "\" in " +
+               describe(made.parent);
+    }
+    std::string operator()(const event::Deleted& gone) const {
+        return "deleted " + describe(gone.named) + " (#" + std::to_string(gone.node) + ") and everything under it";
+    }
+    std::string operator()(const event::Moved& moved) const {
+        return "moved #" + std::to_string(moved.node) + " by " + to_text(moved.dx) + " " + to_text(moved.dy);
+    }
+    std::string operator()(const event::Scaled& scaled) const {
+        return "scaled #" + std::to_string(scaled.node) + " by " + number_text(scaled.factor) +
+               ", so everything drawn with it grew by that much";
+    }
+    std::string operator()(const event::AddedTo& moved) const {
+        return "moved #" + std::to_string(moved.node) + " to the end of #" + std::to_string(moved.parent);
+    }
+    std::string operator()(const event::MovedToFront& moved) const {
+        return "moved #" + std::to_string(moved.node) + " to the front of #" + std::to_string(moved.parent);
+    }
+    std::string operator()(const event::MovedToBack& moved) const {
+        return "moved #" + std::to_string(moved.node) + " to the back of #" + std::to_string(moved.parent);
+    }
+    std::string operator()(const event::Grouped& grouped) const {
+        return "created #" + std::to_string(grouped.node) + " <g> id=\"" + grouped.svg_id + "\" holding " +
+               std::to_string(grouped.members) + " node(s)";
+    }
+    std::string operator()(const event::Ungrouped& released) const {
+        return "released " + std::to_string(released.members) + " node(s) into #" + std::to_string(released.parent) +
+               " and erased " + describe(released.named);
+    }
+    std::string operator()(const event::AttributeSet& set) const {
+        return "set " + set.attribute + " on #" + std::to_string(set.node);
+    }
+    std::string operator()(const event::ContentSet& set) const {
+        return "set content on #" + std::to_string(set.node);
+    }
+    std::string operator()(const event::CanvasSet& canvas) const {
+        const std::string width = canvas.width ? to_text(*canvas.width) : "?";
+        const std::string height = canvas.height ? to_text(*canvas.height) : "?";
+        return "the canvas is now " + width + " x " + height + ", and the history starts from here";
+    }
+    std::string operator()(const event::Undone& undo) const {
+        return "undone, at " + std::to_string(undo.position) + " of " + std::to_string(undo.depth) + " edits";
+    }
+    std::string operator()(const event::Redone& redo) const {
+        return "redone, at " + std::to_string(redo.position) + " of " + std::to_string(redo.depth) + " edits";
+    }
+    std::string operator()(const event::NothingMoved&) const { return "the offset is zero, nothing moved"; }
+    std::string operator()(const event::AlreadyFront& front) const {
+        return describe(front.node) + " is already the first child";
+    }
+    std::string operator()(const event::AlreadyLast& last) const {
+        return describe(last.node) + " is already the last child";
+    }
+    std::string operator()(const event::Initialized&) const {
+        return "an empty document, with the canvas it was given";
+    }
+    std::string operator()(const event::Opened& opened) const { return "read " + opened.path; }
+    std::string operator()(const event::Saved& saved) const {
+        return "saved " + saved.path + ", and the history starts from here";
+    }
+};
+
+struct RefusalText {
+    std::string operator()(const fault::NoDocument&) const {
+        return "error: no document. use 'init' or 'read' first";
+    }
+    std::string operator()(const fault::MissingShape& missing) const {
+        return "error: no such shape: " + label(missing.node);
+    }
+    std::string operator()(const fault::MissingContainer& missing) const {
+        return "error: no such container: " + label(missing.node);
+    }
+    std::string operator()(const fault::NotContainer& wrong) const {
+        return "error: not a container: " + label(wrong.node);
+    }
+    std::string operator()(const fault::DuplicateId& taken) const {
+        return "error: id already exists: " + taken.id;
+    }
+    std::string operator()(const fault::UnknownAttribute& attribute) const {
+        return "error: unknown attribute: " + attribute.name;
+    }
+    std::string operator()(const fault::CannotUngroupCompositeShape& composite) const {
+        return "error: cannot ungroup composite shape: " + label(composite.node);
+    }
+    std::string operator()(const fault::CannotGroupIntoOwnDescendant& descendant) const {
+        return "error: cannot group a container into its own descendant: " + label(descendant.node);
+    }
+    std::string operator()(const fault::CannotGroupTopLevelContainer& top) const {
+        return "error: cannot group top-level container: " + top.name;
+    }
+    std::string operator()(const fault::CannotUngroupTopLevelContainer& top) const {
+        return "error: cannot ungroup top-level container: " + top.name;
+    }
+    std::string operator()(const fault::ScaleFactorNotPositive&) const {
+        return "error: scale factor must be positive";
+    }
+    std::string operator()(const fault::RootCannotBeErased&) const {
+        return "error: the root cannot be erased";
+    }
+    std::string operator()(const fault::RootHasNoSiblings&) const {
+        return "error: the root is the whole document: it has no siblings to stand in front of or behind";
+    }
+    std::string operator()(const fault::EmptyGroup&) const {
+        return "error: a group needs at least one node to hold";
+    }
+    std::string operator()(const fault::NothingToUndo&) const { return "error: there is nothing left to undo"; }
+    std::string operator()(const fault::NothingToRedo&) const { return "error: there is nothing left to redo"; }
+    std::string operator()(const fault::NoRootElement&) const {
+        return "error: the document has no root element";
+    }
+    std::string operator()(const fault::RootIsNotContainer&) const {
+        return "error: the root is not a container";
+    }
+    std::string operator()(const fault::RootIsNotSvg&) const {
+        return "error: the root is not an <svg> element, so it has no canvas";
+    }
+    std::string operator()(const fault::MissingSourcePath&) const {
+        return "error: this document came from nowhere yet: save <path> says where to write it";
+    }
+    std::string operator()(const fault::CannotReadFile& missing) const {
+        return "error: cannot read file: " + missing.path;
+    }
+    std::string operator()(const fault::CannotWriteFile& missing) const {
+        return "error: cannot write file: " + missing.path;
+    }
+    std::string operator()(const fault::ParserNotImplemented& parser) const {
+        return "error: the SVG parser is not implemented yet, after reading " + std::to_string(parser.bytes) +
+               " bytes";
+    }
+    std::string operator()(const fault::SerializerNotImplemented&) const {
+        return "error: the SVG serializer is not implemented yet";
+    }
+    std::string operator()(const fault::IncompatibleLengths& lengths) const {
+        const std::string offset = to_text(lengths.offset);
+        const std::string value = to_text(lengths.value);
+        std::string message = "error: the offset " + offset + " does not add up with " + value;
+        if (std::holds_alternative<Percentage>(lengths.offset) || std::holds_alternative<Percentage>(lengths.value)) {
+            message += ": a percentage has no sum with a length";
+        } else {
+            message += ": " + offset + " is " +
+                       std::string{system_name(std::get<Length>(lengths.offset).unit)} + " and " + value + " is " +
+                       std::string{system_name(std::get<Length>(lengths.value).unit)};
+        }
+        return message +
+               " - mm and cm are metric, in, pt and px are defined against the inch, and the two systems are not mixed";
+    }
+    std::string operator()(const fault::MatrixNeedsUserUnitsForMove&) const {
+        return "error: this node carries a scale, a rotation or a matrix, which has to become a matrix to take a "
+               "translation, and a matrix counts in user units: write the offset as a plain number";
+    }
+    std::string operator()(const fault::MatrixNeedsUserUnitsForScale& moved) const {
+        return "error: this node was moved by " + to_text(moved.x) + " " + to_text(moved.y) +
+               ", which has to become a matrix to take a scale behind it, and a matrix counts in user units: "
+               "write the offset as a plain number";
+    }
+    std::string operator()(const fault::TextCannotMove&) const {
+        return "error: a text node has no coordinates and no transform to move";
+    }
+    std::string operator()(const fault::TextCannotScale&) const {
+        return "error: a text node has no coordinates and no transform to scale";
+    }
+    std::string operator()(const fault::InternalError&) const { return "error: internal error"; }
+};
+
+struct OutcomeText {
+    Kind kind;
+
+    std::string operator()(const View& view) const { return render(view); }
+    std::string operator()(const Event& event) const {
+        return "[" + std::string{kind_name(kind)} + "] " + render(event);
+    }
+    std::string operator()(const Refusal& refusal) const {
+        return "[" + std::string{kind_name(kind)} + "] failed: " + render(refusal);
+    }
+};
+
+}  // namespace
+
+std::string render(const Event& event) { return std::visit(EventText{}, event); }
+
+std::string render(const Refusal& refusal) { return std::visit(RefusalText{}, refusal); }
+
+std::string render(const Outcome& outcome) { return std::visit(OutcomeText{outcome.kind}, outcome.result); }
+

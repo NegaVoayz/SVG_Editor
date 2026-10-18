@@ -6,7 +6,6 @@
 #include <cmath>
 #include <optional>
 #include <stdexcept>
-#include <string>
 #include <variant>
 
 #include "Units.hh"
@@ -45,28 +44,22 @@ std::optional<float> user_units_of(LengthPercentage value) {
 }
 
 // A container has no coordinates to change, so a translation becomes its transform.
-bool move_transform(SVGNode& element, LengthPercentage dx, LengthPercentage dy, std::string& problem) {
+std::optional<Refusal> move_transform(SVGNode& element, LengthPercentage dx, LengthPercentage dy) {
     std::optional<Transform>& transform = element.transform_attr.transform;
 
     if (!transform) {
         transform = Translate{dx, dy};  // one translate says exactly what happened
-        return true;
+        return std::nullopt;
     }
     if (std::holds_alternative<Translate>(*transform)) {
         Translate& translation = std::get<Translate>(*transform);
         const std::optional<LengthPercentage> x = sum(translation.x, dx);
-        if (!x) {
-            problem = no_sum(to_text(dx), dx, to_text(translation.x), translation.x);
-            return false;
-        }
+        if (!x) return Refusal{fault::IncompatibleLengths{dx, translation.x}};
         const std::optional<LengthPercentage> y = sum(translation.y, dy);
-        if (!y) {
-            problem = no_sum(to_text(dy), dy, to_text(translation.y), translation.y);
-            return false;
-        }
+        if (!y) return Refusal{fault::IncompatibleLengths{dy, translation.y}};
         translation.x = *x;
         translation.y = *y;
-        return true;
+        return std::nullopt;
     }
 
     // Anything else becomes a matrix, because no single simple form holds a translation
@@ -76,32 +69,30 @@ bool move_transform(SVGNode& element, LengthPercentage dx, LengthPercentage dy, 
     const std::optional<float> offset_x = user_units_of(dx);
     const std::optional<float> offset_y = user_units_of(dy);
     if (!offset_x || !offset_y) {
-        problem = "this node carries a scale, a rotation or a matrix, which has to become a matrix to take a "
-                  "translation, and a matrix counts in user units: write the offset as a plain number";
-        return false;
+        return Refusal{fault::MatrixNeedsUserUnitsForMove{dx}};
     }
     const Matrix existing = std::visit(ToMatrix{}, *transform);
     transform = Matrix{existing.a, existing.b, existing.c, existing.d, existing.e + *offset_x, existing.f + *offset_y};
-    return true;
+    return std::nullopt;
 }
 
-bool scale_transform(SVGNode& element, float factor, std::string& problem) {
+std::optional<Refusal> scale_transform(SVGNode& element, float factor) {
     std::optional<Transform>& transform = element.transform_attr.transform;
 
     if (!transform) {
         transform = Scale{factor, factor};  // a scale stays a scale
-        return true;
+        return std::nullopt;
     }
     if (std::holds_alternative<Scale>(*transform)) {
         Scale& scale = std::get<Scale>(*transform);
         scale.x *= factor;
         scale.y *= factor;
-        return true;
+        return std::nullopt;
     }
     if (std::holds_alternative<Rotate>(*transform)) {
         const Matrix turned = rotation_matrix(std::get<Rotate>(*transform).degrees);
         transform = Matrix{turned.a * factor, turned.b * factor, turned.c * factor, turned.d * factor, 0.0F, 0.0F};
-        return true;
+        return std::nullopt;
     }
     if (std::holds_alternative<Matrix>(*transform)) {
         Matrix& matrix = std::get<Matrix>(*transform);
@@ -111,7 +102,7 @@ bool scale_transform(SVGNode& element, float factor, std::string& problem) {
         matrix.b *= factor;
         matrix.c *= factor;
         matrix.d *= factor;
-        return true;
+        return std::nullopt;
     }
 
     // A translation has to become a matrix to take a scale behind it, and a matrix counts
@@ -120,13 +111,10 @@ bool scale_transform(SVGNode& element, float factor, std::string& problem) {
     const std::optional<float> x = user_units_of(translation.x);
     const std::optional<float> y = user_units_of(translation.y);
     if (!x || !y) {
-        problem = "this node was moved by " + to_text(translation.x) + " " + to_text(translation.y) +
-                  ", which has to become a matrix to take a scale behind it, and a matrix counts in user units: "
-                  "write the offset as a plain number";
-        return false;
+        return Refusal{fault::MatrixNeedsUserUnitsForScale{translation.x, translation.y}};
     }
     transform = Matrix{factor, 0.0F, 0.0F, factor, *x, *y};
-    return true;
+    return std::nullopt;
 }
 
 }  // namespace Geometry

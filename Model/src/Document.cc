@@ -2,6 +2,7 @@
 
 #include <stdexcept>
 #include <utility>
+#include <variant>
 
 #include "FileSystem.hh"
 #include "TreeStore.hh"
@@ -13,7 +14,7 @@ namespace {
 Status serialize(const TreeStore& store, std::string& out_svg) {
     static_cast<void>(store);
     static_cast<void>(out_svg);
-    return Status{false, "the SVG serializer is not implemented yet"};
+    return model_status::SerializerNotImplemented{};
 }
 
 }  // namespace
@@ -69,36 +70,36 @@ std::size_t Document::position() const { return store_.position(); }
 
 Status Document::open(std::string_view path) {
     const FileResult file = FileSystem::read(path);
-    if (!file.ok) return Status{false, "error: " + file.text};
+    if (!std::holds_alternative<FileBytes>(file)) return model_status::CannotReadFile{std::string{path}};
+    const FileBytes& bytes = std::get<FileBytes>(file);
     // TODO: reset the document, parse the bytes into it, and only then take the path
     // as the document's own. Until the parser exists the read is only reported, and
     // the document is left as it was - which is why a read that failed leaves no
     // path behind either.
-    return Status{false, "error: the SVG parser is not implemented yet, after reading " +
-                             std::to_string(file.text.size()) + " bytes"};
+    return model_status::ParserNotImplemented{bytes.bytes.size()};
 }
 
 const std::string& Document::source_path() const { return source_path_; }
 
 Status Document::save(std::optional<std::string_view> path) {
     if (!has_document()) {
-        return Status{false, "error: no document. use 'init' or 'read' first"};
+        return model_status::NoDocument{};
     }
 
     const std::string target = path ? std::string{*path} : source_path_;
     if (target.empty()) {
-        return Status{false, "error: this document came from nowhere yet: save <path> says where to write it"};
+        return model_status::MissingSourcePath{};
     }
 
     std::string svg;
     const Status serialized = serialize(store_, svg);
-    if (!serialized.ok) return Status{false, "error: " + serialized.message};
+    if (!ok(serialized)) return serialized;
     const FileResult file = FileSystem::write(target, svg);
-    if (!file.ok) return Status{false, "error: " + file.text};
+    if (!std::holds_alternative<FileWritten>(file)) return model_status::CannotWriteFile{target};
     // What was written is what the file says from here on, so the way back to the
     // state before it goes with the history that remembered it.
     clear_history();
-    return Status{true, "saved " + target + ", and the history starts from here"};
+    return model_status::Ok{};
 }
 
 void Document::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
