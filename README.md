@@ -52,8 +52,9 @@ build/ninja-local-dep/Ui/svg-editor.exe "init; create g markers; create rect box
 ```
 
 The prompt is `svg>`, `help` lists the commands, and one line may hold several
-instructions separated by `;`. A view is printed as what it describes, and anything
-else as the sentence that says what happened. A session starts without a document:
+instructions separated by `;`. A view is printed as what it describes; a change comes
+back as a structured event, and a refusal as a typed reason, both rendered here by the
+ui layer. A session starts without a document:
 `init` makes an empty one, and `read` will make one from a file. Before either, every
 pipeline command is refused with `error: no document. use 'init' or 'read' first`;
 `help` is answered by the front end itself and still works.

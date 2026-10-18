@@ -48,9 +48,10 @@ place, which is why the document is owned above the Planner rather than inside i
      transaction [M Editor] [M Model]
    - a **context change** goes to the file layer, because it changes which
      document is being edited rather than the tree in it [M Model/FileSystem]
-3. The outcome travels back the way it came: whether it worked, which branch produced
-   it, a sentence about what happened, and - when what was asked for was a read - what
-   the read found, as data. [M Protocol] [M Ui]
+3. The outcome travels back the way it came: which branch produced it, and one of three
+   structured answers - a `View` for a read, an `Event` saying what changed, or a
+   `Refusal` saying why nothing changed. None of them carries user-facing prose; the ui
+   layer turns the structure into words. [M Protocol] [M Ui]
 
 A document starts absent: `Document::root()` is `no_id` until `init` makes one or
 `read` loads one. The Planner answers those two without a document; every other
@@ -67,11 +68,29 @@ The vocabulary is one thing to the layers that speak it, and four things to a re
 | `NodeRef.hh` | how an instruction names a node - a handle, the root, an SVG id - and what that name turns out to be |
 | `Intent.hh`  | the instructions and the three variants they form, the element instructions among them      |
 | `View.hh`    | what a read hands back: the rows of a tree, or one node                                     |
-| `Outcome.hh` | `Kind`, `Outcome`, and the one shape a refusal takes                                        |
+| `Event.hh`   | what a successful change did: handles, values and the kind of edit                         |
+| `Refusal.hh` | why an instruction could not be carried out: a closed set of typed reasons                 |
+| `Outcome.hh` | `Kind`, and the `View` / `Event` / `Refusal` result                                        |
 
 The parts depend on each other in that order, so there is no loop in the graph, and a file
 includes the part it uses rather than the whole protocol: the umbrella is left for the two
 places that drive the pipeline end to end, the cli and the test that drives it the same way.
+
+An `Outcome` is one small sum type:
+
+```C++
+struct Outcome {
+    Kind kind;                                   // view, change, or context
+    std::variant<View, Event, Refusal> result;   // what, not how it reads
+    bool ok() const;                             // a Refusal is the only failure
+};
+```
+
+An `Event` names the handle that moved, the parent it moved under, the attribute that was
+set, or the history position reached. A `Refusal` names the missing node, the duplicate id,
+the two lengths that cannot be added, or the file that could not be read. A graphical front
+end can react to those fields directly; it does not have to recover them from a sentence.
+`Ui/src/Rendering.cc` is the only place that turns either one into English.
 
 ### How an intent is dispatched
 
@@ -96,11 +115,11 @@ Outcome handle(const T& intent) {
 // the five instructions that are not the Editor's, each written where it is routed
 template<> Outcome handle<ShowTree>(const ShowTree& intent) {
     const std::optional<Id> node = look_up(document_, intent.node);
-    if (!node) return Outcome{false, Kind::View, "there is no node at " + describe(intent.node)};
+    if (!node) return refused(Kind::View, fault::MissingShape{intent.node});
 
     TreeView view;
     append_rows(view.rows, document_, *node, 0, true);
-    return Outcome{true, Kind::View, {}, std::move(view)};
+    return viewed(Kind::View, View{std::move(view)});
 }
 template<> Outcome handle<Init>(const Init& intent) { ... }
 ```
