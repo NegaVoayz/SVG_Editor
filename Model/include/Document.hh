@@ -69,6 +69,10 @@ public:
     // The node whose SVG id attribute is this string. An empty id names nothing.
     std::optional<Id> find(std::string_view svg_id) const;
 
+    // How many SVG elements the document holds below its root. Character data is not an
+    // element, and the root <svg> is the document itself rather than one of its elements.
+    std::size_t element_count() const;
+
     // --- editing ---
 
     // One tree-level transaction: see Transaction below.

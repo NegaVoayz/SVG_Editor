@@ -51,6 +51,22 @@ std::optional<Id> Document::find(std::string_view svg_id) const {
     return std::nullopt;
 }
 
+std::size_t Document::element_count() const {
+    if (!has_document()) return 0;
+
+    std::size_t count = 0;
+    std::vector<Id> pending;
+    for (const Id child : store_.children(store_.root())) pending.push_back(child);
+    while (!pending.empty()) {
+        const Id current = pending.back();
+        pending.pop_back();
+        if (!store_.has_node(current)) continue;
+        if (std::holds_alternative<SVGNode>(store_.record(current))) ++count;
+        for (const Id child : store_.children(current)) pending.push_back(child);
+    }
+    return count;
+}
+
 Transaction Document::transaction() { return Transaction{*this}; }
 
 bool Document::can_undo() const { return store_.can_undo(); }

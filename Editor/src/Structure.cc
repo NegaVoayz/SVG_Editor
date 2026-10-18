@@ -34,6 +34,17 @@ std::string top_level_name(const Document& document) {
     return "/";
 }
 
+// The name a node's own error should use: its SVG id when it has one, and its handle
+// otherwise. This is the node being ungrouped, not the root it hangs under.
+std::string node_name(const Document& document, Id node) {
+    const std::optional<Node> payload = document.node(node);
+    if (payload && std::holds_alternative<SVGNode>(*payload)) {
+        const std::string& id = std::get<SVGNode>(*payload).identity_attr.id;
+        if (!id.empty()) return id;
+    }
+    return "#" + std::to_string(node);
+}
+
 // How many nodes a delete takes with the node itself. A leaf says nothing about
 // descendants; a container reports the size of the subtree it removes.
 std::size_t descendant_count(const Document& document, Id node) {
@@ -182,12 +193,18 @@ template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
 
     const std::optional<Node> payload = document_.node(node);
     if (!payload || !is_container(*payload)) {
-        return refused(Kind::Change, fault::CannotUngroupCompositeShape{intent.node});
+        return refused(Kind::Change, fault::CannotUngroupNonContainer{intent.node});
     }
 
     const std::optional<Id> parent = document_.parent(node);
     if (!parent) {
         return refused(Kind::Change, fault::CannotUngroupTopLevelContainer{top_level_name(document_)});
+    }
+    // The root's direct children are the top level of the drawing. Releasing one into
+    // the root would dissolve that level, so the container has to be changed in place
+    // instead of ungrouped.
+    if (*parent == document_.root()) {
+        return refused(Kind::Change, fault::CannotUngroupTopLevelContainer{node_name(document_, node)});
     }
 
     const std::vector<Id> members = document_.children(node);

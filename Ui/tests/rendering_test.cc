@@ -90,11 +90,11 @@ int main() {
 
     const std::string expected = join({
         "svg (800x600)",
-        "├── rect#bg        x=0 y=0 w=800 h=600 fill=#ffffff",
-        "├── text#title     (20,40) \"My Diagram\"",
-        "└── g#markers",
-        "    ├── circle#c1  cx=100 cy=100 r=20",
-        "    └── rect#box   x=200 y=80 w=60 h=60 fill=#3366ff",
+        "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 rect#bg        x=0 y=0 w=800 h=600 fill=#ffffff",
+        "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 text#title     (20,40) \"My Diagram\"",
+        "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 g#markers",
+        "    \xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 circle#c1  cx=100 cy=100 r=20",
+        "    \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box   x=200 y=80 w=60 h=60 fill=#3366ff",
     });
     const std::string drawing = render(TreeView{rows});
     CHECK(drawing == expected);
@@ -109,8 +109,8 @@ int main() {
     subtree.push_back(row(1, true, rect("box", 200, 80, 60, 60, std::nullopt)));
     CHECK(render(TreeView{subtree}) == join({
                                              "g#markers",
-                                             "├── circle#c1  cx=100 cy=100 r=20",
-                                             "└── rect#box   x=200 y=80 w=60 h=60",
+                                             "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 circle#c1  cx=100 cy=100 r=20",
+                                             "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box   x=200 y=80 w=60 h=60",
                                          }));
 
     // A line under an ancestor that is not the last child of its own parent hangs from a
@@ -123,9 +123,9 @@ int main() {
     under_a_bar.push_back(row(1, true, text_element("title", 20, 40), "My Diagram"));
     CHECK(render(TreeView{under_a_bar}) == join({
                                                    "svg (800x600)",
-                                                   "├── g#markers",
-                                                   "│   └── rect#box  x=0 y=0 w=10 h=10 fill=#ff0000",
-                                                   "└── text#title    (20,40) \"My Diagram\"",
+                                                   "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 g#markers",
+                                                   "\xE2\x94\x82   \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box  x=0 y=0 w=10 h=10 fill=#ff0000",
+                                                   "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 text#title    (20,40) \"My Diagram\"",
                                                }));
 
     // A single node has a heading and one indented line per group of attributes. A node
@@ -134,6 +134,8 @@ int main() {
           "rect#box\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
     CHECK(render(NodeView{3, rect("red", 0, 0, 1, 1, Color{Color::Named{Color::NamedColorId::RebeccaPurple}}), {}}) ==
           "rect#red\n  x=0 y=0 w=1 h=1\n  fill=rebeccapurple");
+    CHECK(render(NodeView{3, rect("float", 1.234567F, 0, 1, 1, std::nullopt), {}}) ==
+          "rect#float x=1.23457 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {},
                            NodeParent{1, group("markers")}}) ==
           "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
@@ -165,6 +167,9 @@ int main() {
     CHECK(render(event::Created{2, "rect", "box", 1, "g", "markers", false}) == "rect#box created");
     CHECK(render(event::Created{3, "text", "start label", 1, "g", "node 1", true}) ==
           "text#\"start label\" created in g#\"node 1\"");
+    CHECK(render(event::Grouped{6, "markers", 0, 2}) == "g#markers created holding 2 node(s)");
+    CHECK(render(event::Ungrouped{6, SvgIdRef{"pair"}, 0, 2}) ==
+          "released 2 node(s) into #0 and erased g#pair");
     CHECK(render(event::Moved{2, units(5), units(7)}) == "moved #2 by 5 7");
     CHECK(render(event::ContentSet{2}) == "set text on #2");
     CHECK(render(event::Deleted{5, SvgIdRef{"box"}, 0}) == "deleted box (#5)");
@@ -172,9 +177,15 @@ int main() {
     CHECK(render(event::AlreadyFront{SvgIdRef{"box"}}) == "box is already in front");
     CHECK(render(event::AlreadyBack{SvgIdRef{"box"}}) == "box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");
-    CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}}) ==
-          "read a.svg\nwarning: assigned id rect1 to unnamed <rect>");
+    CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}, 3}) ==
+          "read a.svg (3 elements)\nwarning: assigned id rect1 to unnamed <rect>");
+    CHECK(render(event::Saved{"demo.svg", 5}) == "saved to demo.svg (5 elements)");
+    CHECK(render(event::Saved{"one.svg", 1}) == "saved to one.svg (1 element)");
+    CHECK(render(fault::CannotUngroupNonContainer{SvgIdRef{"n1"}}) ==
+          "error: cannot ungroup a shape or text node: n1");
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
+    CHECK(render(fault::NegativeDimension{"width"}) == "error: width must not be negative");
+    CHECK(render(fault::NonPositiveCanvas{"height"}) == "error: canvas height must be positive");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==
           "error: the offset 1in does not add up with 1cm: 1in is imperial and 1cm is metric - mm and cm are "
           "metric, in, pt and px are defined against the inch, and the two systems are not mixed");

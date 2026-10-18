@@ -103,8 +103,25 @@ int main() {
     CHECK(refused_with<fault::CannotReadFile>(read_before_init));
     CHECK(!document.has_document());
 
+    const Outcome bad_init = planner.dispatch(Init{Length{-5.0F, Length::Unit::UserUnit},
+                                                   Length{600.0F, Length::Unit::UserUnit}});
+    CHECK(!bad_init.ok());
+    CHECK(bad_init.kind == Kind::Context);
+    CHECK(refused_with<fault::NonPositiveCanvas>(bad_init));
+    CHECK(!document.has_document());
+
     // `init` is the context instruction that makes the first root.
     CHECK(planner.dispatch(Init{}).ok());
+
+    const Outcome zero_canvas = planner.dispatch(SetCanvas{Length{0.0F, Length::Unit::UserUnit}, std::nullopt});
+    CHECK(!zero_canvas.ok());
+    CHECK(refused_with<fault::NonPositiveCanvas>(zero_canvas));
+    const Outcome negative_rect =
+        planner.dispatch(Create{CreateRect{"negative", units(0), units(0), Length{-1.0F, Length::Unit::UserUnit},
+                                          units(1), std::nullopt}});
+    CHECK(!negative_rect.ok());
+    CHECK(refused_with<fault::NegativeDimension>(negative_rect));
+    CHECK(document.find("negative") == std::nullopt);
 
     // a view is served by reading the tree and hands back what it read
     const Outcome empty_view = planner.dispatch(ShowTree{});
@@ -257,7 +274,7 @@ int main() {
 
     const Outcome cannot_ungroup_shape = planner.dispatch(Ungroup{SvgIdRef{"box"}});
     CHECK(!cannot_ungroup_shape.ok());
-    CHECK(refused_with<fault::CannotUngroupCompositeShape>(cannot_ungroup_shape));
+    CHECK(refused_with<fault::CannotUngroupNonContainer>(cannot_ungroup_shape));
     const Outcome cannot_ungroup_missing = planner.dispatch(Ungroup{SvgIdRef{"missing"}});
     CHECK(!cannot_ungroup_missing.ok());
     CHECK(refused_with<fault::MissingContainer>(cannot_ungroup_missing));
@@ -454,6 +471,8 @@ int main() {
     const std::optional<Id> ruler_node = document.find("ruler");
     CHECK(box_node.has_value());
     CHECK(ruler_node.has_value());
+    // Keep the group below the root: a root-level group is deliberately not ungroupable.
+    if (layer) CHECK(planner.dispatch(AddTo{SvgIdRef{"layer"}, SvgIdRef{"box"}}).ok());
     std::optional<Id> level;  // the tree the two of them stand in
     if (box_node) level = document.parent(*box_node);
     CHECK(level.has_value());
@@ -537,6 +556,17 @@ int main() {
         if (geometry) CHECK(to_text(geometry->x) != "7");
     }
     CHECK(planner.dispatch(Redo{}).ok());
+
+    const Outcome negative_w =
+        planner.dispatch(Set{SetW{SvgIdRef{"box"}, Length{-1.0F, Length::Unit::UserUnit}}});
+    CHECK(!negative_w.ok());
+    CHECK(refused_with<fault::NegativeDimension>(negative_w));
+    const Outcome zero_root_width = planner.dispatch(Set{SetWidth{RootRef{}, Length{0.0F, Length::Unit::UserUnit}}});
+    CHECK(!zero_root_width.ok());
+    CHECK(refused_with<fault::NonPositiveCanvas>(zero_root_width));
+    const Outcome unknown_w = planner.dispatch(Set{SetW{SvgIdRef{"layer"}, Length{-1.0F, Length::Unit::UserUnit}}});
+    CHECK(!unknown_w.ok());
+    CHECK(refused_with<fault::UnknownAttribute>(unknown_w));
 
     // paint, class and stroke width are fields of the element itself
     CHECK(planner.dispatch(Set{SetFill{SvgIdRef{"box"}, Paint{Color{Color::RGB{0, 255, 0}}}}}).ok());
@@ -685,6 +715,9 @@ int main() {
     const Outcome saved = planner.dispatch(Save{save_path});
     CHECK(saved.ok());
     CHECK(happened_with<event::Saved>(saved));
+    if (happened_with<event::Saved>(saved)) {
+        CHECK(std::get<event::Saved>(saved.event()).elements == document.element_count());
+    }
 
     // `init` replaces the document instead of editing it: the tree, the history, the
     // file behind it and the canvas all start over, and the canvas it names is what
@@ -704,6 +737,31 @@ int main() {
         if (canvas.width) CHECK(to_text(*canvas.width) == "400");
         if (canvas.height) CHECK(to_text(*canvas.height) == "600");  // the side left out
     }
+
+    // A group directly under <svg> is a top-level container; it cannot be ungrouped
+    // into the root. A childless group below that level is still a valid group, and
+    // ungrouping it removes it without pretending it was a composite shape.
+    CHECK(planner.dispatch(Create{CreateGroup{"scene"}}).ok());
+    CHECK(planner.dispatch(Create{CreateRect{"inside", units(0), units(0), units(1), units(1), std::nullopt,
+                                            SvgIdRef{"scene"}, true}})
+              .ok());
+    const std::optional<Id> scene = document.find("scene");
+    const std::optional<Id> inside = document.find("inside");
+    CHECK(scene.has_value());
+    CHECK(inside.has_value());
+    const Outcome top_child = planner.dispatch(Ungroup{SvgIdRef{"scene"}});
+    CHECK(!top_child.ok());
+    CHECK(refused_with<fault::CannotUngroupTopLevelContainer>(top_child));
+    if (scene && inside) {
+        CHECK(document.parent(*inside) == scene);
+    }
+
+    CHECK(planner.dispatch(Create{CreateGroup{"outer"}}).ok());
+    CHECK(planner.dispatch(Create{CreateGroup{"empty", SvgIdRef{"outer"}}}).ok());
+    const Outcome empty_ungroup = planner.dispatch(Ungroup{SvgIdRef{"empty"}});
+    CHECK(empty_ungroup.ok());
+    CHECK(document.find("empty") == std::nullopt);
+    CHECK(document.find("outer").has_value());
 
     if (failures != 0) {
         std::printf("pipeline: %d check(s) failed\n", failures);

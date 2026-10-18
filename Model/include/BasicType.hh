@@ -24,11 +24,20 @@ struct Percentage {
 
 using LengthPercentage = std::variant<Length,Percentage>;
 
-// The shortest text a float has: "5" rather than "5.000000", which is what SVG
-// source and a status line both want to read.
+// The number a length or a percentage carries, without its unit. Validation and
+// sign checks need the magnitude; rendering still uses to_text() so the unit survives.
+inline float numeric_value(const LengthPercentage& value) {
+    return std::holds_alternative<Percentage>(value) ? std::get<Percentage>(value).value
+                                                     : std::get<Length>(value).value;
+}
+
+// The shortest text a float has, capped at six significant figures: "5" rather than
+// "5.000000", and "0.333333" rather than a round-trip's worth of noise. SVG source and
+// a status line both read this form.
 inline std::string number_text(float value) {
     char buffer[32];
-    const std::to_chars_result written = std::to_chars(buffer, buffer + sizeof(buffer), value);
+    const std::to_chars_result written =
+        std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::general, 6);
     if (written.ec != std::errc{}) return std::to_string(value);
     return std::string(buffer, written.ptr);
 }

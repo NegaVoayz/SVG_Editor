@@ -19,6 +19,57 @@
 
 namespace {
 
+std::optional<Refusal> nonnegative(std::string_view attribute, LengthPercentage value) {
+    if (numeric_value(value) < 0.0F) return fault::NegativeDimension{std::string{attribute}};
+    return std::nullopt;
+}
+
+// Validate a dimension only when the node actually carries that member. A group asked
+// for `w` should still be refused as an unknown attribute, not as a bad value.
+template<typename HasMember>
+std::optional<Refusal> dimension_if_present(const Document& document, Id node, std::string_view attribute,
+                                            LengthPercentage value, HasMember has_member) {
+    const std::optional<Node> payload = document.node(node);
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
+    const SVGNode& element = std::get<SVGNode>(*payload);
+    if (!std::holds_alternative<Shape>(element.data)) return std::nullopt;
+
+    const Shape& shape = std::get<Shape>(element.data);
+    if (!std::visit([&has_member](const auto& specific) { return has_member(specific); }, shape.specific)) {
+        return std::nullopt;
+    }
+    return nonnegative(attribute, value);
+}
+
+std::optional<Refusal> stroke_width_problem(const Document& document, Id node, LengthPercentage value) {
+    const std::optional<Node> payload = document.node(node);
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
+    return nonnegative(SetStrokeWidth::name, value);
+}
+
+// `width` and `height` mean either a canvas side or a rect side. The canvas is the
+// frame and must have a positive size; a rect may be zero and disappears, as SVG says.
+std::optional<Refusal> canvas_or_rect_dimension(const Document& document, Id node, std::string_view attribute,
+                                                LengthPercentage value) {
+    const std::optional<Node> payload = document.node(node);
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
+    const SVGNode& element = std::get<SVGNode>(*payload);
+
+    if (std::holds_alternative<Container>(element.data)) {
+        const Container& container = std::get<Container>(element.data);
+        if (std::holds_alternative<Container::SVG>(container.specific) && numeric_value(value) <= 0.0F) {
+            return fault::NonPositiveCanvas{std::string{attribute}};
+        }
+    }
+    if (std::holds_alternative<Shape>(element.data)) {
+        const Shape& shape = std::get<Shape>(element.data);
+        if (std::holds_alternative<Shape::Rect>(shape.specific)) {
+            return nonnegative(attribute, value);
+        }
+    }
+    return std::nullopt;
+}
+
 // One attribute of one SVG element: replace the payload, keep its place in the tree, and
 // let the Model copy the old links into the replacement.
 template<typename Attribute, typename Mutation>
@@ -101,6 +152,10 @@ Outcome apply(Document& document, Id node, const SetY& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetW& intent) {
+    if (std::optional<Refusal> problem = dimension_if_present(
+            document, node, SetW::name, intent.value, [](const auto& specific) { return requires { specific.w; }; })) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetW>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.w = value; }) {
             specific.w = value;
@@ -112,6 +167,10 @@ Outcome apply(Document& document, Id node, const SetW& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetH& intent) {
+    if (std::optional<Refusal> problem = dimension_if_present(
+            document, node, SetH::name, intent.value, [](const auto& specific) { return requires { specific.h; }; })) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetH>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.h = value; }) {
             specific.h = value;
@@ -145,6 +204,10 @@ Outcome apply(Document& document, Id node, const SetCy& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetR& intent) {
+    if (std::optional<Refusal> problem = dimension_if_present(
+            document, node, SetR::name, intent.value, [](const auto& specific) { return requires { specific.r; }; })) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetR>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.r = value; }) {
             specific.r = value;
@@ -156,6 +219,10 @@ Outcome apply(Document& document, Id node, const SetR& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetRx& intent) {
+    if (std::optional<Refusal> problem = dimension_if_present(
+            document, node, SetRx::name, intent.value, [](const auto& specific) { return requires { specific.rx; }; })) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetRx>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.rx = value; }) {
             specific.rx = value;
@@ -167,6 +234,10 @@ Outcome apply(Document& document, Id node, const SetRx& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetRy& intent) {
+    if (std::optional<Refusal> problem = dimension_if_present(
+            document, node, SetRy::name, intent.value, [](const auto& specific) { return requires { specific.ry; }; })) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetRy>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.ry = value; }) {
             specific.ry = value;
@@ -238,6 +309,9 @@ Outcome apply(Document& document, Id node, const SetDy& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetStrokeWidth& intent) {
+    if (std::optional<Refusal> problem = stroke_width_problem(document, node, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetStrokeWidth>(document, node, [value = intent.value](SVGNode& element) {
         element.paint_attr.stroke_width = value;
         return true;
@@ -245,6 +319,9 @@ Outcome apply(Document& document, Id node, const SetStrokeWidth& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetWidth& intent) {
+    if (std::optional<Refusal> problem = canvas_or_rect_dimension(document, node, SetWidth::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetWidth>(document, node, [value = intent.value](SVGNode& element) {
         if (set_canvas_member(element, &Container::SVG::width, value)) return true;
         // `width` is the SVG name; `w` is the spelling `create` and the tree use. Both
@@ -261,6 +338,9 @@ Outcome apply(Document& document, Id node, const SetWidth& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetHeight& intent) {
+    if (std::optional<Refusal> problem = canvas_or_rect_dimension(document, node, SetHeight::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetHeight>(document, node, [value = intent.value](SVGNode& element) {
         if (set_canvas_member(element, &Container::SVG::height, value)) return true;
         return on_shape(element, [value](auto& specific) -> bool {

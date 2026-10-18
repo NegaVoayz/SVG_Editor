@@ -242,8 +242,10 @@ std::string render(const TreeView& view) {
         if (index > 0) {  // the first row is what the view is rooted at, and it hangs from nothing
             followed.resize(row.depth + 1, false);
             followed[row.depth] = !row.last;
-            for (std::size_t level = 1; level < row.depth; ++level) prefix += followed[level] ? "│   " : "    ";
-            prefix += row.last ? "└── " : "├── ";
+            for (std::size_t level = 1; level < row.depth; ++level) {
+                prefix += followed[level] ? "\xE2\x94\x82   " : "    ";
+            }
+            prefix += row.last ? "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 " : "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 ";
         }
         lines.push_back(Line{std::move(prefix), words.name, joined_details(words)});
     }
@@ -327,6 +329,10 @@ std::string element_label(std::string_view element, std::string_view svg_id) {
     return label;
 }
 
+std::string element_count_text(std::size_t count) {
+    return std::to_string(count) + (count == 1 ? " element" : " elements");
+}
+
 std::string_view system_name(Length::Unit unit) {
     switch (unit) {
         case Length::Unit::Mm:
@@ -373,12 +379,15 @@ struct EventText {
         return "moved #" + std::to_string(moved.node) + " to the back of #" + std::to_string(moved.parent);
     }
     std::string operator()(const event::Grouped& grouped) const {
-        return "created #" + std::to_string(grouped.node) + " <g> id=\"" + grouped.svg_id + "\" holding " +
-               std::to_string(grouped.members) + " node(s)";
+        return element_label("g", grouped.svg_id) + " created holding " + std::to_string(grouped.members) +
+               " node(s)";
     }
     std::string operator()(const event::Ungrouped& released) const {
+        const std::string erased = std::holds_alternative<SvgIdRef>(released.named)
+                                       ? "g#" + quote_if_needed(std::get<SvgIdRef>(released.named).name)
+                                       : describe(released.named);
         return "released " + std::to_string(released.members) + " node(s) into #" + std::to_string(released.parent) +
-               " and erased " + describe(released.named);
+               " and erased " + erased;
     }
     std::string operator()(const event::AttributeSet& set) const {
         return "set " + quote_if_needed(set.attribute) + " on #" + std::to_string(set.node);
@@ -408,14 +417,15 @@ struct EventText {
         return "canvas " + canvas_size_text(initialized.width, initialized.height) + " created";
     }
     std::string operator()(const event::Opened& opened) const {
-        std::string message = "read " + quote_if_needed(opened.path);
+        std::string message =
+            "read " + quote_if_needed(opened.path) + " (" + element_count_text(opened.elements) + ")";
         for (const AssignedId& assigned : opened.assigned_ids) {
             message += "\nwarning: assigned id " + assigned.id + " to unnamed <" + assigned.element + ">";
         }
         return message;
     }
     std::string operator()(const event::Saved& saved) const {
-        return "saved " + quote_if_needed(saved.path) + ", and the history starts from here";
+        return "saved to " + quote_if_needed(saved.path) + " (" + element_count_text(saved.elements) + ")";
     }
 };
 
@@ -438,8 +448,14 @@ struct RefusalText {
     std::string operator()(const fault::UnknownAttribute& attribute) const {
         return "error: unknown attribute: " + quote_if_needed(attribute.name);
     }
-    std::string operator()(const fault::CannotUngroupCompositeShape& composite) const {
-        return "error: cannot ungroup composite shape: " + label(composite.node);
+    std::string operator()(const fault::NegativeDimension& dimension) const {
+        return "error: " + quote_if_needed(dimension.attribute) + " must not be negative";
+    }
+    std::string operator()(const fault::NonPositiveCanvas& dimension) const {
+        return "error: canvas " + quote_if_needed(dimension.attribute) + " must be positive";
+    }
+    std::string operator()(const fault::CannotUngroupNonContainer& leaf) const {
+        return "error: cannot ungroup a shape or text node: " + label(leaf.node);
     }
     std::string operator()(const fault::CannotGroupIntoOwnDescendant& descendant) const {
         return "error: cannot group a container into its own descendant: " + label(descendant.node);

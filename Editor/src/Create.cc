@@ -41,6 +41,27 @@ void stroke(Node& payload, const std::optional<Color>& color) {
     std::get<SVGNode>(payload).paint_attr.stroke = Paint{*color};
 }
 
+std::optional<Refusal> nonnegative(std::string_view attribute, LengthPercentage value) {
+    if (numeric_value(value) < 0.0F) return fault::NegativeDimension{std::string{attribute}};
+    return std::nullopt;
+}
+
+std::optional<Refusal> dimension_problem(const CreateRect& intent) {
+    if (std::optional<Refusal> problem = nonnegative("width", intent.width)) return problem;
+    return nonnegative("height", intent.height);
+}
+
+std::optional<Refusal> dimension_problem(const CreateCircle& intent) { return nonnegative("r", intent.r); }
+
+std::optional<Refusal> dimension_problem(const CreateEllipse& intent) {
+    if (std::optional<Refusal> problem = nonnegative("rx", intent.rx)) return problem;
+    return nonnegative("ry", intent.ry);
+}
+
+std::optional<Refusal> dimension_problem(const CreateLine&) { return std::nullopt; }
+std::optional<Refusal> dimension_problem(const CreateText&) { return std::nullopt; }
+std::optional<Refusal> dimension_problem(const CreateGroup&) { return std::nullopt; }
+
 struct ShapeKind {
     std::string_view operator()(const Shape::Rect&) const { return "rect"; }
     std::string_view operator()(const Shape::Circle&) const { return "circle"; }
@@ -125,6 +146,9 @@ Editor::NewElement Editor::new_element(const CreateText& intent) const {
 
 template<typename T>
 Outcome Editor::create(const T& intent) {
+    std::optional<Refusal> problem = dimension_problem(intent);
+    if (problem) return refused(Kind::Change, std::move(*problem));
+
     NewElement built = new_element(intent);
     if (document_.find(intent.id)) {
         return refused(Kind::Change, fault::DuplicateId{intent.id});

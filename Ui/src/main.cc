@@ -17,6 +17,10 @@
 #include "Protocol.hh"
 #include "Rendering.hh"
 
+#ifndef SVG_EDITOR_VERSION
+#define SVG_EDITOR_VERSION "unknown"
+#endif
+
 namespace {
 
 // One visitor instead of a chain of tests: the parse either produced an
@@ -37,6 +41,8 @@ struct RunInstruction {
         std::cout << usage();
         return true;
     }
+
+    bool operator()(const Comment&) const { return true; }
 
     bool operator()(const Intent& intent) const {
         try {
@@ -68,6 +74,9 @@ bool run_instructions(Planner& planner, std::string_view instructions) {
         const std::size_t end = instructions.find(';', start);
         const std::string_view instruction =
             end == std::string_view::npos ? instructions.substr(start) : instructions.substr(start, end - start);
+        // A comment runs to the end of the line, so a semicolon inside it is text,
+        // not another instruction.
+        if (starts_comment(instruction)) break;
         ok = run_instruction(planner, instruction) && ok;
         if (end == std::string_view::npos) break;
         start = end + 1;
@@ -90,6 +99,8 @@ int main(int argc, char** argv) {
         }
         return run_instructions(planner, instructions) ? 0 : 1;
     }
+
+    std::cout << "svg-editor " SVG_EDITOR_VERSION " \xE2\x80\x94 type 'help' for commands\n";
 
     // The loop: a prompt, one line, one answer. Instructions are separated by ';', so one
     // line may carry a whole session's worth of them.

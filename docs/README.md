@@ -54,10 +54,12 @@ build/ninja-local-dep/Ui/svg-editor.exe     # the prompt, one instruction per li
 build/ninja-local-dep/Ui/svg-editor.exe "init; create g markers; create rect box 0 0 10 10 #ff0000 in markers; tree"
 ```
 
+The interactive prompt starts with `svg-editor <version> — type 'help' for commands`.
 The prompt is `svg>`, `help` lists the commands, and one line may hold several
 instructions separated by `;`. A view is printed as what it describes; a change comes
 back as a structured event, and a refusal as a typed reason, both rendered here by the
-ui layer. A session starts without a document:
+ui layer. A line whose first non-space character is `#` is a comment and runs to the end
+of the line. Quoted text accepts `\"` and `\\`. A session starts without a document:
 
 A create reports the element as `kind#id`. It reports the parent only when the command
 named one: a default root insertion is `g#markers created`, while an explicit position is
@@ -100,7 +102,7 @@ The instructions are:
 | `scale <id> <factor>`                           | a shape's values, or a container's transform               |
 | `set <id> <attr> <value>`                       | one editable attribute; `id`, parent and children are not attributes |
 | `group <newGid> <id> <id> ...`                  | a new group, taking those nodes' place                     |
-| `ungroup <gid>`                                 | the group's children, back in its place                    |
+| `ungroup <gid>`                                 | the group's children, back in its place; top-level groups are refused |
 | `addto <gid> <id>`                              | the node, as the last child (the front) of a container     |
 | `front <id>` / `back <id>`                      | the ends of the child order, the last child in front       |
 | `undo` / `redo`                                 | one instruction back or forward                            |
@@ -128,11 +130,15 @@ is exact, because a document holding `1mm + 1in = 26.4mm` no longer says that tw
 systems were written. The refusal names the two sides, so `1in` against `1cm` says
 which of them is imperial.
 
+Canvas sides must be positive. Shape dimensions and radii may be zero, but not
+negative. Printed floats use at most six significant figures.
+
 `read` parses the SVG subset the model represents and assigns ids to unnamed
 non-root elements, printing one `warning:` line for each generated id. `save` writes
 that model tree back as deterministic UTF-8 SVG. Elements or attributes outside the
 subset are refused rather than silently dropped; [Model.md](Model.md#svg-file-io) lists
-the accepted syntax.
+the accepted syntax. Both commands report the number of non-root SVG elements:
+`read diagram.svg (12 elements)` and `saved to diagram.svg (12 elements)`.
 
 ## Modules and dependency rules
 

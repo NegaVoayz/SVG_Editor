@@ -120,10 +120,12 @@ struct Initialized {
 struct Opened {
     std::string path;
     std::vector<AssignedId> assigned_ids;
+    std::size_t elements = 0;
 };
 
 struct Saved {
     std::string path;
+    std::size_t elements = 0;
 };
 
 }  // namespace event

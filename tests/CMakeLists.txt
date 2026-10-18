@@ -74,6 +74,25 @@ set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME cli_units COMMAND $<TARGET_FILE:Cli> "init; create rect r 1cm 0 10mm 10mm; move r 1in 0")
 set_tests_properties(cli_units PROPERTIES PASS_REGULAR_EXPRESSION "1in is imperial and 1cm is metric")
 
+# A canvas needs a positive size, and a shape dimension cannot be negative.
+add_test(NAME cli_negative_init COMMAND $<TARGET_FILE:Cli> "init -5 -5")
+set_tests_properties(cli_negative_init PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: canvas width must be positive")
+
+add_test(NAME cli_zero_canvas COMMAND $<TARGET_FILE:Cli> "init; canvas 0")
+set_tests_properties(cli_zero_canvas PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: canvas width must be positive")
+
+add_test(NAME cli_negative_width
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 -1 1")
+set_tests_properties(cli_negative_width PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: width must not be negative")
+
+add_test(NAME cli_negative_set_width
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; set r width -1")
+set_tests_properties(cli_negative_set_width PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: width must not be negative")
+
 # A parameter with a space is one word when it is quoted, and the answer prints it back
 # the same way so the reader can copy it into another instruction.
 add_test(NAME cli_quoted_id COMMAND $<TARGET_FILE:Cli>
@@ -92,6 +111,11 @@ add_test(NAME cli_read
 set_tests_properties(cli_read PROPERTIES PASS_REGULAR_EXPRESSION
     "warning: assigned id rect1 to unnamed <rect>")
 
+add_test(NAME cli_read_count
+    COMMAND $<TARGET_FILE:Cli> "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg")
+set_tests_properties(cli_read_count PROPERTIES PASS_REGULAR_EXPRESSION
+    "read .* \\(12 elements\\)")
+
 add_test(NAME cli_read_tree
     COMMAND $<TARGET_FILE:Cli> "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg; tree")
 set_tests_properties(cli_read_tree PROPERTIES PASS_REGULAR_EXPRESSION
@@ -103,6 +127,14 @@ add_test(NAME cli_save_roundtrip
     COMMAND $<TARGET_FILE:Cli>
         "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg; save ${CMAKE_CURRENT_BINARY_DIR}/cli_roundtrip.svg; read ${CMAKE_CURRENT_BINARY_DIR}/cli_roundtrip.svg; tree")
 set_tests_properties(cli_save_roundtrip PROPERTIES PASS_REGULAR_EXPRESSION "fill=rebeccapurple")
+
+add_test(NAME cli_save_count COMMAND $<TARGET_FILE:Cli>
+    "init; create rect only 0 0 1 1; save ${CMAKE_CURRENT_BINARY_DIR}/cli_count.svg")
+set_tests_properties(cli_save_count PROPERTIES PASS_REGULAR_EXPRESSION
+    "saved to .*cli_count\\.svg \\(1 element\\)")
+
+# A comment runs to the end of the line, including semicolons inside it.
+add_test(NAME cli_comment COMMAND $<TARGET_FILE:Cli> "# a note; with an init that must not run")
 
 # A create reports the element by the name a tree would print it by, and the parent by
 # the same kind#id pair.

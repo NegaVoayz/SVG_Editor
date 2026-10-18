@@ -29,6 +29,7 @@ target_link_libraries(Ui
 
 add_executable(Cli src/main.cc)
 set_target_properties(Cli PROPERTIES OUTPUT_NAME svg-editor)
+target_compile_definitions(Cli PRIVATE SVG_EDITOR_VERSION="${PROJECT_VERSION}")
 
 target_link_libraries(Cli
     PRIVATE

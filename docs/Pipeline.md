@@ -211,13 +211,19 @@ A length is a number with an optional `px`, `pt`, `cm`, `mm`, `in`, `em`, `ex`, 
 percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a CSS named or system colour,
 `none` or `currentColor`. A bracketed value counts as one word,
 spaces and all, and so does a quoted run - which is what lets a text hold spaces.
-Escaping is still missing, so a quote inside a quoted run cannot be written.
+Inside a quoted run, `\"` writes a quote and `\\` writes a backslash.
+A line whose first non-space character is `#` is a comment and runs to the end of the
+line, including any semicolons in it.
+
+A canvas side must be positive: `init -5 -5` and `canvas 0` are refused. A shape
+dimension or radius may be zero, as SVG allows, but a negative value is refused.
+Printed floats use at most six significant figures.
 
 `read` reports the successful load first, then one exact warning line for each id it
 had to invent:
 
 ```text
-[context] read "diagram.svg"
+[context] read diagram.svg (12 elements)
 warning: assigned id rect1 to unnamed <rect>
 warning: assigned id circle1 to unnamed <circle>
 ```
@@ -227,6 +233,13 @@ id from anywhere in the file. The root is left unnamed when the source left it u
 Malformed XML, an unsupported element or attribute, an invalid value, duplicate ids and
 text outside a text element are structured refusals; a failed read leaves the previous
 document and source path untouched.
+
+`save` reports the destination and the same non-root element count:
+`saved to diagram.svg (12 elements)`.
+
+`ungroup` works below the root: a group that is a direct child of `<svg>` is a
+top-level container and is refused as such, even when it is empty. A childless group
+deeper in the tree can be ungrouped; it is simply removed.
 
 ## What a session looks like
 

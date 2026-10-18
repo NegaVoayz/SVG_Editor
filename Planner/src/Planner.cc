@@ -79,12 +79,13 @@ void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, 
 struct OpenStatus {
     Kind kind;
     std::string path;
+    std::size_t elements;
 
     Outcome operator()(const model_status::Ok&) const {
-        return happened(kind, event::Opened{path, {}});
+        return happened(kind, event::Opened{path, {}, elements});
     }
     Outcome operator()(const model_status::Opened& opened) const {
-        return happened(kind, event::Opened{path, opened.assigned_ids});
+        return happened(kind, event::Opened{path, opened.assigned_ids, elements});
     }
     Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
     Outcome operator()(const model_status::CannotReadFile& problem) const {
@@ -104,8 +105,9 @@ struct OpenStatus {
 struct SaveStatus {
     Kind kind;
     std::string path;
+    std::size_t elements;
 
-    Outcome operator()(const model_status::Ok&) const { return happened(kind, event::Saved{path}); }
+    Outcome operator()(const model_status::Ok&) const { return happened(kind, event::Saved{path, elements}); }
     Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
     Outcome operator()(const model_status::Opened&) const { return refused(kind, fault::InternalError{}); }
     Outcome operator()(const model_status::MissingSourcePath&) const {
@@ -157,6 +159,13 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
 // canvas an instruction may carry comes with the new root, and there is nothing left of
 // the old document to undo back into.
 template<> Outcome Planner::handle<Init>(const Init& intent) {
+    if (intent.width && numeric_value(*intent.width) <= 0.0F) {
+        return refused(Kind::Context, fault::NonPositiveCanvas{"width"});
+    }
+    if (intent.height && numeric_value(*intent.height) <= 0.0F) {
+        return refused(Kind::Context, fault::NonPositiveCanvas{"height"});
+    }
+
     document_.reset(intent.width, intent.height);
     const std::optional<Container::SVG> canvas = canvas_of(document_);
     if (!canvas) return refused(Kind::Context, fault::InternalError{});
@@ -165,7 +174,7 @@ template<> Outcome Planner::handle<Init>(const Init& intent) {
 
 template<> Outcome Planner::handle<Read>(const Read& intent) {
     const Status status = document_.open(intent.path);
-    return std::visit(OpenStatus{Kind::Context, intent.path}, status);
+    return std::visit(OpenStatus{Kind::Context, intent.path, document_.element_count()}, status);
 }
 
 // A save with no path writes where the document was read from, which is the Model's to
@@ -174,7 +183,7 @@ template<> Outcome Planner::handle<Save>(const Save& intent) {
     if (!document_.has_document()) return no_document(Kind::Context);
     const Status status = document_.save(intent.path);
     const std::string target = intent.path ? *intent.path : document_.source_path();
-    return std::visit(SaveStatus{Kind::Context, target}, status);
+    return std::visit(SaveStatus{Kind::Context, target, document_.element_count()}, status);
 }
 
 Outcome Planner::dispatch(const Intent& intent) {

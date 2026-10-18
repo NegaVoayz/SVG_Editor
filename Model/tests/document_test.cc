@@ -112,6 +112,12 @@ static_assert(Linked<PlainText>);
 static_assert(!Linked<Unheld>);
 
 int main() {
+    // A float is printed for a reader, not as a round-trip dump: six significant
+    // figures is enough to see the value and keeps matrix noise out of the prompt.
+    CHECK(number_text(1.0F / 3.0F) == "0.333333");
+    CHECK(number_text(1.234567F) == "1.23457");
+    CHECK(number_text(5.0F) == "5");
+
     Document document;
     CHECK(!document.has_document());
     CHECK(document.root() == no_id);
@@ -138,6 +144,7 @@ int main() {
     CHECK(document.children(root).empty());
     CHECK(!document.can_undo());
     CHECK(document.source_path().empty());
+    CHECK(document.element_count() == 0);
 
     // the canvas belongs to the root element, and a fresh document has one
     {
@@ -162,6 +169,7 @@ int main() {
     }
     CHECK(document.children(root) == std::vector<Id>({first, second}));
     CHECK(document.find("second") == second);
+    CHECK(document.element_count() == 2);
     CHECK(document.depth() == 1);
     CHECK(document.position() == 1);
 
@@ -174,6 +182,7 @@ int main() {
     }
     CHECK(document.find("inner") == std::nullopt);
     CHECK(document.find("renamed").has_value());
+    CHECK(document.element_count() == 3);
     CHECK(document.depth() == 2);
 
     // undo takes the whole block back, redo brings it forward

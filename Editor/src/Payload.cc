@@ -53,6 +53,13 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
 }
 
 template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {
+    if (intent.width && numeric_value(*intent.width) <= 0.0F) {
+        return refused(Kind::Change, fault::NonPositiveCanvas{"width"});
+    }
+    if (intent.height && numeric_value(*intent.height) <= 0.0F) {
+        return refused(Kind::Change, fault::NonPositiveCanvas{"height"});
+    }
+
     const Id root = document_.root();
     std::optional<Node> payload = document_.node(root);
     if (!payload || !std::holds_alternative<SVGNode>(*payload)) {

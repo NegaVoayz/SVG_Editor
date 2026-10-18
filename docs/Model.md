@@ -16,6 +16,7 @@ std::optional<Node> node(Id id) const;
 std::vector<Id> children(Id parent) const;
 std::optional<Id> parent(Id node) const;
 std::optional<Id> find(std::string_view svg_id) const;
+std::size_t element_count() const;
 
 // editing: one user intent, one undoable block
 Transaction transaction();
@@ -38,6 +39,10 @@ Status save(std::optional<std::string_view> path);   // no path: where it was re
 void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
 void clear_history();                                // the tree stays and becomes the baseline
 ```
+
+`element_count()` counts the SVG elements below the root. Character data is not an
+element, and the root `<svg>` is the document rather than one of its own elements; the
+same count is what `read` and `save` report.
 
 A `Transaction` is an RAII handle. The ops are applied to the tree as they come,
 and the destruction without `commit()` rolls the whole thing back, so an edit that

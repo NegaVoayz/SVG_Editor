@@ -36,7 +36,15 @@ struct UnknownAttribute {
     std::string name;
 };
 
-struct CannotUngroupCompositeShape {
+struct NegativeDimension {
+    std::string attribute;
+};
+
+struct NonPositiveCanvas {
+    std::string attribute;
+};
+
+struct CannotUngroupNonContainer {
     NodeRef node;
 };
 
@@ -111,7 +119,8 @@ struct InternalError {};
 }  // namespace fault
 
 using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::MissingContainer, fault::NotContainer,
-                             fault::DuplicateId, fault::UnknownAttribute, fault::CannotUngroupCompositeShape,
+                             fault::DuplicateId, fault::UnknownAttribute, fault::NegativeDimension,
+                             fault::NonPositiveCanvas, fault::CannotUngroupNonContainer,
                              fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,
