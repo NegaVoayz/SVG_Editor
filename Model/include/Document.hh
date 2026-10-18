@@ -76,8 +76,10 @@ public:
 
     bool can_undo() const;
     bool can_redo() const;
-    void undo();  // one whole transaction back
-    void redo();  // and forward again
+    // Move one whole transaction back or forward, and return the ids whose stored
+    // records differ between the two checkpoints.
+    std::vector<Id> undo();
+    std::vector<Id> redo();
 
     // How many transactions the history holds, and how many of them are applied.
     std::size_t depth() const;

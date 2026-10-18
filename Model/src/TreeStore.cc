@@ -165,16 +165,28 @@ void TreeStore::rollback(Edit& edit) noexcept { edit.rollback(); }
 bool TreeStore::can_undo() const { return applied_ > 0; }
 bool TreeStore::can_redo() const { return applied_ + 1 < checkpoints_.size(); }
 
-void TreeStore::undo() {
-    if (!can_undo()) return;
-    --applied_;
-    view_ = checkpoints_[applied_];
+std::vector<Id> TreeStore::touched_by(const Snapshot& snapshot) const {
+    const std::vector<Hive::Diff> diffs = nodes_.diffs(snapshot.commit_id());
+    std::vector<Id> touched;
+    touched.reserve(diffs.size());
+    for (const Hive::Diff& diff : diffs) touched.push_back(static_cast<Id>(diff.virtual_id));
+    return touched;
 }
 
-void TreeStore::redo() {
-    if (!can_redo()) return;
+std::vector<Id> TreeStore::undo() {
+    if (!can_undo()) return {};
+    const std::vector<Id> touched = touched_by(checkpoints_[applied_]);
+    --applied_;
+    view_ = checkpoints_[applied_];
+    return touched;
+}
+
+std::vector<Id> TreeStore::redo() {
+    if (!can_redo()) return {};
+    const std::vector<Id> touched = touched_by(checkpoints_[applied_ + 1]);
     ++applied_;
     view_ = checkpoints_[applied_];
+    return touched;
 }
 
 std::size_t TreeStore::depth() const { return checkpoints_.empty() ? 0 : checkpoints_.size() - 1; }

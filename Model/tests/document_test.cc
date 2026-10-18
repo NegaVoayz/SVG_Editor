@@ -1,5 +1,6 @@
 // The Model on its own: the tree, the transactions, and the checkpoints of the
 // one hive the tree lives in.
+#include <algorithm>
 #include <cstdio>
 #include <exception>
 #include <string>
@@ -55,6 +56,10 @@ std::optional<Container::SVG> canvas_of(const Document& document) {
     const Container& container = std::get<Container>(element.data);
     if (!std::holds_alternative<Container::SVG>(container.specific)) return std::nullopt;
     return std::get<Container::SVG>(container.specific);
+}
+
+bool contains(const std::vector<Id>& ids, Id id) {
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
 }
 
 // A payload that claims it holds children but has nowhere to keep the list: it does not
@@ -172,11 +177,17 @@ int main() {
     CHECK(document.depth() == 2);
 
     // undo takes the whole block back, redo brings it forward
-    document.undo();
+    const std::optional<Id> inner = document.find("renamed");
+    CHECK(inner.has_value());
+    const std::vector<Id> undone = document.undo();
     CHECK(document.children(first).empty());
     CHECK(document.can_redo());
-    document.redo();
+    CHECK(contains(undone, first));
+    if (inner) CHECK(contains(undone, *inner));
+    const std::vector<Id> redone = document.redo();
     CHECK(document.children(first).size() == 1);
+    CHECK(contains(redone, first));
+    if (inner) CHECK(contains(redone, *inner));
 
     // A payload update and a move are the same kind of history step now: one
     // commit on the one hive, reached through the same checkpoint list.
@@ -205,11 +216,13 @@ int main() {
     CHECK(!document.has_node(first));
     CHECK(document.children(root) == std::vector<Id>({second}));
     CHECK(document.find("renamed") == std::nullopt);
-    document.undo();
+    const std::vector<Id> erase_undone = document.undo();
     CHECK(document.node(first).has_value());
     CHECK(document.has_node(first));
     CHECK(document.children(root).size() == 2);
     CHECK(document.find("renamed").has_value());
+    CHECK(contains(erase_undone, first));
+    CHECK(contains(erase_undone, root));  // the parent's first-child link changed too
 
     // back at the head: the erase of `first` is applied, so the subtree is gone
     document.redo();

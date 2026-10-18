@@ -2,6 +2,7 @@
 // instruction goes in at the Planner, and a view, a change or a context change comes
 // back out. A view comes back as data - turning it into words is the front end's job,
 // which the cli tests cover - and parsing is not in here either.
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <optional>
@@ -59,6 +60,10 @@ template<typename Happening>
 bool happened_with(const Outcome& outcome) {
     return outcome.ok() && std::holds_alternative<Event>(outcome.result) &&
            std::holds_alternative<Happening>(std::get<Event>(outcome.result));
+}
+
+bool contains(const std::vector<Id>& ids, Id id) {
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
 }
 
 std::optional<Color> fill_of(const Node& payload) {
@@ -185,7 +190,13 @@ int main() {
     CHECK(planner.dispatch(Undo{}).ok());
     CHECK(planner.dispatch(Undo{}).ok());
     CHECK(document.children(document.root()).size() == 2);
-    CHECK(planner.dispatch(Undo{}).ok());
+    const std::optional<Id> box_before_undo = document.find("box");
+    const Outcome undo_create = planner.dispatch(Undo{});
+    CHECK(undo_create.ok());
+    CHECK(happened_with<event::Undone>(undo_create));
+    if (box_before_undo && happened_with<event::Undone>(undo_create)) {
+        CHECK(contains(std::get<event::Undone>(undo_create.event()).touched, *box_before_undo));
+    }
     CHECK(document.find("box") == std::nullopt);
     CHECK(document.children(document.root()).size() == 1);
 

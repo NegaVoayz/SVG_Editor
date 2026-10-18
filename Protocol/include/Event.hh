@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "NodeRef.hh"
 #include "SVGNode.hh"
@@ -89,11 +90,13 @@ struct CanvasSet {
 struct Undone {
     std::size_t position;
     std::size_t depth;
+    std::vector<Id> touched;
 };
 
 struct Redone {
     std::size_t position;
     std::size_t depth;
+    std::vector<Id> touched;
 };
 
 struct NothingMoved {};

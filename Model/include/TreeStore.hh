@@ -48,8 +48,9 @@ public:
 
     bool can_undo() const;
     bool can_redo() const;
-    void undo();
-    void redo();
+    // The ids whose stored records differ across the checkpoint being left or entered.
+    std::vector<Id> undo();
+    std::vector<Id> redo();
 
     // How many edits the history holds, and how many of them are applied.
     std::size_t depth() const;
@@ -108,6 +109,11 @@ private:
     // makes an edit after an undo a new branch from the visible state: only the rows
     // whose versions changed between the two commits are written.
     void rewind_head_to_view();
+
+    // The virtual ids touched by the commit that produced `snapshot`. The hive's diff
+    // entries are the authoritative touch list: they include neighbours whose links a
+    // move changed, not just the node an instruction named.
+    std::vector<Id> touched_by(const Snapshot& snapshot) const;
 
     template<typename Patch>
     void patch_node(Edit& edit, Id node, Patch&& patch) {

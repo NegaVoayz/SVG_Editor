@@ -352,7 +352,8 @@ void erase(Id node);
 void commit();  void rollback();
 
 // history: the Model owns it, so the Planner never sees a commit id
-void undo();  void redo();  bool can_undo() const;  bool can_redo() const;
+std::vector<Id> undo();  std::vector<Id> redo();
+bool can_undo() const;  bool can_redo() const;
 
 // the context: which document this is, rather than what is in it
 const std::string& source_path() const;
@@ -547,6 +548,16 @@ cannot be moved, which is why `Document` is non-copyable and non-movable.
 The number of checkpoints is the history depth. The hive's own retention
 controls (`prune_before`, `clear_history`) are exposed only through those
 checkpoint operations; no other module sees a commit id.
+
+Undo and redo return the virtual ids whose records differ across the two
+checkpoints. `TreeStore` gets them from the hive's `diffs(commit_id)` for the
+commit that produced the newer checkpoint, and maps each `Diff::virtual_id`
+to an `Id`. The list includes neighbours whose links changed, not only the
+node an instruction named, and a deleted subtree appears as every tombstoned
+id. The cost is proportional to that touched set: the hive copies its 32-byte
+diff entries, then the document keeps an 8-byte id for each one. The snapshot
+switch itself stays O(1); the ids are the price of telling a front end what to
+refresh.
 
 ### Model: the transform
 
