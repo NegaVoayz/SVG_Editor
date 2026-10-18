@@ -111,8 +111,9 @@ The instructions are:
 | `save [file.svg]`                               | write it, where it was read from by default                |
 
 Every `create` also takes `in <gid>`, which is where the element goes: without it, the
-element is the last child of the root. A node is named by its SVG id, by `#<handle>`,
-or by `/` for the root.
+element is the last child of the root. A node is named by its SVG id; `/` or `svg` names
+the root, with an exact `svg` id taking precedence. The hive's internal handle is not part
+of the command language.
 
 `init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
 says `error: undo not allowed after io command`; once an edit has been made, undo works

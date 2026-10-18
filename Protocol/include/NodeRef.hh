@@ -12,7 +12,7 @@
 // what a reference is. What to do about "nothing" is not written here: the Editor refuses
 // the edit, and the Planner reports the miss.
 
-// The three ways to name one: the root, a handle ("#3"), or an SVG id.
+// The three ways to name one: the root, a handle, or an SVG id.
 struct RootRef {};
 struct HandleRef { Id id; };
 struct SvgIdRef { std::string name; };
@@ -32,5 +32,14 @@ inline std::optional<Id> look_up(const Document& document, const NodeRef& refere
         if (!document.has_node(id)) return std::nullopt;
         return id;
     }
-    return document.find(std::get<SvgIdRef>(reference).name);
+    const std::string& name = std::get<SvgIdRef>(reference).name;
+    if (const std::optional<Id> found = document.find(name)) return found;
+    // The root element is an <svg>, so its element name is a natural alias for the root.
+    // An exact id still wins: a child is allowed to be named "svg" in a document whose
+    // root has no id, and naming it must not silently mean the root instead.
+    if (name == "svg") {
+        const Id root = document.root();
+        if (root != no_id) return root;
+    }
+    return std::nullopt;
 }
