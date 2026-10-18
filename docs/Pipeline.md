@@ -41,6 +41,9 @@ end can react to those fields directly; it does not have to recover them from a 
 
 ## How an intent is dispatched
 
+The `variant + visit + handle<T>` shape described in [Structure.md](Structure.md) is the
+project's central structural mechanism, not a local convenience.
+
 An instruction is a `std::variant` of one struct per thing a user can ask for - except that
 the six ways to create an element are one alternative, `Create`, which is a variant of its
 own. Every layer that has to answer one does it with `std::visit` over that variant plus one
@@ -206,10 +209,25 @@ mean SVG's z-order rather than its own line order, those two names are the ones 
 would have to swap.
 
 A length is a number with an optional `px`, `pt`, `cm`, `mm`, `in`, `em`, `ex`, or a
-percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, `none` or `currentColor`, and
-named colours have no ids in the model yet. A bracketed value counts as one word,
+percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a CSS named or system colour,
+`none` or `currentColor`. A bracketed value counts as one word,
 spaces and all, and so does a quoted run - which is what lets a text hold spaces.
 Escaping is still missing, so a quote inside a quoted run cannot be written.
+
+`read` reports the successful load first, then one exact warning line for each id it
+had to invent:
+
+```text
+[context] read "diagram.svg"
+warning: assigned id rect1 to unnamed <rect>
+warning: assigned id circle1 to unnamed <circle>
+```
+
+The ids are generated per element kind in document order and never reuse an explicit
+id from anywhere in the file. The root is left unnamed when the source left it unnamed.
+Malformed XML, an unsupported element or attribute, an invalid value, duplicate ids and
+text outside a text element are structured refusals; a failed read leaves the previous
+document and source path untouched.
 
 ## What a session looks like
 

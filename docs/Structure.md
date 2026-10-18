@@ -9,7 +9,7 @@ history and cost model are in [Model.md](Model.md).
 
 | module              | what it is                                                        | depends on                    |
 | ------------------- | ----------------------------------------------------------------- | ----------------------------- |
-| `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | MVCCHive                      |
+| `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | MVCCHive, tinyxml2            |
 | `Model/FileSystem/` | bytes in and out of the document's file                             | -                             |
 | `Protocol/`         | the vocabulary the pipeline passes around, in the six parts it is made of: how a node is named, the intents, the views, the events, the refusals, the outcome | Model (for the values) |
 | `Editor/`           | translates one change intent into tree transactions                 | Model, Protocol               |
@@ -18,10 +18,12 @@ history and cost model are in [Model.md](Model.md).
 
 Three rules hold the shape together:
 
-- **MVCCHive is Model's dependency.** The hive is the arena the tree is stored
+- **MVCCHive and tinyxml2 are Model's dependencies.** The hive is the arena the tree is stored
   in: only `Model/` fetches it (`Model/cmake/MVCCHive.cmake`) and only `Model/`
   uses it - its transactions, commit ids and virtual ids are Model's business,
-  and no other module opens one.
+  and no other module opens one. tinyxml2 is fetched by `Model/cmake/TinyXml2.cmake`;
+  its pointer-based DOM is confined to `Model/src/TinyXml2Adapter.cc`, which converts
+  it to the pointer-free `XmlSnapshot` vectors the SVG reader uses.
 - **Everything above Model reaches the document through Model.** The Editor
   writes to it, the Planner reads it, and the Planner never talks to the Editor
   about anything but a change intent.
@@ -31,8 +33,8 @@ Three rules hold the shape together:
 
 Because `Document` holds the arena by value, the hive's headers do reach the other
 modules' include path, so the link line no longer says who may use it. The test
-named `layering` reads the sources of every module but Model and fails if one of
-them names MVCCHive or `mvcc_hive`.
+named `layering` reads the sources and fails if a module outside Model names MVCCHive,
+`mvcc_hive` or tinyxml2, or if a Model source other than the adapter mentions tinyxml2.
 
 The text front end is also the composition root: it owns the `Document` and hands
 it to the Editor and the Planner. A gui front end would sit in exactly the same
@@ -82,6 +84,11 @@ classDiagram
         MVCC records
         commits and checkout
     }
+    class TinyXml2 {
+        <<library>>
+        XML syntax
+        behind one adapter
+    }
 
     Cli ..> Ui : uses
     Cli ..> Planner : dispatches
@@ -96,36 +103,126 @@ classDiagram
     Editor ..> Model : transactions
     Model ..> FileSystem : open, save
     Model ..> MVCCHive : stores
+    Model ..> TinyXml2 : parses XML
 ```
 
-## Design patterns
+## The bone: `variant + visit + handle<T>`
 
-A pattern earns its place here only when it removes a decision from a layer that
-should not make it. Most of the classic patterns below therefore land as values and
-type-level dispatch rather than as a hierarchy of classes: the instruction is data,
-the type chooses the handler, and the compiler is the registry.
+The central structural decision is not a class hierarchy. It is a closed
+`std::variant`, visited by `std::visit`, with one `handle<T>` for each alternative:
 
-| pattern | where it actually lands | what it buys | what it deliberately does not do |
-| --- | --- | --- | --- |
-| Layered architecture | `Ui` parses and renders; `Planner` routes; `Editor` translates a change; `Model` stores and reads; `Model/FileSystem` moves bytes | Each layer has one reason to change, and a front end can be replaced without teaching the document about widgets | It is not a call-through stack: the Planner reads Model directly for a view, and the context commands go to Model rather than through the Editor |
-| Command | `Intent` is a variant of instruction structs; `Planner::dispatch()` routes one; `Editor::translate()` executes one | A command is data before it is an action, so a CLI and a future GUI can produce the same command, and one command is one history block | There is no `Command` base class with a virtual `execute()`: the variant and the visitor replace the hierarchy |
-| Interpreter, table driven | `Ui::parse()` splits words, `verbs()` is a table of readers, and `Ui/src/Create.cc` and `Ui/src/Set.cc` have the same shape for their second-level vocabulary | Adding a verb is a row and a reader; the help text and the accepted vocabulary cannot drift apart unnoticed | It does not build an expression tree: the language has one instruction per line, so a reader is the whole grammar |
-| Static Visitor | `std::visit` over `Intent`, `Create`, `Set`, `Node`, `Transform`, `Event` and `Refusal`, with `template<> handle<T>()` as the overload set | Double dispatch without virtual calls, and a missing case is a build error rather than a branch that quietly does nothing | It is not the Gang of Four `Visitor` class with `accept()`; specializations and overload sets are the visitor |
-| Composite | `Node` is a variant of `SVGNode` and `PlainText`; `ChildAttr` holds the ends of a child list; tree views, subtree erasure and grouping all recurse through it | "This node and everything under it" has one representation, whether the operation is a read, a delete or a move | It does not expose a separate container hierarchy to callers: the payload's type says whether it can hold children |
-| Facade | `Document` exposes `root()`, `node()`, `children()`, `parent()`, `find()` and `transaction()`; `TreeStore` and MVCCHive stay behind it | The rest of the project can read and edit the tree without knowing how records are stored or how history is represented | The facade does not try to hide the storage type completely: `Document` holds `TreeStore` by value, so the hive's headers still reach public includes |
-| Unit of Work, with RAII | `Document::transaction()` returns a `Transaction`; every change intent opens one, performs all of its tree edits, and commits once | An instruction either lands whole or not at all; a failed translation destroys the transaction and rolls back | It is not a general-purpose session transaction: only one writer is open at a time, and the Editor is the only module that opens one |
-| MVCC and checkout | MVCCHive stores immutable record versions and commits; `TreeStore` keeps only the current checkout snapshot; undo and redo move that checkout | Undo is a pointer move in the version store, not a replay of inverse commands; old snapshots keep removed records alive until the history releases them | It is not Memento: there is no copy of the whole document per edit, and the caller does not own a restore object |
-| Adapter | `OpenStatus` and `SaveStatus` in `Planner/src/Planner.cc` turn `model_status` values into `Outcome`; `Ui/src/Rendering.cc` turns protocol values into text | The file layer, the pipeline and the front end can each keep their own vocabulary without translating through strings | The adapter is a function object, not a wrapper class; it is only worth a type where a real boundary exists |
-| Application-service pipeline, MVC-like | `Document` is the model, the Planner (with the Editor on the write path) is the controller, and `Ui` is the view and composition root | The view asks for an intent to be handled rather than reaching into the tree, which is what makes a graphical front end possible | It is not strict Smalltalk MVC: there is no observer, the Ui owns the document, and `Outcome` carries the presentation data back explicitly |
-| Static factory | `Editor::new_element()` overloads build a `NewElement`; `element()` and `characters()` share the common construction | The kinds are the alternatives of `Create`, so a new kind with no builder is a build error and no factory registry has to be maintained | It does not select a builder by a runtime string below the Ui; the element kind has already become a type by then |
-| Table-driven strategy | A `Verb` row holds the name and the reader; `Set` and `Create` use the same table shape for their alternatives | The policy for one word is a function selected at startup, not a chain of `if` tests that grows with the vocabulary | The table is a fixed compile-time array, not a plugin registry; the vocabulary is closed on purpose |
+```C++
+// Every instruction is one alternative of Intent.
+Outcome dispatch(const Intent& intent) {
+    return std::visit([](const auto& value) { return handle(value); }, intent);
+}
 
-Two patterns are intentionally absent. There is no observer or event bus: a successful
-command returns an `Event`, and undo/redo return a `TouchedNodes` list, so a front end
-refreshes after the command it issued rather than subscribing to the model. There is also
-no plugin protocol for node kinds: `Intent`, `Create`, `Set` and `Node` are closed
-variants, which is what makes every missing case a compile error. Runtime plugins would
-buy extensibility by giving up that guarantee.
+template<typename T>
+Outcome handle(const T& intent);
+
+template<>
+Outcome handle<Create>(const Create& intent);
+```
+
+Three properties make this the bone of the project:
+
+1. **The variant is the authoritative case list.** Adding a command, element kind,
+   attribute or model payload changes the type. There is no second registry to update.
+2. **The visit is exhaustive.** `std::visit` asks `handle<T>` for every alternative. The
+   primary template's discarded branch uses `static_assert(false, ...)`, so an alternative
+   with no route is a build error, not a `default:` branch that silently does nothing.
+3. **The handler is the operation.** Explicit specializations live next to the file that
+   owns the behaviour, and overload sets answer the nested questions: which shape, which
+   container, which colour, which transform.
+
+The same skeleton carries the whole pipeline:
+
+| question | variant | dispatch point |
+| --- | --- | --- |
+| What did the user ask for? | `Intent` | `Planner::dispatch()` calls `visit` and then `handle<T>` |
+| Is this instruction a change? | `ChangeIntent` | The Planner's `if constexpr (std::is_constructible_v<ChangeIntent, T>)` route sends it to `Editor::translate()` |
+| Which element is being created? | `Create` | `handle<Create>` visits the element alternatives; each one reaches `new_element()` by overload |
+| Which attribute is being set? | `Set` | `handle<Set>` visits the attribute alternatives |
+| What kind of node is this? | `Node` | `std::visit` asks the payload; `if constexpr` asks whether it has child links |
+| How is this element named or printed? | `Shape`, `Container`, `Color`, `Transform` | Overload sets answer one kind at a time |
+
+This one structure replaces several inheritance-shaped patterns at once. A virtual
+`Command::execute()` becomes a variant alternative; a Visitor with `accept()` becomes
+`visit` plus `handle<T>`; a Template Method base class becomes the fixed visit with a
+specialized handler; a factory subclass becomes an overload; a Strategy object becomes a
+table row. The patterns' intent survives, but the dispatch is composition and type-level
+selection rather than an object graph.
+
+The price is deliberate: the alternatives are closed at compile time. A new command or
+node kind is a source change and a rebuild, not a runtime plugin. In exchange, the cases
+cannot drift apart, and the compiler tells the developer exactly which handler is
+missing.
+
+## Design patterns: the GoF catalogue
+
+**Command is used.** `Intent` is a command object: it packages a request as data before
+anything performs it. `Planner::dispatch()` is the invoker, `Editor::translate()` is the
+command executor on the write path, and `Document`/`TreeStore` are the receiver that
+actually changes the tree. One command is one transaction and one history block. `Undo`
+and `Redo` are commands too; the historical state itself is MVCCHive's checkout, not a
+per-command inverse object.
+
+The command is a variant alternative rather than a `Command` base class with a virtual
+`execute()`. That is the same trade the rest of the project makes: the type decides the
+handler, and a missing handler is a compile error instead of a virtual call that does
+nothing.
+
+With the skeleton established, the GoF catalogue can be read by intent rather than by
+class syntax. The useful distinction is between a live role, a grey-zone equivalent that
+keeps the spirit but not the book's structure, and a pattern this project replaces or
+defers.
+
+This section names the patterns with a live role, the ones whose intent survives in a
+restricted form, and the few a reviewer would reasonably expect for this kind of editor
+that are handled another way.
+
+### Patterns with a live role
+
+| pattern | form | where it lands |
+| --- | --- | --- |
+| Command | Variant command | `Intent` is the command, `Planner::dispatch()` invokes it, `Editor::translate()` executes it, and `Document` receives the transaction. One command is one commit; undo and redo are commands over the history |
+| Composite | Tree | `Node` is a variant of `SVGNode` and `PlainText`, and `ChildAttr` holds the ends of a child list. Tree views, subtree erasure and grouping recurse through the same structure |
+| Facade | Document boundary | `Document` exposes `root()`, `node()`, `children()`, `parent()`, `find()` and `transaction()` while `TreeStore` and MVCCHive stay behind it |
+| Visitor | Static visitor | `std::visit` over `Intent`, `Create`, `Set`, `Node`, `Transform`, `Event` and `Refusal`, with `template<> handle<T>()` and overload sets. A missing case is a build error |
+
+### Grey zone: the spirit without the class hierarchy
+
+| pattern | what the project actually has | where it diverges from the book |
+| --- | --- | --- |
+| Template Method | `std::variant` is a closed, restricted template; `std::visit` fixes the skeleton and `handle<T>()` supplies the varying step | There is no base class, no virtual hook and no subclass override. It is a compile-time Template Method in spirit, not the GoF structure. It trades the open subclass set for a closed variant set and gains compile-time exhaustiveness |
+| Factory Method | A named-constructor/overload-based factory: `Editor::new_element()` overloads build the element named by the static type | There is no subclass factory and no polymorphic creator. The separation of construction from `create()` is kept; the inheritance is not |
+| Strategy | A verb table: `verbs()` selects a reader, and `Create`/`Set` use the same table shape | The algorithm is selected by a key, but there is no policy object held by a context. The table is the registry |
+| Adapter | A boundary visitor: `OpenStatus` and `SaveStatus` adapt `model_status` to `Outcome`, and `Rendering` adapts protocol values to text | The adaptation is a function object at a module boundary, not a wrapper class around an existing interface |
+
+The grey zone is the normal shape of this codebase: inheritance is replaced by
+composition, and the pattern's intent is preserved by a variant plus exhaustive
+visitation. That is why calling these patterns "used" or "not used" without qualification
+would both be misleading.
+
+### Replaced or deferred
+
+Each entry names the need that usually attracts
+the pattern and the reason why this design handles it differently.
+
+| pattern | status | reason |
+| --- | --- | --- |
+| Memento | Replaced by MVCC checkout | A classic Memento saves a full state or an inverse per edit. For a tree with many small edits, whole-state snapshots duplicate payloads and per-command inverses duplicate undo logic. MVCCHive instead stores immutable versions and 32-byte, 32-byte-aligned diff records in fixed-size blocked arrays; an edit writes only the changed records, history stays dense, and undo/redo moves the checkout. The choice was driven by the cost model: whole-state snapshots duplicate payloads and per-command inverses duplicate undo logic. MVCCHive's 32-byte aligned diff records in blocked arrays keep history dense and let undo/redo move the checkout. |
+| Observer | Deferred | There is one Ui window. A command already returns `Event` for a change and `TouchedNodes` for undo/redo, so separating sender from observer now would add subscription lifetime without a second consumer. Multiple windows over one backend would make an observer or notification layer the natural refactor |
+| State | Deferred | The CLI has no modal tool state, so a State hierarchy would invent transitions. The pattern becomes relevant when GUI tools such as select, draw and move exist |
+| Singleton | Refused | The composition root owns `Document` explicitly. A global instance would hide that lifetime, make tests share state, and block future multi-document sessions |
+| Interpreter | Refused | The command language is flat: one line becomes one typed intent through a table row. An AST interpreter would be a second representation to keep in step with `Intent` |
+| Iterator | Refused for now | `children()` returns a snapshot vector so a view can outlive an MVCC snapshot, and tree walks are short recursive loops. A custom iterator would pin or expose storage for no current gain |
+| Mediator | Refused | The Ui has one call into the Planner, and the Planner has explicit typed routes to Model and the Editor. There is no peer-to-peer colleague graph to centralize; a mediator would add a registry and a second routing layer |
+
+Architectural patterns outside the GoF catalogue still matter: the layered module
+boundaries are in "Modules" above, the Unit of Work/RAII transaction is described in
+[Model.md](Model.md), and MVCCHive's MVCC checkout is described there as the history
+mechanism.
 
 ## Dependency direction
 
@@ -142,8 +239,8 @@ change behind the same target, but the edge stays.
 | from | to | how | why | status |
 | --- | --- | --- | --- | --- |
 | `Model` | MVCCHive | `FetchContent`, public link, `TreeStore.hh` | The tree is stored as MVCC records, and the hive supplies commits, snapshots and checkout | Required; the storage engine is replaceable behind `TreeStore`, but the dependency is not removable |
+| `Model` | tinyxml2 | `FetchContent`, private link, adapter source only | XML syntax is not worth maintaining beside the SVG schema, while the adapter keeps its pointers and DOM out of the rest of Model | Required for file input; replaceable behind the adapter |
 | `Model` | `Model/FileSystem` | private link; `Document.cc` includes `FileSystem.hh` | `open()` and `save()` need bytes from and to a file | Required for the file commands; removable only if the product drops file I/O |
-| `Model/FileSystem` | C++ standard library | `fstream`, `sstream` | Reading and writing a file is the whole module | No project dependency to remove |
 | `Protocol` | `Model` | interface link; includes `SVGNode.hh`, `Document.hh`, `History.hh` | `Intent`, `View`, `Event` and `Refusal` carry model values and handles | **Removable** by moving the value types into a separate `Values` or `Core` target, or by making `Protocol` own DTOs; both add a conversion layer for no current benefit |
 | `Editor` | `Model` | public link; `Document.hh` | The Editor is the only writer and needs the transaction API | Required |
 | `Editor` | `Protocol` | public link; `Intent.hh`, `Outcome.hh` | A change intent is the Editor's input and an outcome is its output | Required |
@@ -209,7 +306,7 @@ abstraction worthwhile. The third group is as much a design decision as the firs
 | likely change | is there a place for it? | where it lands, and what it costs |
 | --- | --- | --- |
 | A GUI or web front end replaces the terminal | Mostly | `Intent` in, `Outcome` out, and `Ui/src/Rendering.cc` owns the wording. The prompt loop and the composition root in `Ui/src/main.cc` are terminal-shaped, so a front end would need a session/application object and an event loop around the same Planner |
-| The SVG parser and serializer are written | Yes | `Document::open()` and `save()` already return structured `Status`, and `Model/FileSystem` already moves the bytes. A large parse should commit in chunks and clear history when it finishes; read warnings have no protocol field yet, so a successful read that auto-fills ids needs a warning channel in `Event` or `Outcome` |
+| The supported SVG subset grows | Yes | Add the payload alternative first, then one strict reader mapping, one writer case and one entry in the renderer's exhaustive visitors. The parser stages values before touching `TreeStore`, so a new schema rule cannot expose a half-loaded document. A feature needing namespace resolution beyond the pointer-free snapshot would extend the adapter |
 | A new command is added | Yes, at compile time | Add an intent struct to `Intent`/`ChangeIntent`, a row and reader in `Ui/src/Command.cc`, and a Planner or Editor route. A missing route is `static_assert(false, ...)` naming the type, not a runtime fallback |
 | A new element kind is added | Yes, at compile time | Extend `Create` and the `Node` payload variants; the element-name visitors, builders and renderer fail to compile until each new kind is named. Runtime plugin kinds are not supported |
 | A new attribute is added | Yes, at compile time | One `SetX`-style struct with its `name`, one row in `Ui/src/Set.cc`, and an Editor write. The closed `Set` variant means an unhandled attribute cannot disappear into a stringly typed default |

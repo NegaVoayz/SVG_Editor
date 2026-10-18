@@ -10,8 +10,7 @@ role: [Structure.md](Structure.md) is the overview and dependency map,
 ## Requirements
 
 - A C++23 toolchain. That is the language this project is written in;
-  [MVCCHive](https://github.com/NegaVoayz/MVCCHive) is written in C++23 too, so
-  the one dependency asks nothing extra of the toolchain.
+  [MVCCHive](https://github.com/NegaVoayz/MVCCHive) is written in C++23 too.
   P2593 - a `static_assert(false, ...)` in a discarded branch of an `if constexpr`,
   which is what makes an instruction with no handler a build error here - is one of the
   C++23 features the code relies on rather than merely benefits from, so the floor is
@@ -26,12 +25,12 @@ cmake --build --preset default
 ctest --preset default
 ```
 
-The first configure fetches MVCCHive at the tag pinned in
-`Model/cmake/MVCCHive.cmake`. A package config found by `find_package` or a
-checkout pointed at by `FETCHCONTENT_SOURCE_DIR_MVCCHIVE` avoids the download:
+The first configure fetches MVCCHive and tinyxml2 at the tags pinned in
+`Model/cmake/`. A package config found by `find_package` or a checkout pointed at by
+the matching `FETCHCONTENT_SOURCE_DIR_*` variable avoids a download:
 
 ```sh
-# uses ../MVCCHive as it is, no network involved
+# uses ../MVCCHive as it is; tinyxml2 still needs a package or local source
 cmake --preset local-dep
 cmake --build --preset local-dep
 ctest --preset local-dep
@@ -43,7 +42,9 @@ dependency instead of taking it from next door:
 ```sh
 cmake --preset default \
   -DSVG_EDITOR_MVCCHIVE_REPOSITORY=https://host/mirror/MVCCHive.git \
-  -DSVG_EDITOR_MVCCHIVE_TAG=v2.1.0
+  -DSVG_EDITOR_MVCCHIVE_TAG=v2.1.0 \
+  -DSVG_EDITOR_TINYXML2_REPOSITORY=https://host/mirror/tinyxml2.git \
+  -DSVG_EDITOR_TINYXML2_TAG=11.0.0
 ```
 
 ## Running
@@ -61,7 +62,7 @@ ui layer. A session starts without a document:
 A create reports the element as `kind#id`. It reports the parent only when the command
 named one: a default root insertion is `g#markers created`, while an explicit position is
 `rect#box created in g#markers`.
-`init` makes an empty one, and `read` will make one from a file. Before either, every
+`init` makes an empty one, and `read` makes one from a file. Before either, every
 pipeline command is refused with `error: no document. use 'init' or 'read' first`;
 `help` is answered by the front end itself and still works.
 
@@ -117,14 +118,17 @@ is exact, because a document holding `1mm + 1in = 26.4mm` no longer says that tw
 systems were written. The refusal names the two sides, so `1in` against `1cm` says
 which of them is imperial.
 
-`read` and `save` are wired to the file layer already and report that the SVG parser
-and serializer behind them are not written yet; everything above them is in place.
+`read` parses the SVG subset the model represents and assigns ids to unnamed
+non-root elements, printing one `warning:` line for each generated id. `save` writes
+that model tree back as deterministic UTF-8 SVG. Elements or attributes outside the
+subset are refused rather than silently dropped; [Model.md](Model.md#svg-file-io) lists
+the accepted syntax.
 
 ## Modules and dependency rules
 
 | target              | directory           | links                              |
 | ------------------- | ------------------- | ---------------------------------- |
-| `SvgEditor::Model`  | `Model/`            | MVCCHive                           |
+| `SvgEditor::Model`  | `Model/`            | MVCCHive, tinyxml2                 |
 | `SvgEditor::FileSystem` | `Model/FileSystem/` | -                              |
 | `SvgEditor::Protocol`   | `Protocol/`     | Model (for the values)             |
 | `SvgEditor::Editor` | `Editor/`           | Model, Protocol                    |

@@ -33,7 +33,7 @@ bool can_undo() const;  bool can_redo() const;
 
 // the context: which document this is, rather than what is in it
 const std::string& source_path() const;
-Status open(std::string_view path);                  // and reset, when the parser exists
+Status open(std::string_view path);                  // staged parse, then replace the document
 Status save(std::optional<std::string_view> path);   // no path: where it was read from
 void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
 void clear_history();                                // the tree stays and becomes the baseline
@@ -48,7 +48,7 @@ edits of the history, not of the tree, and they go through the same path.
 ## The canvas, and the checkpoints
 
 The canvas is not a field of the document: it is the root `<svg>` element's own `width`
-and `height`, which is where SVG writes it and what a serializer will write it back out
+and `height`, which is where SVG writes it and what the serializer writes back out
 of. `canvas <w> [h]` is therefore an ordinary edit of one payload - the root's - and
 `tree` reads the size off the root row like anything else about an element, which is why
 `canvas` with no operand is exactly the read `show /` is. The default is 800x600 in user
@@ -171,13 +171,22 @@ The same run measures about 3.8, 13 and 31 us per set at 20k, 100k and 200k hist
 which is that block scan. Bulk loading has a separate cost: `Transaction::emplace()`
 reserves its created-target and reclamation vectors for exactly one more element per
 insertion, so building 16k nodes in one transaction takes about 0.7 s rather than
-scaling linearly. The parser should commit a large load in chunks and clear the history
+scaling linearly. The loader commits a large file in chunks and clears the history
 when the load is finished.
 
 The public history `Diff` in 2.1.0 is a target-free record of
 `commit_id`, `virtual_id`, and a `DiffKind` of `insert`, `update`, or
 `remove`. `TreeStore` uses `virtual_id` for the touched node and `kind` for
 the `TouchedKind`; no storage target or payload copy is needed to classify it.
+
+Internally the hive's `DiffRecord` is 32 bytes and 32-byte aligned, and its
+`CommitRecord` is 32 bytes too. `BlockedVector` stores both in fixed-capacity
+blocks (`std::array<T, 2048>`) rather than one growing contiguous vector, so
+appending a commit does not move the retained records and the history scan walks
+dense, aligned storage. That is the performance side of the history choice: a
+whole-state memento per edit would duplicate payloads, while an inverse per
+command would duplicate undo logic; the hive writes one small record per changed
+virtual id and keeps the log compact enough to scan cheaply.
 
 Handles are MVCCHive virtual ids. They are monotonically allocated and never
 reused, so a handle cannot silently name a different node later. The durable
@@ -223,7 +232,7 @@ inverted for undo (`insert` becomes `remove`, `remove` becomes `insert`, and
 `update` stays `update`). The list includes neighbours whose links changed, not
 only the node an instruction named, and an erased subtree appears as every
 removed id. The cost is proportional to that touched set: the hive copies its
-24-byte diff entries, then the document keeps an id and a kind for each one.
+public 24-byte `Diff` entries, then the document keeps an id and a kind for each one.
 The checkout switch itself stays O(1); the touched list is the price of telling
 a front end what to refresh.
 
@@ -269,22 +278,43 @@ refuses the scale instead of approximating it. A factor of nothing, or a negativ
 is refused for the same reason: SVG can mirror and collapse, and nothing here writes
 either yet.
 
+## SVG file I/O
+
+`Model/FileSystem` still moves bytes and nothing else. Above it, Model reads XML through
+tinyxml2 `11.0.0`, but every tinyxml2 type and raw pointer lives in
+`TinyXml2Adapter.cc`. The adapter copies the DOM into `XmlSnapshot`, a vector arena with
+index-based children and value attributes. `SvgReader` maps that snapshot to a
+`ParsedSvg`, and only after the whole file passes does `Document::open()` replace the
+tree. Parse failure therefore leaves the old tree, history and source path untouched.
+
+The accepted element set is `svg`, `g`, `defs`, `symbol`, `switch`, `rect`, `circle`,
+`ellipse`, `line`, `text`, `tspan` and `textPath`. Common attributes are `id`, `class`,
+`fill`, `stroke`, `stroke-width` and `transform`; the geometry, text, canvas size,
+`startOffset` and `href` attributes follow the element. Namespace declarations are
+ignored. Everything else is refused: there is no silent drop that a later `save` could
+turn into data loss. Colours cover hex, `rgb()`, `none`, `currentColor`, all 148 CSS
+Color 4 named colours and the system-colour set; alpha, `transparent`, `style`,
+`viewBox` and element kinds such as `path` remain outside the model.
+
+Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,
+in document order. The root may stay unnamed. Explicit ids are reserved first, so a
+generated id cannot collide with an explicit id later in the file. Each assignment is an
+`AssignedId` in `model_status::Opened`; the Planner turns it into `event::Opened` and the
+front end prints `warning: assigned id rect1 to unnamed <rect>`.
+
+The loader commits at most 1024 nodes per transaction and then clears history, making
+the loaded tree the baseline. `SvgWriter` walks the current checkout in document order
+and writes deterministic UTF-8 SVG: declaration, default namespace, fixed attribute
+order, escaped attributes and text, structural indentation, and inline mixed text. A
+save clears history only after the file write succeeds.
+
 ## What is not there yet
 
-- the SVG parser and serializer: `Document::open()` reads the file through
-  `Model/FileSystem` and then reports that it cannot parse it yet, and
-  `Document::save()` reports that it cannot serialize yet. `read` and `save` are wired
-  to them, path memory and all, so both are seams with nothing behind them rather than
-  instructions still to write; `read` has to reset the document and name the elements it
-  finds unnamed, and the drawing of those warnings is the front end's to print.
-- the element kinds the Editor can create are the four shapes, a text and a group, which
-  is what can be built without a parser: the model has no `path` at all, and a `defs`, a
-  `symbol` or a `switch` can only arrive from one.
-- named colours: the model has ids for the system colours and none for the named ones,
-  so `fill=red` is not a fill this reads yet. That is why the drawing prints `#ff0000`.
-- the transform is in the model, and `move`, `scale` and `set transform` write it; the
-  parser does not read a `transform` attribute from a file yet, and the serializer writes
-  none of it.
+- the element kinds the Editor can create are the four shapes, a text and a group. The
+  model has no `path` at all; a `defs`, `symbol` or `switch` can arrive from a file.
+- the strict SVG subset has no path data, gradients or other paint-server definitions,
+  style sheets, alpha channels, `viewBox`, masks or filters. A file using them is refused
+  until the corresponding model value and exhaustive visitors exist.
 - a `find()` index: the view walks the tree on every call, which cannot go stale
   and is cheap enough while the tree is small.
 - retention: the hive offers `prune_before` and `clear_history`, and `TreeStore` uses
