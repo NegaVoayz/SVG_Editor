@@ -107,6 +107,10 @@ add_test(NAME cli_undo_to_edit_baseline
 set_tests_properties(cli_undo_to_edit_baseline PROPERTIES PASS_REGULAR_EXPRESSION
     "error: undo not allowed after io command")
 
+add_test(NAME cli_undo_after_canvas COMMAND $<TARGET_FILE:Cli> "init; canvas 1024 768; undo")
+set_tests_properties(cli_undo_after_canvas PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: undo not allowed after io command")
+
 # A parameter with a space is one word when it is quoted, and the answer prints it back
 # the same way so the reader can copy it into another instruction.
 add_test(NAME cli_quoted_id COMMAND $<TARGET_FILE:Cli>

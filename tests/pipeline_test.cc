@@ -691,6 +691,7 @@ int main() {
     CHECK(planner.dispatch(SetCanvas{Length{1024.0F, Length::Unit::UserUnit}, std::nullopt}).ok());
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
+    CHECK(document.undo_barred_by_io());
     const std::optional<Node> root_payload = document.node(document.root());
     CHECK(root_payload.has_value());
     if (root_payload && std::holds_alternative<SVGNode>(*root_payload)) {

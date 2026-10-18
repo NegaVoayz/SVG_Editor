@@ -114,8 +114,8 @@ Every `create` also takes `in <gid>`, which is where the element goes: without i
 element is the last child of the root. A node is named by its SVG id, by `#<handle>`,
 or by `/` for the root.
 
-`init`, `read`, and `save` establish an IO baseline. At that baseline `undo` says
-`error: undo not allowed after io command`; once an edit has been made, undo works
+`init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
+says `error: undo not allowed after io command`; once an edit has been made, undo works
 until the baseline is reached again.
 
 `show` prints the node's parent on its heading when it is not the root, then one

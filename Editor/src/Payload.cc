@@ -82,7 +82,8 @@ template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {
     edit.update(root, std::move(*payload));
     edit.commit();
     // The canvas is what the frame behind the drawing is from here on, so the way back to
-    // the canvas before it goes with the history that remembered it.
-    document_.clear_history();
+    // the canvas before it goes with the history that remembered it. Like `init`, `read`
+    // and `save`, this is a point outside the editable history rather than an edit in it.
+    document_.clear_history(true);
     return happened(Kind::Change, event::CanvasSet{size.width, size.height});
 }
