@@ -93,7 +93,7 @@ std::string_view usage() {
            "  context  init [w] [h]           a fresh document, 800x600 by default\n"
            "           read <file.svg>        read a document, naming what it left unnamed\n"
            "           save [file.svg]        write it, and the history starts over\n"
-           "  a node is '#<handle>', '/' for the root, or an SVG id\n"
+           "  a node is an SVG id; '/' or 'svg' names the root\n"
            "  a line starting with '#' is a comment; quoted text accepts \\\" and \\\\\n";
 }
 

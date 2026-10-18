@@ -161,12 +161,12 @@ int main() {
     CHECK(holds<CreateGroup>(group));
     if (holds<CreateGroup>(group)) CHECK(as<CreateGroup>(group).id == "layer");
 
-    // the three ways to name a node, and the values SVG writes
-    const Request by_handle = parse("delete #3");
-    CHECK(holds<Delete>(by_handle));
-    if (holds<Delete>(by_handle)) {
-        CHECK(std::holds_alternative<HandleRef>(as<Delete>(by_handle).node));
-        CHECK(std::get<HandleRef>(as<Delete>(by_handle).node).id == 3U);
+    // a '#' word is an SVG id here, not the hive's internal handle
+    const Request hash_id = parse("delete #3");
+    CHECK(holds<Delete>(hash_id));
+    if (holds<Delete>(hash_id)) {
+        CHECK(std::holds_alternative<SvgIdRef>(as<Delete>(hash_id).node));
+        CHECK(std::get<SvgIdRef>(as<Delete>(hash_id).node).name == "#3");
     }
 
     const Request by_root = parse("delete /");
@@ -351,7 +351,12 @@ int main() {
     CHECK(refuses(bad_fill));
     if (refuses(bad_fill)) CHECK(complaint(bad_fill).find("as a fill") != std::string::npos);
 
-    CHECK(refuses(parse("delete #abc")));
+    const Request hash_letters = parse("delete #abc");
+    CHECK(holds<Delete>(hash_letters));
+    if (holds<Delete>(hash_letters)) {
+        CHECK(std::holds_alternative<SvgIdRef>(as<Delete>(hash_letters).node));
+        CHECK(std::get<SvgIdRef>(as<Delete>(hash_letters).node).name == "#abc");
+    }
 
     if (failures != 0) {
         std::printf("intent_parser: %d check(s) failed\n", failures);

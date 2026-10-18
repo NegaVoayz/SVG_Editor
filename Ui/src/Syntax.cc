@@ -4,7 +4,6 @@
 #include "Syntax.hh"
 
 #include <cstddef>
-#include <exception>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -18,17 +17,6 @@ constexpr std::string_view length_syntax =
 constexpr std::string_view color_syntax =
     "a fill is #rgb, #rrggbb, rgb(r,g,b), a named or system colour, none or currentColor";
 constexpr std::string_view factor_syntax = "a scale is a plain number greater than zero";
-
-std::optional<Id> parse_handle(std::string_view text) {
-    try {
-        std::size_t used = 0;
-        const unsigned long long value = std::stoull(std::string{text}, &used);
-        if (used != text.size()) return std::nullopt;
-        return static_cast<Id>(value);
-    } catch (const std::exception&) {
-        return std::nullopt;
-    }
-}
 
 }  // namespace
 
@@ -62,14 +50,9 @@ float factor_of(const std::string& word) {
     return *value;
 }
 
-// "#3" is a handle, "/" is the root, and anything else is an SVG id: which of the
-// three a word is, is syntax, and asking the document which node it means is not.
+// "/" is the root and anything else is an SVG id. A handle is the hive's internal id,
+// not a name the user can see or type, so a word starting with '#' is just an id here.
 NodeRef reference_of(const std::string& word) {
     if (word == "/") return RootRef{};
-    if (word.size() > 1 && word.front() == '#') {
-        const std::optional<Id> handle = parse_handle(std::string_view{word}.substr(1));
-        if (!handle) throw ParseFailed{"'" + word + "' is not a handle: write #<number>"};
-        return HandleRef{*handle};
-    }
     return SvgIdRef{word};
 }
