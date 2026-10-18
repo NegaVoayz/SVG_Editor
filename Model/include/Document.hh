@@ -118,8 +118,8 @@ public:
     // frame behind the drawing now say, and undoing past them would leave the two
     // disagreeing about a state nobody wrote down.
     // `io` says why the baseline is being established: an IO command leaves undo at
-    // that baseline refused with the IO-specific error, while an ordinary checkpoint
-    // leaves the generic "nothing to undo".
+    // that baseline refused with the IO-specific error. `init`, `read`, `save` and
+    // `canvas` are IO commands; other checkpoints leave the generic "nothing to undo".
     void clear_history(bool io = false);
 
     friend class Transaction;
