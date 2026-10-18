@@ -215,7 +215,7 @@ int main() {
     CHECK(missing.kind == Kind::Context);
     CHECK(refused_with<fault::CannotReadFile>(missing));
 
-    const Outcome unparsed = planner.dispatch(Read{std::string(SVG_EDITOR_SOURCE_DIR) + "/Structure.md"});
+    const Outcome unparsed = planner.dispatch(Read{std::string(SVG_EDITOR_SOURCE_DIR) + "/docs/Structure.md"});
     CHECK(!unparsed.ok());
     CHECK(unparsed.kind == Kind::Context);
     CHECK(refused_with<fault::ParserNotImplemented>(unparsed));
