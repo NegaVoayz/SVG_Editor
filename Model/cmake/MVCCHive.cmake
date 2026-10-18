@@ -8,7 +8,7 @@ include(FetchContent)
 
 set(SVG_EDITOR_MVCCHIVE_REPOSITORY "https://github.com/NegaVoayz/MVCCHive.git"
     CACHE STRING "Repository the MVCCHive dependency is fetched from")
-set(SVG_EDITOR_MVCCHIVE_TAG "v1.0.2"
+set(SVG_EDITOR_MVCCHIVE_TAG "v2.0.0"
     CACHE STRING "Tag or commit of MVCCHive to check out")
 
 # A package config found by find_package wins, and the local-dep preset points
@@ -17,7 +17,7 @@ set(SVG_EDITOR_MVCCHIVE_TAG "v1.0.2"
 FetchContent_Declare(MVCCHive
     GIT_REPOSITORY "${SVG_EDITOR_MVCCHIVE_REPOSITORY}"
     GIT_TAG "${SVG_EDITOR_MVCCHIVE_TAG}"
-    FIND_PACKAGE_ARGS 1.0 CONFIG)
+    FIND_PACKAGE_ARGS 2.0 CONFIG)
 
 # The hive has its own test suite. Model tests the document through Model's API,
 # so the dependency's tests are not part of this project's test run.

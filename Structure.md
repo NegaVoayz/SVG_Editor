@@ -489,7 +489,7 @@ improvement. Resolving a handle uses `Document::has_node()`, so it does not copy
 record merely to learn that the record exists; only a read that returns the payload pays
 for the copy.
 
-History is the other axis. MVCCHive 1.0.2 keeps commit records and diffs in fixed-size
+History is the other axis. MVCCHive 2.0.0 keeps commit records and diffs in fixed-size
 blocked vectors, so appending a commit no longer copies the retained commit log;
 `TreeStore` grows its checkpoint list geometrically as well. The remaining history cost
 is block reclamation: `VersionStore::drain_retirements()` calls `release_empty_blocks()`,
@@ -506,6 +506,12 @@ reserves its created-target and reclamation vectors for exactly one more element
 insertion, so building 16k nodes in one transaction takes about 0.7 s rather than
 scaling linearly. The parser should commit a large load in chunks and clear the history
 when the load is finished.
+
+The public history `Diff` in 2.0.0 is a target-free record of
+`commit_id`, `virtual_id`, and a `DiffKind` of `insert`, `update`, or
+`remove`. `TreeStore` needs only `virtual_id` to build a touched list; the
+kind is available to a caller that wants to distinguish a new row from a
+removed or updated one without inspecting storage targets.
 
 Handles are MVCCHive virtual ids. They are monotonically allocated and never
 reused, so a handle cannot silently name a different node later. The durable
@@ -554,7 +560,7 @@ checkpoints. `TreeStore` gets them from the hive's `diffs(commit_id)` for the
 commit that produced the newer checkpoint, and maps each `Diff::virtual_id`
 to an `Id`. The list includes neighbours whose links changed, not only the
 node an instruction named, and a deleted subtree appears as every tombstoned
-id. The cost is proportional to that touched set: the hive copies its 32-byte
+id. The cost is proportional to that touched set: the hive copies its 24-byte
 diff entries, then the document keeps an 8-byte id for each one. The snapshot
 switch itself stays O(1); the ids are the price of telling a front end what to
 refresh.
