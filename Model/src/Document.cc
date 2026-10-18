@@ -63,8 +63,8 @@ Transaction Document::transaction() { return Transaction{*this}; }
 
 bool Document::can_undo() const { return store_.can_undo(); }
 bool Document::can_redo() const { return store_.can_redo(); }
-std::vector<Id> Document::undo() { return store_.undo(); }
-std::vector<Id> Document::redo() { return store_.redo(); }
+TouchedNodes Document::undo() { return store_.undo(); }
+TouchedNodes Document::redo() { return store_.redo(); }
 std::size_t Document::depth() const { return store_.depth(); }
 std::size_t Document::position() const { return store_.position(); }
 

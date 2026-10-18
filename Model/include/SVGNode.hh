@@ -67,17 +67,7 @@ struct SVGNode {
     std::variant<Shape,Container,Text> data;
 };
 
-// A removed node stays a live virtual id in the hive. The record is replaced instead of
-// erased, which is what lets an undo snapshot show the node again and lets a new edit
-// after an undo restore it without allocating a different id. The public document treats
-// this alternative as absent; the links are the same three every alternative carries.
-struct Removed {
-    Id parent_id = no_id;
-    Id previous_sibling = no_id;
-    Id next_sibling = no_id;
-};
-
-using Node = std::variant<SVGNode, PlainText, Removed>;
+using Node = std::variant<SVGNode, PlainText>;
 
 // The SVG element that can be a parent of shapes and other containers. A text also has
 // child storage, for its character data, but it is not a container a user can put an

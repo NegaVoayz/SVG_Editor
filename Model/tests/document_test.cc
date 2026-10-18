@@ -1,6 +1,5 @@
 // The Model on its own: the tree, the transactions, and the checkpoints of the
 // one hive the tree lives in.
-#include <algorithm>
 #include <cstdio>
 #include <exception>
 #include <string>
@@ -58,8 +57,11 @@ std::optional<Container::SVG> canvas_of(const Document& document) {
     return std::get<Container::SVG>(container.specific);
 }
 
-bool contains(const std::vector<Id>& ids, Id id) {
-    return std::find(ids.begin(), ids.end(), id) != ids.end();
+std::optional<TouchedKind> kind_of(const TouchedNodes& touched, Id id) {
+    for (const TouchedNode& change : touched) {
+        if (change.node == id) return change.kind;
+    }
+    return std::nullopt;
 }
 
 // A payload that claims it holds children but has nowhere to keep the list: it does not
@@ -107,9 +109,7 @@ static_assert(!ChildHolder<NarrowLink>);
 struct Unheld {};
 static_assert(Linked<SVGNode>);
 static_assert(Linked<PlainText>);
-static_assert(Linked<Removed>);
 static_assert(!Linked<Unheld>);
-static_assert(!ChildHolder<Removed>);
 
 int main() {
     Document document;
@@ -179,18 +179,18 @@ int main() {
     // undo takes the whole block back, redo brings it forward
     const std::optional<Id> inner = document.find("renamed");
     CHECK(inner.has_value());
-    const std::vector<Id> undone = document.undo();
+    const TouchedNodes undone = document.undo();
     CHECK(document.children(first).empty());
     CHECK(document.can_redo());
-    CHECK(contains(undone, first));
-    if (inner) CHECK(contains(undone, *inner));
-    const std::vector<Id> redone = document.redo();
+    CHECK(kind_of(undone, first) == TouchedKind::Update);
+    if (inner) CHECK(kind_of(undone, *inner) == TouchedKind::Remove);
+    const TouchedNodes redone = document.redo();
     CHECK(document.children(first).size() == 1);
-    CHECK(contains(redone, first));
-    if (inner) CHECK(contains(redone, *inner));
+    CHECK(kind_of(redone, first) == TouchedKind::Update);
+    if (inner) CHECK(kind_of(redone, *inner) == TouchedKind::Insert);
 
     // A payload update and a move are the same kind of history step now: one
-    // commit on the one hive, reached through the same checkpoint list.
+    // commit on the one hive, reached through the same checkout.
     {
         Transaction edit = document.transaction();
         edit.update(second, group("second-renamed"));
@@ -216,13 +216,13 @@ int main() {
     CHECK(!document.has_node(first));
     CHECK(document.children(root) == std::vector<Id>({second}));
     CHECK(document.find("renamed") == std::nullopt);
-    const std::vector<Id> erase_undone = document.undo();
+    const TouchedNodes erase_undone = document.undo();
     CHECK(document.node(first).has_value());
     CHECK(document.has_node(first));
     CHECK(document.children(root).size() == 2);
     CHECK(document.find("renamed").has_value());
-    CHECK(contains(erase_undone, first));
-    CHECK(contains(erase_undone, root));  // the parent's first-child link changed too
+    CHECK(kind_of(erase_undone, first) == TouchedKind::Insert);
+    CHECK(kind_of(erase_undone, root) == TouchedKind::Update);  // the parent's first-child link changed too
 
     // back at the head: the erase of `first` is applied, so the subtree is gone
     document.redo();
@@ -495,6 +495,49 @@ int main() {
     CHECK(document.find("after-reset") == kept);  // the checkpoint is the floor
     CHECK(document.find("newer").has_value());
     CHECK(!document.can_undo());
+
+    // Undo moves the writable checkout. An empty transaction must preserve redo, and a
+    // real edit after undo must branch without needing a snapshot to pin the old tail.
+    {
+        Document branch;
+        branch.reset(std::nullopt, std::nullopt);
+        const Id branch_root = branch.root();
+
+        Id a = no_id;
+        {
+            Transaction edit = branch.transaction();
+            a = edit.append_child(branch_root, group("a"));
+            edit.commit();
+        }
+
+        const TouchedNodes undone_a = branch.undo();
+        CHECK(branch.find("a") == std::nullopt);
+        CHECK(kind_of(undone_a, a) == TouchedKind::Remove);
+        CHECK(branch.can_redo());
+
+        // Nothing was written, so the hive keeps the redo tail.
+        {
+            Transaction empty = branch.transaction();
+            empty.commit();
+        }
+        CHECK(branch.can_redo());
+        const TouchedNodes redone_a = branch.redo();
+        CHECK(kind_of(redone_a, a) == TouchedKind::Insert);
+        CHECK(branch.find("a") == a);
+
+        CHECK(branch.undo().size() != 0);
+        Id b = no_id;
+        {
+            Transaction edit = branch.transaction();
+            b = edit.append_child(branch_root, group("b"));
+            edit.commit();
+        }
+        CHECK(b != no_id);
+        CHECK(b != a);  // ids stay monotonic; the abandoned id is not reused
+        CHECK(branch.find("b") == b);
+        CHECK(branch.find("a") == std::nullopt);
+        CHECK(!branch.can_redo());
+    }
 
     if (failures != 0) {
         std::printf("document: %d check(s) failed\n", failures);

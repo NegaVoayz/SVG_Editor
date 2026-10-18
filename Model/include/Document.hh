@@ -6,6 +6,7 @@
 #include <string_view>
 #include <vector>
 
+#include "History.hh"
 #include "Status.hh"
 #include "SVGNode.hh"
 #include "TreeStore.hh"
@@ -43,12 +44,13 @@ public:
     // The root <svg> node, or no_id while there is no document.
     Id root() const;
 
-    // Whether a root exists. A removed node is not a document either.
+    // Whether a root exists. The root is the baseline, so erasing its children keeps
+    // the document.
     bool has_document() const;
 
     // A copy of the payload stored at that handle, or nothing when no live node is
     // there. The hive exposes only immutable versions, but the document hands out
-    // a copy so a caller's payload is not tied to the lifetime of a checkpoint.
+    // a copy so a caller's payload is not tied to the lifetime of a snapshot.
     std::optional<Node> node(Id id) const;
 
     // Whether a live document node lives at that handle, without copying its payload.
@@ -76,10 +78,10 @@ public:
 
     bool can_undo() const;
     bool can_redo() const;
-    // Move one whole transaction back or forward, and return the ids whose stored
-    // records differ between the two checkpoints.
-    std::vector<Id> undo();
-    std::vector<Id> redo();
+    // Move one whole transaction back or forward, and return what that did to the
+    // visible tree.
+    TouchedNodes undo();
+    TouchedNodes redo();
 
     // How many transactions the history holds, and how many of them are applied.
     std::size_t depth() const;
@@ -126,7 +128,7 @@ private:
 //
 // A transaction that is destroyed without commit() rolls back, which is what
 // makes an edit that fails half way harmless. Only one transaction can be open at
-// a time. A read through Document while one is open sees the checkpoint, not the
+// a time. A read through Document while one is open sees the checkout, not the
 // staged edit, and a second transaction must not be opened: the hive has one
 // writer, so it would wait behind the first.
 class Transaction {
@@ -154,9 +156,9 @@ public:
     // Replace a node's payload and leave its place in the tree alone.
     void update(Id node, Node payload);
 
-    // Drop a node and everything under it. The active checkpoint treats the
-    // removed nodes as absent; the records stay in the hive, so undo brings the
-    // same handles back instead of allocating new ones.
+    // Drop a node and everything under it. The active checkout treats the removed nodes
+    // as absent; older snapshots still hold their payloads, so undo brings the same
+    // handles back instead of allocating new ones.
     void erase(Id node);
 
     void commit();    // keep the edit as one block of the history

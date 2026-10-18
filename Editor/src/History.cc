@@ -13,13 +13,13 @@
 template<> Outcome Editor::handle<Undo>(const Undo&) {
     if (!document_.can_undo()) return refused(Kind::Change, fault::NothingToUndo{});
 
-    std::vector<Id> touched = document_.undo();
+    TouchedNodes touched = document_.undo();
     return happened(Kind::Change, event::Undone{document_.position(), document_.depth(), std::move(touched)});
 }
 
 template<> Outcome Editor::handle<Redo>(const Redo&) {
     if (!document_.can_redo()) return refused(Kind::Change, fault::NothingToRedo{});
 
-    std::vector<Id> touched = document_.redo();
+    TouchedNodes touched = document_.redo();
     return happened(Kind::Change, event::Redone{document_.position(), document_.depth(), std::move(touched)});
 }

@@ -1,7 +1,5 @@
 #include "TreeStore.hh"
 
-#include <algorithm>
-#include <cstdint>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -25,12 +23,10 @@ struct Links {
     Id next;
 };
 
-bool removed(const Node& node) { return std::holds_alternative<Removed>(node); }
-
 // Give an action every element payload of a node: the `data` alternative of an SVG
-// element, and nothing for character data or a removed record. The action then asks
-// its own question with `if constexpr`, so no kind is named here and no list of them
-// exists - the variant is the list.
+// element, and nothing for character data. The action then asks its own question with
+// `if constexpr`, so no kind is named here and no list of them exists - the variant is
+// the list.
 template<typename Payload, typename Action>
 void visit_data(Payload& payload, Action action) {
     std::visit(
@@ -60,7 +56,7 @@ void set_links(Node& node, Links links) {
 
 std::optional<NodeRef> staged_node(Edit& edit, Id id) {
     const auto found = edit.find(id);
-    if (!found || removed(found->get())) return std::nullopt;
+    if (!found) return std::nullopt;
     return *found;
 }
 
@@ -115,135 +111,90 @@ bool set_child_attr(Node& node, const ChildAttr& attr) {
 TreeStore::TreeStore() = default;
 
 void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
-    // Forgetting everything means releasing the snapshots too: the guards would keep the
-    // old generation alive, and none of those views can be reached from this document.
-    checkpoints_.clear();
+    // Forgetting everything means releasing the current snapshot too: its guard would
+    // keep the old generation alive, and none of it can be reached from this document.
     view_.reset();
     nodes_.clear();
+    depth_ = 0;
+    position_ = 0;
 
     // The root is the first virtual id, 0, because no id is reserved in front of it: a
     // link that leads nowhere is no_id. Its history is dropped immediately, which makes
     // it the baseline and leaves commit 1 for the document's first edit.
     auto edit = nodes_.begin_transaction();
     root_ = edit.emplace(make_root_payload(std::move(width), std::move(height)));
-    checkpoints_.reserve(1);
-    const Snapshot baseline = edit.commit();
+    static_cast<void>(edit.commit());
     nodes_.clear_history();
-
-    checkpoints_.push_back(baseline);
-    view_ = baseline;
-    applied_ = 0;
+    view_ = nodes_.head();
 }
 
 TreeStore::Edit TreeStore::begin() {
     if (!view_) throw std::logic_error("TreeStore: no document");
-    rewind_head_to_view();
     return nodes_.begin_transaction();
 }
 
 void TreeStore::commit(Edit& edit) {
     const Hive::CommitId before = view_->commit_id();
-    // The hive commit is not reversible once published. Make room for its checkpoint
-    // before publishing, so the only throwing step is the commit's own prepare phase.
-    // Grow geometrically: reserving exactly the next size would reallocate and copy the
-    // whole checkpoint list on every edit, which turns a long session into O(n^2) work.
-    if (checkpoints_.capacity() < checkpoints_.size() + 1) {
-        const std::size_t grown = checkpoints_.capacity() == 0 ? 2 : checkpoints_.capacity() * 2;
-        checkpoints_.reserve(grown);
-    }
     const Snapshot next = edit.commit();
+    view_ = next;
     if (next.commit_id() == before) return;  // an edit that wrote nothing is no block
 
-    checkpoints_.erase(checkpoints_.begin() + static_cast<std::ptrdiff_t>(applied_ + 1), checkpoints_.end());
-    checkpoints_.push_back(next);
-    applied_ = checkpoints_.size() - 1;
-    view_ = next;
+    ++position_;
+    depth_ = position_;
 }
 
 void TreeStore::rollback(Edit& edit) noexcept { edit.rollback(); }
 
-bool TreeStore::can_undo() const { return applied_ > 0; }
-bool TreeStore::can_redo() const { return applied_ + 1 < checkpoints_.size(); }
+bool TreeStore::can_undo() const { return position_ > 0; }
+bool TreeStore::can_redo() const { return position_ < depth_; }
 
-std::vector<Id> TreeStore::touched_by(const Snapshot& snapshot) const {
-    const std::vector<Hive::Diff> diffs = nodes_.diffs(snapshot.commit_id());
-    std::vector<Id> touched;
+TouchedNodes TreeStore::touched_by(Hive::CommitId commit, Direction direction) const {
+    const std::vector<Hive::Diff> diffs = nodes_.diffs(commit);
+    TouchedNodes touched;
     touched.reserve(diffs.size());
-    for (const Hive::Diff& diff : diffs) touched.push_back(static_cast<Id>(diff.virtual_id));
+    for (const Hive::Diff& diff : diffs) {
+        TouchedKind kind = TouchedKind::Update;
+        switch (diff.kind) {
+            case Hive::DiffKind::insert: kind = TouchedKind::Insert; break;
+            case Hive::DiffKind::update: kind = TouchedKind::Update; break;
+            case Hive::DiffKind::remove: kind = TouchedKind::Remove; break;
+        }
+        if (direction == Direction::Undo) {
+            if (kind == TouchedKind::Insert) kind = TouchedKind::Remove;
+            else if (kind == TouchedKind::Remove) kind = TouchedKind::Insert;
+        }
+        touched.push_back(TouchedNode{static_cast<Id>(diff.virtual_id), kind});
+    }
     return touched;
 }
 
-std::vector<Id> TreeStore::undo() {
+TouchedNodes TreeStore::undo() {
     if (!can_undo()) return {};
-    const std::vector<Id> touched = touched_by(checkpoints_[applied_]);
-    --applied_;
-    view_ = checkpoints_[applied_];
-    return touched;
+    const Hive::CommitId commit = view_->commit_id();
+    if (!nodes_.undo()) return {};
+    --position_;
+    view_ = nodes_.head();
+    return touched_by(commit, Direction::Undo);
 }
 
-std::vector<Id> TreeStore::redo() {
+TouchedNodes TreeStore::redo() {
     if (!can_redo()) return {};
-    const std::vector<Id> touched = touched_by(checkpoints_[applied_ + 1]);
-    ++applied_;
-    view_ = checkpoints_[applied_];
-    return touched;
+    if (!nodes_.redo()) return {};
+    ++position_;
+    view_ = nodes_.head();
+    return touched_by(view_->commit_id(), Direction::Redo);
 }
 
-std::size_t TreeStore::depth() const { return checkpoints_.empty() ? 0 : checkpoints_.size() - 1; }
-std::size_t TreeStore::position() const { return applied_; }
+std::size_t TreeStore::depth() const { return depth_; }
+std::size_t TreeStore::position() const { return position_; }
 
 void TreeStore::clear_history() {
     if (!view_) return;
-    rewind_head_to_view();
-
-    // The head is the tree being kept. Dropping every checkpoint first releases the
-    // snapshot horizons, which lets the pruning pass reclaim the versions no longer
-    // reachable from that head.
-    checkpoints_.reserve(1);
-    checkpoints_.clear();
     view_.reset();
     nodes_.clear_history();
-
-    const Snapshot baseline = nodes_.head();
-    checkpoints_.push_back(baseline);
-    view_ = baseline;
-    applied_ = 0;
-}
-
-// Bring the hive's head back to the checkpoint the document is showing. The hive's
-// commit timeline can only grow at the head, so an edit after an undo first writes the
-// visible state as a new head commit. Only ids touched between the two commits are
-// rewritten; a row that was created after the visible state becomes a Removed record,
-// and one that is visible there is copied back from the snapshot.
-void TreeStore::rewind_head_to_view() {
-    if (!view_) return;
-    const Snapshot head = nodes_.head();
-    if (head.commit_id() == view_->commit_id()) return;
-    if (head.commit_id() < view_->commit_id()) {
-        throw std::logic_error("TreeStore: the visible checkpoint is ahead of the hive");
-    }
-
-    std::vector<Id> touched;
-    for (Hive::CommitId commit = view_->commit_id() + 1; commit <= head.commit_id(); ++commit) {
-        for (const auto& diff : nodes_.diffs(commit)) touched.push_back(static_cast<Id>(diff.virtual_id));
-    }
-    std::sort(touched.begin(), touched.end());
-    touched.erase(std::unique(touched.begin(), touched.end()), touched.end());
-
-    auto edit = nodes_.begin_transaction();
-    for (const Id id : touched) {
-        const auto visible = view_->find(id);
-        if (!visible) {
-            edit.replace(id, Removed{});
-        } else {
-            edit.replace(id, visible->get());
-        }
-    }
-
-    const Snapshot rewound = edit.commit();
-    checkpoints_.erase(checkpoints_.begin() + static_cast<std::ptrdiff_t>(applied_ + 1), checkpoints_.end());
-    checkpoints_[applied_] = rewound;
-    view_ = rewound;
+    depth_ = 0;
+    position_ = 0;
+    view_ = nodes_.head();
 }
 
 bool TreeStore::has_node(Id node) const { return live_node(node).has_value(); }
@@ -257,7 +208,7 @@ const Node& TreeStore::record(Id node) const {
 std::optional<TreeStore::NodeRef> TreeStore::live_node(Id node) const {
     if (!view_) return std::nullopt;
     const auto found = view_->find(node);
-    if (!found || removed(found->get())) return std::nullopt;
+    if (!found) return std::nullopt;
     return *found;
 }
 
@@ -293,8 +244,6 @@ void TreeStore::attach_last(Edit& edit, Id parent, Id node) {
 }
 
 Id TreeStore::insert_at(Edit& edit, Id parent, Id before, Node payload) {
-    if (removed(payload)) throw std::invalid_argument("TreeStore: a removed record cannot be inserted");
-
     const NodeRef holder = require_staged(edit, parent);
     const std::optional<ChildAttr> attr = child_attr_of(holder.get());
     if (!attr) throw std::logic_error("TreeStore: this node cannot hold children");
@@ -436,7 +385,6 @@ void TreeStore::detach(Edit& edit, Id node) {
 
 void TreeStore::update(Edit& edit, Id node, Node payload) {
     const NodeRef stored = require_staged(edit, node);
-    if (removed(payload)) throw std::invalid_argument("TreeStore: a live node cannot be updated to a removed one");
 
     const std::optional<ChildAttr> stored_children = child_attr_of(stored.get());
     const std::optional<ChildAttr> new_children = child_attr_of(payload);
@@ -476,5 +424,5 @@ void TreeStore::erase_subtree(Edit& edit, Id node) {
         }
     }
 
-    for (const Id id : doomed) edit.replace(id, Removed{});
+    for (const Id id : doomed) edit.erase(id);
 }

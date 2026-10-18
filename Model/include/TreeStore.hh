@@ -8,6 +8,7 @@
 
 #include <mvcc_hive/mvcc_hive.hpp>
 
+#include "History.hh"
 #include "SVGNode.hh"
 
 // The child-list ends of a node, or nothing when its type cannot hold children.
@@ -48,9 +49,9 @@ public:
 
     bool can_undo() const;
     bool can_redo() const;
-    // The ids whose stored records differ across the checkpoint being left or entered.
-    std::vector<Id> undo();
-    std::vector<Id> redo();
+    // What changed in the visible tree across the checkout being left or entered.
+    TouchedNodes undo();
+    TouchedNodes redo();
 
     // How many edits the history holds, and how many of them are applied.
     std::size_t depth() const;
@@ -63,8 +64,7 @@ public:
 
     Id root() const { return root_; }
 
-    // Whether a live document node lives at that id. A removed node keeps its virtual
-    // id in the hive for undo, but it is not a node of the document.
+    // Whether a live document node lives at that id.
     bool has_node(Id node) const;
 
     // The node itself, which throws std::out_of_range when no live node is there.
@@ -101,26 +101,21 @@ public:
 
 private:
     using NodeRef = std::reference_wrapper<const Node>;
+    enum class Direction { Undo, Redo };
 
-    // The node as the current checkpoint sees it. A removed record is absent.
+    // The node as the current checkout sees it.
     std::optional<NodeRef> live_node(Id node) const;
 
-    // Bring the hive's head back to the snapshot the document is showing. This is what
-    // makes an edit after an undo a new branch from the visible state: only the rows
-    // whose versions changed between the two commits are written.
-    void rewind_head_to_view();
-
-    // The virtual ids touched by the commit that produced `snapshot`. The hive's diff
-    // entries are the authoritative touch list: they include neighbours whose links a
-    // move changed, not just the node an instruction named.
-    std::vector<Id> touched_by(const Snapshot& snapshot) const;
+    // The virtual ids touched by `commit`, classified from the hive's public diff. The
+    // diff entries include neighbours whose links a move changed, not just the node an
+    // instruction named. Undo reports the inverse of insert/remove because the event
+    // describes the effect of the operation being performed.
+    TouchedNodes touched_by(Hive::CommitId commit, Direction direction) const;
 
     template<typename Patch>
     void patch_node(Edit& edit, Id node, Patch&& patch) {
         const std::optional<NodeRef> found = edit.find(node);
-        if (!found || std::holds_alternative<Removed>(found->get())) {
-            throw std::out_of_range("TreeStore: no live node at this id");
-        }
+        if (!found) throw std::out_of_range("TreeStore: no live node at this id");
 
         Node replacement = found->get();
         patch(replacement);
@@ -140,11 +135,12 @@ private:
 
     void detach(Edit& edit, Id node);
 
-    // The hive, then the checkpoints into its history, then the checkpoint the document
-    // is showing.
+    // The hive, the current checkout snapshot, and the position/depth the front end
+    // sees. MVCCHive owns the checkout itself; TreeStore does not keep redo snapshots
+    // alive, so a new commit is free to discard the redo tail.
     Hive nodes_;
-    std::vector<Snapshot> checkpoints_;
     std::optional<Snapshot> view_;
     Id root_ = no_id;
-    std::size_t applied_ = 0;
+    std::size_t depth_ = 0;
+    std::size_t position_ = 0;
 };
