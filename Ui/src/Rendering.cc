@@ -334,7 +334,7 @@ struct EventText {
         return "set " + quote_if_needed(set.attribute) + " on #" + std::to_string(set.node);
     }
     std::string operator()(const event::ContentSet& set) const {
-        return "set content on #" + std::to_string(set.node);
+        return "set text on #" + std::to_string(set.node);
     }
     std::string operator()(const event::CanvasSet& canvas) const {
         const std::string width = canvas.width ? to_text(*canvas.width) : "?";

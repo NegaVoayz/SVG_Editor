@@ -208,6 +208,14 @@ struct SetHref {
     NodeRef node;
     std::string value;
 };
+// The words of a text element are its visible content, so `text` is the ordinary name
+// for setting them even though SVG stores them in a PlainText child.
+struct SetText {
+    static constexpr std::string_view name = "text";
+    NodeRef node;
+    std::string value;
+};
+// The spelling before `text` existed. It remains an alias for the same edit.
 struct SetContent {
     static constexpr std::string_view name = "content";
     NodeRef node;
@@ -219,7 +227,7 @@ struct SetContent {
 // known.
 using Set = std::variant<SetX, SetY, SetW, SetH, SetCx, SetCy, SetR, SetRx, SetRy, SetX1, SetY1, SetX2, SetY2, SetDx,
                          SetDy, SetStrokeWidth, SetWidth, SetHeight, SetStartOffset, SetClass, SetFill, SetStroke,
-                         SetTransform, SetHref, SetContent>;
+                         SetTransform, SetHref, SetText, SetContent>;
 
 struct Undo {};
 struct Redo {};

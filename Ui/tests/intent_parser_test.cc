@@ -195,6 +195,13 @@ int main() {
     CHECK(holds<SetClass>(set_class));
     if (holds<SetClass>(set_class)) CHECK(as<SetClass>(set_class).value == "layer one");
 
+    const Request set_text = parse("set title text \"My Diagram v2\"");
+    CHECK(holds<SetText>(set_text));
+    if (holds<SetText>(set_text)) CHECK(as<SetText>(set_text).value == "My Diagram v2");
+
+    const Request set_content = parse("set title content \"legacy spelling\"");
+    CHECK(holds<SetContent>(set_content));
+
     const Request set_transform = parse("set layer transform translate(5 6)");
     CHECK(holds<SetTransform>(set_transform));
     if (holds<SetTransform>(set_transform)) {

@@ -45,6 +45,11 @@ set_tests_properties(cli_unknown_attribute PROPERTIES PASS_REGULAR_EXPRESSION "e
 add_test(NAME cli_text COMMAND $<TARGET_FILE:Cli> "init; create text title 20 40 \"My Diagram\"; tree")
 set_tests_properties(cli_text PROPERTIES PASS_REGULAR_EXPRESSION "\\(20,40\\) \"My Diagram\"")
 
+# `text` is the UI attribute for the PlainText child of a text element.
+add_test(NAME cli_set_text
+    COMMAND $<TARGET_FILE:Cli> "init; create text title 20 40 \"My Diagram\"; set title text \"My Diagram v2\"; tree")
+set_tests_properties(cli_set_text PROPERTIES PASS_REGULAR_EXPRESSION "\"My Diagram v2\"")
+
 add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>
     "init; create g layer; create rect box 0 0 10 10 in layer; create circle dot 1 1 1 in layer; tree")
 set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION

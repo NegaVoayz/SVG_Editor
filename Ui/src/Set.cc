@@ -52,7 +52,7 @@ Request transform_attribute(const NodeRef& node, const std::string& word) {
 // the transform any element has, the root's canvas, and the parts of a text. The names come
 // from the attribute types, so the word this table looks up and the word the Editor refuses
 // are one spelling.
-constexpr std::array<AttributeReader, 25> attributes{{
+constexpr std::array<AttributeReader, 26> attributes{{
     {SetX::name, length_attribute<SetX>},
     {SetY::name, length_attribute<SetY>},
     {SetW::name, length_attribute<SetW>},
@@ -77,6 +77,7 @@ constexpr std::array<AttributeReader, 25> attributes{{
     {SetStroke::name, paint_attribute<SetStroke>},
     {SetTransform::name, transform_attribute},
     {SetHref::name, text_attribute<SetHref>},
+    {SetText::name, text_attribute<SetText>},
     {SetContent::name, text_attribute<SetContent>},
 }};
 

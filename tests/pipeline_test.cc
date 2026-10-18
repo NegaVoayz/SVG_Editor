@@ -604,9 +604,9 @@ int main() {
     }
     CHECK(!planner.dispatch(Set{SetFill{SvgIdRef{"nothing"}, Paint{Color{Color::None{}}}}}).ok());
 
-    // A text's content is character data in a child, and a set updates the element's words
+    // A text's content is character data in a child, and `text` updates the element's words
     // whether it is named by the element or by the child's own handle.
-    CHECK(planner.dispatch(Set{SetContent{SvgIdRef{"title"}, "hello again"}}).ok());
+    CHECK(planner.dispatch(Set{SetText{SvgIdRef{"title"}, "hello again"}}).ok());
     const Outcome reworded = planner.dispatch(Show{SvgIdRef{"title"}});
     CHECK(std::holds_alternative<NodeView>(reworded.view()));
     if (std::holds_alternative<NodeView>(reworded.view())) {
@@ -616,14 +616,20 @@ int main() {
         const std::vector<Id> inside = document.children(*title);
         CHECK(inside.size() == 1);
         if (inside.size() == 1) {
-            CHECK(planner.dispatch(Set{SetContent{HandleRef{inside.front()}, "direct words"}}).ok());
+            CHECK(planner.dispatch(Set{SetText{HandleRef{inside.front()}, "direct words"}}).ok());
             const Outcome direct = planner.dispatch(Show{SvgIdRef{"title"}});
             if (std::holds_alternative<NodeView>(direct.view())) {
                 CHECK(std::get<NodeView>(direct.view()).text == "direct words");
             }
         }
     }
-    CHECK(!planner.dispatch(Set{SetContent{SvgIdRef{"box"}, "not a text"}}).ok());
+    const Outcome text_on_rect = planner.dispatch(Set{SetText{SvgIdRef{"box"}, "not a text"}});
+    CHECK(!text_on_rect.ok());
+    CHECK(refused_with<fault::UnknownAttribute>(text_on_rect));
+    if (refused_with<fault::UnknownAttribute>(text_on_rect)) {
+        CHECK(std::get<fault::UnknownAttribute>(text_on_rect.refusal()).name == "text");
+    }
+    CHECK(planner.dispatch(Set{SetContent{SvgIdRef{"title"}, "legacy alias"}}).ok());
 
     // A container cannot be moved under a group that would already be inside it.
     CHECK(planner.dispatch(Create{CreateGroup{"inner", SvgIdRef{"layer"}}}).ok());

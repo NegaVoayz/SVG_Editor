@@ -322,17 +322,17 @@ Outcome apply(Document& document, Id node, const SetHref& intent) {
     });
 }
 
-// A text's words are character data rather than an attribute of the element, so setting
-// `content` writes the PlainText child. A text with none gets one; a text with several, as
-// a parsed document may have, keeps its first and drops the rest so the words are said
-// once. A PlainText handle names the character data directly and needs no walk.
-Outcome apply(Document& document, Id node, const SetContent& intent) {
+// A text's words are character data rather than an attribute of the element, so `text`
+// writes the PlainText child. A text with none gets one; a text with several, as a parsed
+// document may have, keeps its first and drops the rest so the words are said once. A
+// PlainText handle names the character data directly and needs no walk.
+Outcome set_text(Document& document, Id node, const std::string& value, std::string_view attribute) {
     std::optional<Node> payload = document.node(node);
     if (!payload) return refused(Kind::Change, fault::InternalError{});
 
     if (std::holds_alternative<PlainText>(*payload)) {
         PlainText text = std::get<PlainText>(*payload);
-        text.content = intent.value;
+        text.content = value;
         Transaction edit = document.transaction();
         edit.update(node, Node{std::move(text)});
         edit.commit();
@@ -341,7 +341,7 @@ Outcome apply(Document& document, Id node, const SetContent& intent) {
 
     if (!std::holds_alternative<SVGNode>(*payload) ||
         !std::holds_alternative<Text>(std::get<SVGNode>(*payload).data)) {
-        return refused(Kind::Change, fault::UnknownAttribute{std::string{SetContent::name}});
+        return refused(Kind::Change, fault::UnknownAttribute{std::string{attribute}});
     }
 
     std::vector<Id> text_children;
@@ -356,15 +356,23 @@ Outcome apply(Document& document, Id node, const SetContent& intent) {
     Transaction edit = document.transaction();
     if (!first) {
         PlainText text;
-        text.content = intent.value;
+        text.content = value;
         edit.append_child(node, Node{std::move(text)});
     } else {
-        std::get<PlainText>(*first).content = intent.value;
+        std::get<PlainText>(*first).content = value;
         edit.update(text_children.front(), std::move(*first));
         for (std::size_t index = 1; index < text_children.size(); ++index) edit.erase(text_children[index]);
     }
     edit.commit();
     return happened(Kind::Change, event::ContentSet{node});
+}
+
+Outcome apply(Document& document, Id node, const SetText& intent) {
+    return set_text(document, node, intent.value, SetText::name);
+}
+
+Outcome apply(Document& document, Id node, const SetContent& intent) {
+    return set_text(document, node, intent.value, SetContent::name);
 }
 
 }  // namespace

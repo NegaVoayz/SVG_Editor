@@ -197,6 +197,8 @@ reader is what decides the value's syntax - a length, a paint, a class name, a t
 visits the attribute and writes the member its type names, asking each payload alternative
 with `requires` whether the member is there; a node that does not carry it is refused with
 `error: unknown attribute: <attr>`. No attribute is discovered by a switch over its name.
+For a text element, `set <id> text "<words>"` edits the PlainText child; `content` remains
+accepted as the earlier spelling of that same edit.
 `id`, parent and child links are left out on purpose: a handle belongs to the hive, and where
 a node sits is the structural vocabulary (`addto`, `front`, `back`, ...). `width`/`height`
 mean the root's canvas or a rect's side, and `w`/`h` are the short spellings the tree prints.

@@ -157,6 +157,7 @@ int main() {
     CHECK(render(event::Created{3, "text", "start label", 1, "g", "node 1", true}) ==
           "text#\"start label\" created in g#\"node 1\"");
     CHECK(render(event::Moved{2, units(5), units(7)}) == "moved #2 by 5 7");
+    CHECK(render(event::ContentSet{2}) == "set text on #2");
     CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}}) ==
           "read a.svg\nwarning: assigned id rect1 to unnamed <rect>");
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
