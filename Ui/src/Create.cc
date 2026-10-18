@@ -7,6 +7,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -90,13 +92,19 @@ Request parse_create(const Words& words) {
     // exactly the values the kind asks for and nothing counts words twice.
     Words values{words.begin() + 3, words.end()};
     NodeRef parent = RootRef{};
+    bool parent_named = false;
     if (values.size() >= 2 && values[values.size() - 2] == "in") {
         parent = reference_of(values.back());
+        parent_named = true;
         values.resize(values.size() - 2);
     }
 
     for (const ElementKind& kind : kinds) {
-        if (kind.name == words[1]) return Intent{kind.build(id, values, parent)};
+        if (kind.name == words[1]) {
+            Create made = kind.build(id, values, parent);
+            std::visit([parent_named](auto& create) { create.parent_named = parent_named; }, made);
+            return Intent{std::move(made)};
+        }
     }
     throw ParseFailed{"error: unknown shape type: " + words[1] + " (is the plugin loaded?)"};
 }

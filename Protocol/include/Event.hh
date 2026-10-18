@@ -21,7 +21,10 @@ struct Created {
     Id node;
     std::string element;
     std::string svg_id;
-    NodeRef parent;
+    Id parent;
+    std::string parent_element;
+    std::string parent_svg_id;
+    bool parent_named;
 };
 
 struct Deleted {

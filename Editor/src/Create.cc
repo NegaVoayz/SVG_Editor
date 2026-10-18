@@ -41,6 +41,44 @@ void stroke(Node& payload, const std::optional<Color>& color) {
     std::get<SVGNode>(payload).paint_attr.stroke = Paint{*color};
 }
 
+struct ShapeKind {
+    std::string_view operator()(const Shape::Rect&) const { return "rect"; }
+    std::string_view operator()(const Shape::Circle&) const { return "circle"; }
+    std::string_view operator()(const Shape::Ellipse&) const { return "ellipse"; }
+    std::string_view operator()(const Shape::Line&) const { return "line"; }
+};
+
+struct ContainerKind {
+    std::string_view operator()(const Container::SVG&) const { return "svg"; }
+    std::string_view operator()(const Container::Group&) const { return "g"; }
+    std::string_view operator()(const Container::Defs&) const { return "defs"; }
+    std::string_view operator()(const Container::Symbol&) const { return "symbol"; }
+    std::string_view operator()(const Container::Switch&) const { return "switch"; }
+};
+
+struct ElementKind {
+    std::string_view operator()(const Shape& shape) const { return std::visit(ShapeKind{}, shape.specific); }
+    std::string_view operator()(const Container& container) const {
+        return std::visit(ContainerKind{}, container.specific);
+    }
+    std::string_view operator()(const Text&) const { return "text"; }
+};
+
+struct ElementIdentity {
+    std::string_view element;
+    std::string_view svg_id;
+};
+
+// The identity a create event reports for a node: its SVG tag and its own id, with the
+// empty id of the root standing for no name. The visitor is exhaustive, so a new kind of
+// element cannot reach an event without a name.
+std::optional<ElementIdentity> identity_of(const Node& payload) {
+    if (!std::holds_alternative<SVGNode>(payload)) return std::nullopt;
+    const SVGNode& node = std::get<SVGNode>(payload);
+    const std::string_view element = std::visit(ElementKind{}, node.data);
+    return ElementIdentity{element, node.identity_attr.id};
+}
+
 }  // namespace
 
 // The one element that is built for an edit rather than for a command: `group` takes
@@ -93,6 +131,10 @@ Outcome Editor::create(const T& intent) {
     }
     const std::expected<Id, Refusal> parent = resolve_container(intent.parent);
     if (!parent) return refused(Kind::Change, parent.error());
+    const std::optional<Node> parent_payload = document_.node(*parent);
+    if (!parent_payload) return refused(Kind::Change, fault::InternalError{});
+    const std::optional<ElementIdentity> parent_identity = identity_of(*parent_payload);
+    if (!parent_identity) return refused(Kind::Change, fault::InternalError{});
 
     // The element and its content are two nodes, and one instruction is one
     // transaction, so either both are written or neither is.
@@ -100,7 +142,11 @@ Outcome Editor::create(const T& intent) {
     const Id node = edit.append_child(*parent, std::move(built.payload));
     if (built.content) edit.append_child(node, characters(std::move(*built.content)));
     edit.commit();
-    return happened(Kind::Change, event::Created{node, std::string{built.kind}, intent.id, intent.parent});
+    const bool parent_named = intent.parent_named || !std::holds_alternative<RootRef>(intent.parent);
+    return happened(Kind::Change,
+                    event::Created{node, std::string{built.kind}, intent.id, *parent,
+                                   std::string{parent_identity->element}, std::string{parent_identity->svg_id},
+                                   parent_named});
 }
 
 // The second level of the dispatch: a create is one instruction, and which element it builds

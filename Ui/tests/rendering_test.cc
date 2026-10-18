@@ -151,10 +151,9 @@ int main() {
 
     // The other half of the boundary: an event and a refusal are data until this file
     // turns them into words, and the branch that answered is still visible in front.
-    CHECK(render(event::Created{2, "rect", "box", SvgIdRef{"markers"}}) ==
-          "created #2 <rect> id=\"box\" in markers");
-    CHECK(render(event::Created{2, "rect", "box", SvgIdRef{"id with space"}}) ==
-          "created #2 <rect> id=\"box\" in \"id with space\"");
+    CHECK(render(event::Created{2, "rect", "box", 1, "g", "markers", false}) == "rect#box created");
+    CHECK(render(event::Created{3, "text", "start label", 1, "g", "node 1", true}) ==
+          "text#\"start label\" created in g#\"node 1\"");
     CHECK(render(event::Moved{2, units(5), units(7)}) == "moved #2 by 5 7");
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==

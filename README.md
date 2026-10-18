@@ -55,6 +55,10 @@ The prompt is `svg>`, `help` lists the commands, and one line may hold several
 instructions separated by `;`. A view is printed as what it describes; a change comes
 back as a structured event, and a refusal as a typed reason, both rendered here by the
 ui layer. A session starts without a document:
+
+A create reports the element as `kind#id`. It reports the parent only when the command
+named one: a default root insertion is `g#markers created`, while an explicit position is
+`rect#box created in g#markers`.
 `init` makes an empty one, and `read` will make one from a file. Before either, every
 pipeline command is refused with `error: no document. use 'init' or 'read' first`;
 `help` is answered by the front end itself and still works.
@@ -63,11 +67,11 @@ pipeline command is refused with `error: no document. use 'init' or 'read' first
 svg> init
 [context] an empty document, with the canvas it was given
 svg> create g markers
-[change] created #1 <g> id="markers" in the root
+[change] g#markers created
 svg> create rect box 0 0 10 10 #ff0000 in markers
-[change] created #2 <rect> id="box" in markers
+[change] rect#box created in g#markers
 svg> create text title 20 40 "My Diagram"
-[change] created #3 <text> id="title" in the root
+[change] text#title created
 svg> tree
 svg (800x600)
 ├── g#markers

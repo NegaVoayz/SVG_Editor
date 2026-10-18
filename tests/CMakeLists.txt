@@ -69,6 +69,16 @@ set_tests_properties(cli_quoted_id_error PROPERTIES PASS_REGULAR_EXPRESSION "err
 add_test(NAME cli_quoted_path COMMAND $<TARGET_FILE:Cli> "read \"no such file.svg\"")
 set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: cannot read file: \"no such file.svg\"")
 
+# A create reports the element by the name a tree would print it by, and the parent by
+# the same kind#id pair.
+add_test(NAME cli_create_default COMMAND $<TARGET_FILE:Cli> "init; create g node1")
+set_tests_properties(cli_create_default PROPERTIES PASS_REGULAR_EXPRESSION "g#node1 created")
+
+add_test(NAME cli_create_result COMMAND $<TARGET_FILE:Cli>
+    "init; create g node1; create text start-label 0 0 \"hello\" in node1")
+set_tests_properties(cli_create_result PROPERTIES PASS_REGULAR_EXPRESSION
+    "text#start-label created in g#node1")
+
 add_test(NAME cli_help COMMAND $<TARGET_FILE:Cli> "help")
 set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "create <kind> <id>")
 

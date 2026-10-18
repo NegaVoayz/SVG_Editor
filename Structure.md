@@ -270,15 +270,19 @@ The prompt is `svg> `, one line may hold several instructions separated by `;`, 
 view is printed as the thing it describes rather than as a sentence about it. Anything
 else is the sentence it already is, with the branch that answered it in front:
 
+A create reports the element as `kind#id`. The parent appears only when the instruction
+named one: a default root insertion says `g#markers created`, and an explicit position
+says `rect#box created in g#markers`.
+
 ```
 svg> init
 [context] an empty document, with the canvas it was given
 svg> create g markers
-[change] created #1 <g> id="markers" in the root
+[change] g#markers created
 svg> create rect box 0 0 10 10 #ff0000 in markers
-[change] created #2 <rect> id="box" in markers
+[change] rect#box created in g#markers
 svg> create text title 20 40 "My Diagram"
-[change] created #3 <text> id="title" in the root
+[change] text#title created
 svg> tree
 svg (800x600)
 ├── g#markers

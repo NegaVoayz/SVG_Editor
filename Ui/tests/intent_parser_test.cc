@@ -80,6 +80,7 @@ int main() {
         CHECK(std::holds_alternative<Color::RGB>(intent.fill->specific));
         CHECK(std::get<Color::RGB>(intent.fill->specific).r == 255);
         CHECK(std::holds_alternative<RootRef>(intent.parent));
+        CHECK(!intent.parent_named);
     }
 
     const Request bare = parse("create rect r 1 2 3 4");
@@ -93,6 +94,7 @@ int main() {
     if (holds<CreateRect>(placed)) {
         CHECK(!as<CreateRect>(placed).fill.has_value());
         CHECK(std::holds_alternative<SvgIdRef>(as<CreateRect>(placed).parent));
+        CHECK(as<CreateRect>(placed).parent_named);
         CHECK(name_in(as<CreateRect>(placed).parent) == "layer");
     }
 

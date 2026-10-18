@@ -24,18 +24,21 @@ struct CreateRect {
     LengthPercentage x, y, width, height;
     std::optional<Color> fill;
     NodeRef parent = RootRef{};
+    bool parent_named = false;
 };
 struct CreateCircle {
     std::string id;
     LengthPercentage cx, cy, r;
     std::optional<Color> fill;
     NodeRef parent = RootRef{};
+    bool parent_named = false;
 };
 struct CreateEllipse {
     std::string id;
     LengthPercentage cx, cy, rx, ry;
     std::optional<Color> fill;
     NodeRef parent = RootRef{};
+    bool parent_named = false;
 };
 // A line has no inside to fill, so what it may carry is a stroke.
 struct CreateLine {
@@ -43,6 +46,7 @@ struct CreateLine {
     LengthPercentage x1, y1, x2, y2;
     std::optional<Color> stroke;
     NodeRef parent = RootRef{};
+    bool parent_named = false;
 };
 // A text element and the character data inside it are two nodes, which is why the content
 // travels here as its own string and becomes a child: a <text> holds text the way a group
@@ -52,10 +56,12 @@ struct CreateText {
     LengthPercentage x, y;
     std::string content;
     NodeRef parent = RootRef{};
+    bool parent_named = false;
 };
 struct CreateGroup {
     std::string id;
     NodeRef parent = RootRef{};
+    bool parent_named = false;
 };
 struct Delete { NodeRef node; };
 struct Move { NodeRef node; LengthPercentage dx, dy; };

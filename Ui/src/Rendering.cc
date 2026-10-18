@@ -300,6 +300,12 @@ std::string describe(const NodeRef& reference) {
     return quote_if_needed(std::get<SvgIdRef>(reference).name);
 }
 
+std::string element_label(std::string_view element, std::string_view svg_id) {
+    std::string label{element};
+    if (!svg_id.empty()) label += "#" + quote_if_needed(svg_id);
+    return label;
+}
+
 std::string_view system_name(Length::Unit unit) {
     switch (unit) {
         case Length::Unit::Mm:
@@ -316,8 +322,11 @@ std::string_view system_name(Length::Unit unit) {
 
 struct EventText {
     std::string operator()(const event::Created& made) const {
-        return "created #" + std::to_string(made.node) + " <" + made.element + "> id=\"" + made.svg_id + "\" in " +
-               describe(made.parent);
+        std::string message = element_label(made.element, made.svg_id) + " created";
+        if (made.parent_named) {
+            message += " in " + element_label(made.parent_element, made.parent_svg_id);
+        }
+        return message;
     }
     std::string operator()(const event::Deleted& gone) const {
         return "deleted " + describe(gone.named) + " (#" + std::to_string(gone.node) + ") and everything under it";
