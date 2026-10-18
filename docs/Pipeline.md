@@ -154,7 +154,7 @@ until every one of them names it.
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]`  | a line, which has no inside to fill                    | the Editor, one transaction |
 | `create text <id> <x> <y> "content"`             | a text element and the character data inside it        | the Editor, one transaction |
 | `create g <id>`                                  | a group                                                | the Editor, one transaction |
-| `delete <id>`                                    | the node and everything under it                       | the Editor, one transaction |
+| `delete <id>`                                    | the node and its descendants                           | the Editor, one transaction |
 | `move <id> <dx> <dy>`                            | a shape's geometry, or a container's transform         | the Editor, one transaction |
 | `scale <id> <factor>`                            | a shape's own values, or a container's transform       | the Editor, one transaction |
 | `set <id> <attr> <value>`                        | one editable attribute of that node                    | the Editor, one transaction |
@@ -235,7 +235,9 @@ document and source path untouched.
 
 The prompt is `svg> `, one line may hold several instructions separated by `;`, and a
 view is printed as the thing it describes rather than as a sentence about it. Anything
-else is the sentence it already is, with the branch that answered it in front:
+else is the sentence it already is. Edits have no route marker because the result
+already names the operation. The special branches keep `[view]`, `[context]` or
+`[unknown]` in front, and a refusal starts with `error:`.
 
 A create reports the element as `kind#id`. The parent appears only when the instruction
 named one: a default root insertion says `g#markers created`, and an explicit position
@@ -243,13 +245,13 @@ says `rect#box created in g#markers`.
 
 ```
 svg> init
-[context] an empty document, with the canvas it was given
+[context] canvas 800x600 created
 svg> create g markers
-[change] g#markers created
+g#markers created
 svg> create rect box 0 0 10 10 #ff0000 in markers
-[change] rect#box created in g#markers
+rect#box created in g#markers
 svg> create text title 20 40 "My Diagram"
-[change] text#title created
+text#title created
 svg> tree
 svg (800x600)
 ├── g#markers

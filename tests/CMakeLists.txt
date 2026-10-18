@@ -50,6 +50,13 @@ add_test(NAME cli_set_text
     COMMAND $<TARGET_FILE:Cli> "init; create text title 20 40 \"My Diagram\"; set title text \"My Diagram v2\"; tree")
 set_tests_properties(cli_set_text PROPERTIES PASS_REGULAR_EXPRESSION "\"My Diagram v2\"")
 
+# Deleting a leaf does not claim a subtree went with it, and edits have no route label.
+add_test(NAME cli_delete_leaf
+    COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 1 1; delete box")
+set_tests_properties(cli_delete_leaf PROPERTIES
+    PASS_REGULAR_EXPRESSION "deleted box \\(#1\\)"
+    FAIL_REGULAR_EXPRESSION "under it|\\[change\\]")
+
 add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>
     "init; create g layer; create rect box 0 0 10 10 in layer; create circle dot 1 1 1 in layer; tree")
 set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION

@@ -34,6 +34,20 @@ std::string top_level_name(const Document& document) {
     return "/";
 }
 
+// How many nodes a delete takes with the node itself. A leaf says nothing about
+// descendants; a container reports the size of the subtree it removes.
+std::size_t descendant_count(const Document& document, Id node) {
+    std::size_t count = 0;
+    std::vector<Id> pending = document.children(node);
+    while (!pending.empty()) {
+        const Id current = pending.back();
+        pending.pop_back();
+        ++count;
+        for (const Id child : document.children(current)) pending.push_back(child);
+    }
+    return count;
+}
+
 }  // namespace
 
 template<> Outcome Editor::handle<Delete>(const Delete& intent) {
@@ -41,10 +55,11 @@ template<> Outcome Editor::handle<Delete>(const Delete& intent) {
     if (!node) return refused(Kind::Change, node.error());
     if (*node == document_.root()) return refused(Kind::Change, fault::RootCannotBeErased{});
 
+    const std::size_t removed_below = descendant_count(document_, *node);
     Transaction edit = document_.transaction();
     edit.erase(*node);
     edit.commit();
-    return happened(Kind::Change, event::Deleted{*node, intent.node});
+    return happened(Kind::Change, event::Deleted{*node, intent.node, removed_below});
 }
 
 template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {

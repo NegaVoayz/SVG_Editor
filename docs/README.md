@@ -68,13 +68,13 @@ pipeline command is refused with `error: no document. use 'init' or 'read' first
 
 ```
 svg> init
-[context] an empty document, with the canvas it was given
+[context] canvas 800x600 created
 svg> create g markers
-[change] g#markers created
+g#markers created
 svg> create rect box 0 0 10 10 #ff0000 in markers
-[change] rect#box created in g#markers
+rect#box created in g#markers
 svg> create text title 20 40 "My Diagram"
-[change] text#title created
+text#title created
 svg> tree
 svg (800x600)
 ├── g#markers
@@ -95,7 +95,7 @@ The instructions are:
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]` | a line                                                     |
 | `create text <id> <x> <y> "content"`            | a text element, and the character data inside it           |
 | `create g <id>`                                 | a group                                                    |
-| `delete <id>`                                   | the node and everything under it                           |
+| `delete <id>`                                   | the node and its descendants                               |
 | `move <id> <dx> <dy>`                           | a shape's coordinates, or a container's transform          |
 | `scale <id> <factor>`                           | a shape's values, or a container's transform               |
 | `set <id> <attr> <value>`                       | one editable attribute; `id`, parent and children are not attributes |

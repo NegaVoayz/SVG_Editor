@@ -77,6 +77,23 @@ std::string canvas_text(const Container::SVG& canvas) {
     return "(" + width + "x" + height + ")";
 }
 
+// The size an `init` created, without the tree's parentheses. Both sides are always
+// present because the Planner reads them back from the new root.
+std::string canvas_size_text(const std::optional<LengthPercentage>& width_value,
+                             const std::optional<LengthPercentage>& height_value) {
+    if (width_value && height_value && std::holds_alternative<Length>(*width_value) &&
+        std::holds_alternative<Length>(*height_value)) {
+        const Length& width = std::get<Length>(*width_value);
+        const Length& height = std::get<Length>(*height_value);
+        if (width.unit == height.unit) {
+            return number_text(width.value) + "x" + number_text(height.value) + std::string{unit_text(width.unit)};
+        }
+    }
+    const std::string width = width_value ? to_text(*width_value) : "?";
+    const std::string height = height_value ? to_text(*height_value) : "?";
+    return width + " x " + height;
+}
+
 // A container carries nothing of its own, except the root, whose size is the canvas.
 struct ContainerText {
     std::string operator()(const Container::SVG& canvas) const { return canvas_text(canvas); }
@@ -304,7 +321,11 @@ struct EventText {
         return message;
     }
     std::string operator()(const event::Deleted& gone) const {
-        return "deleted " + describe(gone.named) + " (#" + std::to_string(gone.node) + ") and everything under it";
+        std::string message = "deleted " + describe(gone.named) + " (#" + std::to_string(gone.node) + ")";
+        if (gone.descendants != 0) {
+            message += " and " + std::to_string(gone.descendants) + " node(s) under it";
+        }
+        return message;
     }
     std::string operator()(const event::Moved& moved) const {
         return "moved #" + std::to_string(moved.node) + " by " + to_text(moved.dx) + " " + to_text(moved.dy);
@@ -354,8 +375,8 @@ struct EventText {
     std::string operator()(const event::AlreadyLast& last) const {
         return describe(last.node) + " is already the last child";
     }
-    std::string operator()(const event::Initialized&) const {
-        return "an empty document, with the canvas it was given";
+    std::string operator()(const event::Initialized& initialized) const {
+        return "canvas " + canvas_size_text(initialized.width, initialized.height) + " created";
     }
     std::string operator()(const event::Opened& opened) const {
         std::string message = "read " + quote_if_needed(opened.path);
@@ -492,10 +513,14 @@ struct OutcomeText {
 
     std::string operator()(const View& view) const { return render(view); }
     std::string operator()(const Event& event) const {
-        return "[" + std::string{kind_name(kind)} + "] " + render(event);
+        const std::string message = render(event);
+        if (kind == Kind::Change) return message;
+        return "[" + std::string{kind_name(kind)} + "] " + message;
     }
     std::string operator()(const Refusal& refusal) const {
-        return "[" + std::string{kind_name(kind)} + "] failed: " + render(refusal);
+        const std::string message = render(refusal);
+        if (kind == Kind::Change) return message;
+        return "[" + std::string{kind_name(kind)} + "] " + message;
     }
 };
 

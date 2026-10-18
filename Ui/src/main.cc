@@ -25,7 +25,9 @@ struct RunInstruction {
     Planner& planner;
 
     bool operator()(const ParseError& error) const {
-        std::cout << "[parse] failed: " << error.message << "\n";
+        std::cout << "[parse] ";
+        if (!error.message.starts_with("error:")) std::cout << "error: ";
+        std::cout << error.message << "\n";
         return false;
     }
 

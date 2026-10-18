@@ -64,7 +64,7 @@ std::string_view usage() {
            "             rect <id> <x> <y> <w> <h> [fill] | circle <id> <cx> <cy> <r> [fill]\n"
            "             ellipse <id> <cx> <cy> <rx> <ry> [fill] | line <id> <x1> <y1> <x2> <y2> [stroke]\n"
            "             text <id> <x> <y> \"content\" | g <id>\n"
-           "           delete <id>            the node and everything under it\n"
+           "           delete <id>            the node and its descendants\n"
            "           move <id> <dx> <dy> | scale <id> <factor>\n"
            "           set <id> <attr> <value>   one attribute; id, parent and children are not attributes\n"
            "           group <newGid> <id> <id> ... | ungroup <gid> | addto <gid> <id>\n"

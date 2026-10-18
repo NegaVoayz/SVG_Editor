@@ -33,6 +33,7 @@ struct Created {
 struct Deleted {
     Id node;
     NodeRef named;
+    std::size_t descendants;
 };
 
 struct Moved {

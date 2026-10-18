@@ -15,6 +15,7 @@ std::string render(const View& view);
 std::string render(const Event& event);
 std::string render(const Refusal& refusal);
 
-// The whole answer, including the branch it came from and the `failed:` marker a
-// refusal carries. The wording of both the branch and the reason is this layer's.
+// The whole answer. Non-edit branches keep their `[view]`, `[context]` or `[unknown]`
+// marker; an Editor edit is plain prose because its event already names the operation.
+// Refusals carry only the `error:` prefix.
 std::string render(const Outcome& outcome);

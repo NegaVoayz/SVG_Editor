@@ -152,12 +152,16 @@ int main() {
     CHECK(render(NodeView{7, Node{PlainText{"hello"}}, "hello"}) == "<text-node> \"hello\"");
 
     // The other half of the boundary: an event and a refusal are data until this file
-    // turns them into words, and the branch that answered is still visible in front.
+    // turns them into words. Editor results have no route prefix; the special branches
+    // keep theirs.
     CHECK(render(event::Created{2, "rect", "box", 1, "g", "markers", false}) == "rect#box created");
     CHECK(render(event::Created{3, "text", "start label", 1, "g", "node 1", true}) ==
           "text#\"start label\" created in g#\"node 1\"");
     CHECK(render(event::Moved{2, units(5), units(7)}) == "moved #2 by 5 7");
     CHECK(render(event::ContentSet{2}) == "set text on #2");
+    CHECK(render(event::Deleted{5, SvgIdRef{"box"}, 0}) == "deleted box (#5)");
+    CHECK(render(event::Deleted{6, SvgIdRef{"markers"}, 2}) == "deleted markers (#6) and 2 node(s) under it");
+    CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");
     CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}}) ==
           "read a.svg\nwarning: assigned id rect1 to unnamed <rect>");
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
@@ -165,11 +169,14 @@ int main() {
           "error: the offset 1in does not add up with 1cm: 1in is imperial and 1cm is metric - mm and cm are "
           "metric, in, pt and px are defined against the inch, and the two systems are not mixed");
     CHECK(render(Outcome{Kind::Change, Refusal{fault::UnknownAttribute{"x"}}}) ==
-          "[change] failed: error: unknown attribute: x");
+          "error: unknown attribute: x");
     CHECK(render(Outcome{Kind::View, Refusal{fault::MissingShape{SvgIdRef{"id with space"}}}}) ==
-          "[view] failed: error: no such shape: \"id with space\"");
+          "[view] error: no such shape: \"id with space\"");
     CHECK(render(Outcome{Kind::Change, Event{event::NothingMoved{}}}) ==
-          "[change] the offset is zero, nothing moved");
+          "the offset is zero, nothing moved");
+    CHECK(render(Outcome{Kind::Context, Event{event::Initialized{units(800), units(600)}}}) ==
+          "[context] canvas 800x600 created");
+    CHECK(render(Outcome{Kind::Unknown, Refusal{fault::InternalError{}}}) == "[unknown] error: internal error");
 
     if (failures != 0) {
         std::printf("rendering: %d check(s) failed\n", failures);
