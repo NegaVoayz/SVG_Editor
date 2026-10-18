@@ -30,7 +30,7 @@
       "name": "local-dep",
       "inherits": "default",
       "displayName": "Ninja, Debug, sibling MVCCHive checkout",
-      "description": "Takes MVCCHive from ../MVCCHive as it is instead of fetching it, so it configures and builds without network.",
+      "description": "Takes MVCCHive from ../MVCCHive. tinyxml2 still comes from a package or FetchContent unless FETCHCONTENT_SOURCE_DIR_TINYXML2 is supplied.",
       "binaryDir": "${sourceDir}/build/ninja-local-dep",
       "cacheVariables": {
         "FETCHCONTENT_SOURCE_DIR_MVCCHIVE": "${sourceDir}/../MVCCHive"

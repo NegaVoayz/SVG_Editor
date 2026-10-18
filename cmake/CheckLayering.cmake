@@ -23,7 +23,7 @@ foreach(module IN LISTS modules)
             if(line MATCHES "^[ \t]*//")  # naming it in a comment is not using it
                 continue()
             endif()
-            if(line MATCHES "MVCCHive|mvcc_hive")
+            if(line MATCHES "MVCCHive|mvcc_hive|tinyxml2")
                 string(APPEND offenders "  ${source}: ${line}\n")
             endif()
         endforeach()
@@ -32,8 +32,28 @@ endforeach()
 
 if(offenders)
     message(FATAL_ERROR
-        "MVCCHive belongs to Model/, and these lines reach for it:\n${offenders}"
+        "MVCCHive and tinyxml2 belong to Model/, and these lines reach for them:\n${offenders}"
         "An edit goes through Document::transaction(), a read through Document's view API.")
 endif()
 
-message(STATUS "layering: MVCCHive is used by Model/ alone")
+# Inside Model, tinyxml2's pointer-based DOM is confined to the adapter. Every other
+# Model source works with the pointer-free XmlSnapshot values instead.
+file(GLOB_RECURSE model_sources
+    "${SOURCE_DIR}/Model/*.cc"
+    "${SOURCE_DIR}/Model/*.hh")
+foreach(source IN LISTS model_sources)
+    if(source MATCHES "TinyXml2Adapter\\.cc$")
+        continue()
+    endif()
+    file(STRINGS "${source}" lines)
+    foreach(line IN LISTS lines)
+        if(line MATCHES "^[ \t]*//")
+            continue()
+        endif()
+        if(line MATCHES "tinyxml2")
+            message(FATAL_ERROR "tinyxml2 must stay inside Model/src/TinyXml2Adapter.cc: ${source}: ${line}")
+        endif()
+    endforeach()
+endforeach()
+
+message(STATUS "layering: MVCCHive and tinyxml2 are Model dependencies, with tinyxml2 behind one adapter")
