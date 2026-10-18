@@ -136,16 +136,25 @@ struct TransformText {
 // --- one line's worth of a node ---
 
 // The two halves of a line, kept apart because the tree lines the second one up in a
-// column of its own, and because a node may carry nothing at all.
+// column of its own, and because a node may carry nothing at all. A single node view
+// prints the details one per line, while the tree joins them with spaces.
 struct Words {
     std::string name;
-    std::string attrs;
+    std::vector<std::string> details;
 };
 
-void append_word(Words& words, std::string word) {
-    if (word.empty()) return;
-    if (!words.attrs.empty()) words.attrs += " ";
-    words.attrs += std::move(word);
+void append_detail(Words& words, std::string detail) {
+    if (detail.empty()) return;
+    words.details.push_back(std::move(detail));
+}
+
+std::string joined_details(const Words& words) {
+    std::string out;
+    for (const std::string& detail : words.details) {
+        if (!out.empty()) out += " ";
+        out += detail;
+    }
+    return out;
 }
 
 Words element_words(const SVGNode& element, const std::string& text) {
@@ -156,26 +165,33 @@ Words element_words(const SVGNode& element, const std::string& text) {
     words.name =
         element.identity_attr.id.empty() ? std::string{kind} : std::string{kind} + "#" + element.identity_attr.id;
 
-    append_word(words, std::visit(AttrsText{}, element.data));
-
     // A text's words are the character data inside it. That is a node of the model and it
     // is not a line of the drawing: printing it inside the element is what makes a text
     // read as a text.
-    if (std::holds_alternative<Text>(element.data)) append_word(words, "\"" + text + "\"");
+    if (std::holds_alternative<Text>(element.data)) {
+        std::string line = position_text(std::get<Text>(element.data));
+        if (!text.empty()) {
+            if (!line.empty()) line += " ";
+            line += "\"" + text + "\"";
+        }
+        append_detail(words, std::move(line));
+    } else {
+        append_detail(words, std::visit(AttrsText{}, element.data));
+    }
 
     if (element.transform_attr.transform) {
-        append_word(words, "transform=" + std::visit(TransformText{}, *element.transform_attr.transform));
+        append_detail(words, "transform=" + std::visit(TransformText{}, *element.transform_attr.transform));
     }
     if (element.paint_attr.fill) {
         const std::string paint = to_text(*element.paint_attr.fill);
-        if (!paint.empty()) append_word(words, "fill=" + paint);
+        if (!paint.empty()) append_detail(words, "fill=" + paint);
     }
     if (element.paint_attr.stroke) {
         const std::string paint = to_text(*element.paint_attr.stroke);
-        if (!paint.empty()) append_word(words, "stroke=" + paint);
+        if (!paint.empty()) append_detail(words, "stroke=" + paint);
     }
     if (element.paint_attr.stroke_width) {
-        append_word(words, "stroke-width=" + to_text(*element.paint_attr.stroke_width));
+        append_detail(words, "stroke-width=" + to_text(*element.paint_attr.stroke_width));
     }
     return words;
 }
@@ -185,7 +201,9 @@ Words words_of(const Node& payload, const std::string& text) {
 
     // Character data reaches a view on its own only when something asked for it by
     // handle: it has no id to be named by.
-    return Words{"<text-node>", "\"" + text + "\""};
+    Words words{"<text-node>", {}};
+    append_detail(words, "\"" + text + "\"");
+    return words;
 }
 
 // One line of a tree, before the column is known: where it hangs, and what it says.
@@ -227,7 +245,7 @@ std::string render(const TreeView& view) {
             for (std::size_t level = 1; level < row.depth; ++level) prefix += followed[level] ? "│   " : "    ";
             prefix += row.last ? "└── " : "├── ";
         }
-        lines.push_back(Line{std::move(prefix), words.name, words.attrs});
+        lines.push_back(Line{std::move(prefix), words.name, joined_details(words)});
     }
 
     // Everything under the first line lines its attributes up in one column, two places
@@ -255,7 +273,18 @@ std::string render(const TreeView& view) {
 
 std::string render(const NodeView& view) {
     const Words words = words_of(view.payload, view.text);
-    return words.attrs.empty() ? words.name : words.name + " " + words.attrs;
+    std::string out = words.name;
+    if (view.parent) {
+        const Words parent = words_of(view.parent->payload, {});
+        out += "  parent=" + parent.name;
+    }
+
+    if (words.details.empty()) return out;
+    // A root's canvas is one value and reads best on its own line. Everything else is
+    // presented as a heading followed by the attributes it carries, one group per line.
+    if (!view.parent && words.details.size() == 1) return out + " " + words.details.front();
+    for (const std::string& detail : words.details) out += "\n  " + detail;
+    return out;
 }
 
 std::string render(const View& view) {

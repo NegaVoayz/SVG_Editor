@@ -87,7 +87,7 @@ The instructions are:
 | what                                            | what it does                                              |
 | ----------------------------------------------- | --------------------------------------------------------- |
 | `tree [id]`                                     | the tree, the whole document by default                    |
-| `show <id>`                                     | one element's own attributes                               |
+| `show <id>`                                     | one element's attributes, and the parent it hangs from     |
 | `canvas` / `canvas <w> [h]`                     | read the document's size / set it, and start the history over |
 | `create rect <id> <x> <y> <w> <h> [fill]`       | a rectangle                                                |
 | `create circle <id> <cx> <cy> <r> [fill]`       | a circle                                                   |
@@ -111,6 +111,16 @@ The instructions are:
 Every `create` also takes `in <gid>`, which is where the element goes: without it, the
 element is the last child of the root. A node is named by its SVG id, by `#<handle>`,
 or by `/` for the root.
+
+`show` prints the node's parent on its heading when it is not the root, then one
+indented line for each group of attributes:
+
+```text
+svg> show c1
+circle#c1  parent=g#markers
+  cx=100 cy=100 r=20
+  fill=red
+```
 
 Two lengths only add up inside one system: mm and cm are metric, in, pt and px are
 defined against the inch, and the two are never mixed - not even where the arithmetic

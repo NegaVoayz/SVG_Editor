@@ -142,7 +142,17 @@ int main() {
     CHECK(found.kind == Kind::View);
     CHECK(std::holds_alternative<NodeView>(found.view()));
     if (std::holds_alternative<NodeView>(found.view())) {
-        CHECK(std::get<NodeView>(found.view()).node == document.find("layer"));
+        const NodeView& view = std::get<NodeView>(found.view());
+        CHECK(view.node == document.find("layer"));
+        CHECK(view.parent.has_value());
+        if (view.parent) CHECK(view.parent->node == document.root());
+    }
+    const Outcome shown_box = planner.dispatch(Show{SvgIdRef{"box"}});
+    CHECK(std::holds_alternative<NodeView>(shown_box.view()));
+    if (std::holds_alternative<NodeView>(shown_box.view())) {
+        const NodeView& view = std::get<NodeView>(shown_box.view());
+        CHECK(view.parent.has_value());
+        if (view.parent) CHECK(view.parent->node == document.find("layer"));
     }
     CHECK(!planner.dispatch(Show{SvgIdRef{"nothing"}}).ok());
 

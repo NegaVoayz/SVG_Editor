@@ -29,6 +29,11 @@ add_test(NAME cli_shape
     COMMAND $<TARGET_FILE:Cli> "init; create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5; tree")
 set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +x=5 y=5 w=10 h=10 fill=#ff0000")
 
+# `show` names the node's parent on the heading line, not only its own attributes.
+add_test(NAME cli_show_parent
+    COMMAND $<TARGET_FILE:Cli> "init; create g markers; create circle c1 100 100 20 red in markers; show c1")
+set_tests_properties(cli_show_parent PROPERTIES PASS_REGULAR_EXPRESSION "circle#c1  parent=g#markers")
+
 # `set` names one attribute by its spelling and leaves the rest of the line to the value
 # syntax that name implies
 add_test(NAME cli_set

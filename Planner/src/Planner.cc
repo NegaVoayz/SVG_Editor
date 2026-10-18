@@ -32,6 +32,18 @@ std::string content_of(const Document& document, Id node) {
     return text;
 }
 
+// A shown node's parent, when it is not the root. The payload travels with the parent id
+// because a view is a snapshot: the front end names the parent from this copy rather than
+// reaching back into the document after the read has returned.
+std::optional<NodeParent> parent_of(const Document& document, Id node) {
+    const std::optional<Id> parent = document.parent(node);
+    if (!parent) return std::nullopt;
+
+    const std::optional<Node> payload = document.node(*parent);
+    if (!payload) return std::nullopt;
+    return NodeParent{*parent, *payload};
+}
+
 // The root's canvas, when it has one. `init` reports the size it actually created,
 // including the side it filled in with the default.
 std::optional<Container::SVG> canvas_of(const Document& document) {
@@ -137,7 +149,8 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
 
     const std::optional<Node> payload = document_.node(*node);
     if (!payload) return refused(Kind::View, fault::InternalError{});  // cannot happen: look_up
-    return viewed(Kind::View, View{NodeView{*node, *payload, content_of(document_, *node)}});
+    return viewed(Kind::View,
+                  View{NodeView{*node, *payload, content_of(document_, *node), parent_of(document_, *node)}});
 }
 
 // `init` replaces the document, file and all, rather than editing the tree in it: the

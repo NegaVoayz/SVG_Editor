@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -27,10 +28,17 @@ struct TreeRow {
     std::string text;
 };
 struct TreeView { std::vector<TreeRow> rows; };
+// Where a shown node hangs. The root has no parent, so this is absent there; every
+// other node has one, and the front end may name it beside the node's own heading.
+struct NodeParent {
+    Id node;
+    Node payload;
+};
 struct NodeView {
     Id node;
     Node payload;
     std::string text;
+    std::optional<NodeParent> parent = std::nullopt;
 };
 
 // One of the two reads, or nothing: an outcome that is a change or a failure carries its

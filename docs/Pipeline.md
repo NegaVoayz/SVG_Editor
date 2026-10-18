@@ -145,7 +145,7 @@ until every one of them names it.
 | instruction                                      | what it means                                          | answered by             |
 | ------------------------------------------------ | ------------------------------------------------------ | ----------------------- |
 | `tree [id]`                                      | the tree, the whole document by default                | the Planner, Model's viewing API |
-| `show <id>`                                      | one element's own attributes                           | the Planner, Model's viewing API |
+| `show <id>`                                      | one element's attributes and its parent                | the Planner, Model's viewing API |
 | `canvas`                                         | the document's size, which is the root element's       | the Planner, Model's viewing API |
 | `help`                                           | the command list                                       | the front end itself    |
 | `create rect <id> <x> <y> <w> <h> [fill]`        | a rectangle                                            | the Editor, one transaction |

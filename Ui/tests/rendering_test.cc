@@ -128,13 +128,21 @@ int main() {
                                                    "└── text#title    (20,40) \"My Diagram\"",
                                                }));
 
-    // A single node is one line, and it is the same line the tree would print for it
+    // A single node has a heading and one indented line per group of attributes. A node
+    // with a parent says where it hangs on the heading line.
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {}}) ==
-          "rect#box x=200 y=80 w=60 h=60 fill=#3366ff");
+          "rect#box\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
     CHECK(render(NodeView{3, rect("red", 0, 0, 1, 1, Color{Color::Named{Color::NamedColorId::RebeccaPurple}}), {}}) ==
-          "rect#red x=0 y=0 w=1 h=1 fill=rebeccapurple");
+          "rect#red\n  x=0 y=0 w=1 h=1\n  fill=rebeccapurple");
+    CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {},
+                           NodeParent{1, group("markers")}}) ==
+          "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
     CHECK(render(NodeView{1, group("markers"), {}}) == "g#markers");
+    CHECK(render(NodeView{1, group("markers"), {}, NodeParent{0, root_with(units(800), units(600))}}) ==
+          "g#markers  parent=svg");
     CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram"}) == "text#title (20,40) \"My Diagram\"");
+    CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram", NodeParent{1, group("markers")}}) ==
+          "text#title  parent=g#markers\n  (20,40) \"My Diagram\"");
 
     // An element with no id of its own is named by its kind alone, which is what the root
     // of an empty document is
