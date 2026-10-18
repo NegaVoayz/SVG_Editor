@@ -62,6 +62,40 @@ set_tests_properties(cli_delete_leaf PROPERTIES
     PASS_REGULAR_EXPRESSION "deleted box \\(#1\\)"
     FAIL_REGULAR_EXPRESSION "under it|\\[change\\]")
 
+# Character data is not a user-visible node: deleting a text element that holds only
+# its words is still a leaf delete.
+add_test(NAME cli_delete_text_leaf
+    COMMAND $<TARGET_FILE:Cli> "init; create text title 0 0 \"hello\"; delete title")
+set_tests_properties(cli_delete_text_leaf PROPERTIES
+    PASS_REGULAR_EXPRESSION "deleted title \\(#1\\)"
+    FAIL_REGULAR_EXPRESSION "under it")
+
+# In mixed content only the element child counts; the words on either side of it are
+# part of the text element, not nodes of their own.
+add_test(NAME cli_delete_mixed_text
+    COMMAND $<TARGET_FILE:Cli>
+        "read ${CMAKE_SOURCE_DIR}/tests/fixtures/mixed-text.svg; delete mixed")
+set_tests_properties(cli_delete_mixed_text PROPERTIES
+    PASS_REGULAR_EXPRESSION "and 1 node\\(s\\) under it"
+    FAIL_REGULAR_EXPRESSION "and 2 node\\(s\\) under it")
+
+# A handle is the hive's internal id, so the front end leaves '#' to the SVG id syntax.
+add_test(NAME cli_tree_hash_is_an_id
+    COMMAND $<TARGET_FILE:Cli> "init; create text t1 5 6 \"hello\"; tree #2")
+set_tests_properties(cli_tree_hash_is_an_id PROPERTIES
+    PASS_REGULAR_EXPRESSION "error: no such shape: #2")
+
+# The root is the document's svg, so both '/' and 'svg' name it. An exact id still wins.
+add_test(NAME cli_root_by_element_name
+    COMMAND $<TARGET_FILE:Cli> "init; create rect a 0 0 1 1 in svg; tree")
+set_tests_properties(cli_root_by_element_name PROPERTIES PASS_REGULAR_EXPRESSION "rect#a")
+
+# Grouping the same node twice would make the reported member count a lie.
+add_test(NAME cli_group_duplicate
+    COMMAND $<TARGET_FILE:Cli> "init; create rect a 0 0 1 1; group g a a")
+set_tests_properties(cli_group_duplicate PROPERTIES
+    PASS_REGULAR_EXPRESSION "error: duplicate node in group: a")
+
 add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>
     "init; create g layer; create rect box 0 0 10 10 in layer; create circle dot 1 1 1 in layer; tree")
 set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION
@@ -92,6 +126,14 @@ add_test(NAME cli_negative_set_width
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; set r width -1")
 set_tests_properties(cli_negative_set_width PROPERTIES PASS_REGULAR_EXPRESSION
     "error: width must not be negative")
+
+# A refused set leaves the tree untouched, including when it is saved and read back.
+add_test(NAME cli_negative_set_width_not_saved
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create rect a 0 0 10 10; set a width -7; save ${CMAKE_CURRENT_BINARY_DIR}/negative_set.svg; read ${CMAKE_CURRENT_BINARY_DIR}/negative_set.svg; show a")
+set_tests_properties(cli_negative_set_width_not_saved PROPERTIES
+    PASS_REGULAR_EXPRESSION "w=10 h=10"
+    FAIL_REGULAR_EXPRESSION "w=-7")
 
 add_test(NAME cli_undo_after_init COMMAND $<TARGET_FILE:Cli> "init; undo")
 set_tests_properties(cli_undo_after_init PROPERTIES PASS_REGULAR_EXPRESSION
