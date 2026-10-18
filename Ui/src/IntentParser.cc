@@ -36,8 +36,22 @@ Words words_of(std::string_view line) {
 
         std::string word;
         if (line[index] == '"') {
-            for (++index; index < line.size() && line[index] != '"'; ++index) word.push_back(line[index]);
-            if (index < line.size()) ++index;  // the closing quote belongs to the syntax, not to the word
+            for (++index; index < line.size(); ++index) {
+                const char character = line[index];
+                if (character == '\\' && index + 1 < line.size()) {
+                    const char escaped = line[index + 1];
+                    if (escaped == '"' || escaped == '\\') {
+                        word.push_back(escaped);
+                        ++index;
+                        continue;
+                    }
+                }
+                if (character == '"') {
+                    ++index;  // the closing quote belongs to the syntax, not to the word
+                    break;
+                }
+                word.push_back(character);
+            }
         } else {
             int brackets = 0;
             for (; index < line.size(); ++index) {
@@ -54,6 +68,11 @@ Words words_of(std::string_view line) {
 }
 
 }  // namespace
+
+bool starts_comment(std::string_view line) {
+    const std::size_t first = line.find_first_not_of(" \t\r\n");
+    return first != std::string_view::npos && line[first] == '#';
+}
 
 std::string_view usage() {
     return "  view     tree [id]              the tree, the whole document by default\n"
@@ -74,11 +93,13 @@ std::string_view usage() {
            "  context  init [w] [h]           a fresh document, 800x600 by default\n"
            "           read <file.svg>        read a document, naming what it left unnamed\n"
            "           save [file.svg]        write it, and the history starts over\n"
-           "  a node is '#<handle>', '/' for the root, or an SVG id\n";
+           "  a node is '#<handle>', '/' for the root, or an SVG id\n"
+           "  a line starting with '#' is a comment; quoted text accepts \\\" and \\\\\n";
 }
 
 Request parse(std::string_view line) {
     try {
+        if (starts_comment(line)) return Comment{};
         const Words words = words_of(line);
         if (words.empty()) throw ParseFailed{"an empty instruction"};
         for (const Verb& verb : verbs()) {

@@ -144,6 +144,19 @@ int main() {
     }
     CHECK(refuses(parse("create text title 20 40")));
 
+    // A quoted run can carry a quote or a backslash by escaping it.
+    const Request quoted_quote = parse("create text title 20 40 \"say \\\"hi\\\"\"");
+    CHECK(holds<CreateText>(quoted_quote));
+    if (holds<CreateText>(quoted_quote)) CHECK(as<CreateText>(quoted_quote).content == "say \"hi\"");
+    const Request quoted_backslash = parse("set title text \"a\\\\b\"");
+    CHECK(holds<SetText>(quoted_backslash));
+    if (holds<SetText>(quoted_backslash)) CHECK(as<SetText>(quoted_backslash).value == "a\\b");
+
+    // A line whose first non-space character is '#' is a comment, including any
+    // semicolons after it.
+    CHECK(std::holds_alternative<Comment>(parse("   # a note; with punctuation")));
+    CHECK(std::holds_alternative<Comment>(parse("#comment")));
+
     const Request group = parse("create g layer");
     CHECK(holds<CreateGroup>(group));
     if (holds<CreateGroup>(group)) CHECK(as<CreateGroup>(group).id == "layer");
