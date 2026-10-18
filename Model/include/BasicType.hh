@@ -2,8 +2,8 @@
 #include <charconv>
 #include <cstdint>
 #include <string>
-#include <variant>
 #include <optional>
+#include <variant>
 
 // The same width as an MVCCHive virtual id: a handle is never narrowed on the way
 // into or out of the hive.
@@ -60,37 +60,3 @@ inline std::string to_text(const LengthPercentage& value) {
     const Length& length = std::get<Length>(value);
     return number_text(length.value) + std::string{unit_text(length.unit)};
 }
-
-struct Color {
-    enum class SystemColorId : uint32_t {
-        AccentColor, AccentColorText, ActiveText, ButtonBorder, 
-        ButtonFace, ButtonText, Canvas, CanvasText, 
-        Field, FieldText, GrayText, Highlight, 
-        HighlightText, LinkText, Mark, MarkText, 
-        SelectedItem, SelectedItemText, VisitedText
-    };
-    enum class NamedColorId : uint32_t {
-        //todo: fill the enums
-    };
-
-    struct None {};
-    struct Current {};
-    struct System { SystemColorId id; };
-    struct Named { NamedColorId id; };
-    struct RGB { uint8_t r, g, b; };
-    struct FuncRGB { uint8_t r, g, b; };
-
-    std::variant<
-    Color::None, Color::Current, Color::System,
-    Color::Named, Color::RGB, Color::FuncRGB> specific;
-};
-
-struct PaintServer {
-    std::string url;
-    std::optional<Color> fallback;
-};
-
-using Paint = std::variant<
-    Color,
-    PaintServer         // url(#gradient) + fallback
->;

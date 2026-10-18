@@ -106,7 +106,14 @@ int main() {
     }
 
     const Request round = parse("create circle c1 10 20 5 blue");
-    CHECK(refuses(round));  // named colours have no ids in the model yet
+    CHECK(holds<CreateCircle>(round));
+    if (holds<CreateCircle>(round)) {
+        CHECK(as<CreateCircle>(round).fill.has_value());
+        if (as<CreateCircle>(round).fill) {
+            CHECK(std::holds_alternative<Color::Named>(as<CreateCircle>(round).fill->specific));
+            CHECK(std::get<Color::Named>(as<CreateCircle>(round).fill->specific).id == Color::NamedColorId::Blue);
+        }
+    }
     const Request circle = parse("create circle c1 10 20 5 rgb(0, 0, 255)");
     CHECK(holds<CreateCircle>(circle));
     if (holds<CreateCircle>(circle)) {
@@ -289,6 +296,16 @@ int main() {
         CHECK(std::get<Color::FuncRGB>(fill->specific).g == 255);
     }
     CHECK(holds<CreateRect>(parse("create rect r 0 0 1 1 #0f0")));
+    const Request named_fill = parse("create rect r 0 0 1 1 RebeccaPurple");
+    CHECK(holds<CreateRect>(named_fill));
+    if (holds<CreateRect>(named_fill)) {
+        const std::optional<Color>& fill = as<CreateRect>(named_fill).fill;
+        CHECK(fill.has_value());
+        if (fill) {
+            CHECK(std::holds_alternative<Color::Named>(fill->specific));
+            CHECK(std::get<Color::Named>(fill->specific).id == Color::NamedColorId::RebeccaPurple);
+        }
+    }
 
     // and what it refuses, with the reason
     const Request unknown = parse("frobnicate");
@@ -310,7 +327,7 @@ int main() {
 
     CHECK(refuses(parse("create rect r 0 0 10 10furlong")));
 
-    const Request bad_fill = parse("create rect r 0 0 10 10 lavender");
+    const Request bad_fill = parse("create rect r 0 0 10 10 notacolour");
     CHECK(refuses(bad_fill));
     if (refuses(bad_fill)) CHECK(complaint(bad_fill).find("as a fill") != std::string::npos);
 

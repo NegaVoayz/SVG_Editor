@@ -1,6 +1,7 @@
 #include "SvgValue.hh"
 
 #include <charconv>
+#include <cctype>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -44,6 +45,15 @@ std::optional<uint8_t> hex_byte(char high, char low) {
     const int bottom = hex_digit(low);
     if (top < 0 || bottom < 0) return std::nullopt;
     return static_cast<uint8_t>(top * 16 + bottom);
+}
+
+std::string ascii_lower(std::string_view text) {
+    std::string lowered;
+    lowered.reserve(text.size());
+    for (const char character : text) {
+        lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(character))));
+    }
+    return lowered;
 }
 
 // "rgb(255, 0, 0)" and "rgb(100%, 0%, 0%)": the percentages are read as the 0..255
@@ -96,10 +106,17 @@ std::optional<LengthPercentage> parse_length(std::string_view text) {
 }
 
 std::optional<Color> parse_color(std::string_view text) {
-    if (text == "none") return Color{Color::None{}};
-    if (text == "currentColor") return Color{Color::Current{}};
+    const std::string lowered = ascii_lower(text);
+    if (lowered == "none") return Color{Color::None{}};
+    if (lowered == "currentcolor") return Color{Color::Current{}};
+    if (const std::optional<Color::NamedColorId> named = named_color_of(text)) {
+        return Color{Color::Named{*named}};
+    }
+    if (const std::optional<Color::SystemColorId> system = system_color_of(text)) {
+        return Color{Color::System{*system}};
+    }
     if (text.starts_with("rgb(")) return parse_rgb_function(text);
-    if (!text.starts_with("#")) return std::nullopt;  // named colours have no ids yet
+    if (!text.starts_with("#")) return std::nullopt;
 
     const std::string_view digits = text.substr(1);
     if (digits.size() == 3) {

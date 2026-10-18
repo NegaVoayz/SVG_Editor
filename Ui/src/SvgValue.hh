@@ -14,8 +14,8 @@ namespace SvgValue {
 // spell out reads as nothing.
 std::optional<LengthPercentage> parse_length(std::string_view text);
 
-// "none", "currentColor", "#rgb", "#rrggbb" and "rgb(r,g,b)". Named colours are
-// not in the model yet, so they read as nothing here.
+// "none", "currentColor", a CSS named or system colour, "#rgb", "#rrggbb" and
+// "rgb(r,g,b)".
 std::optional<Color> parse_color(std::string_view text);
 
 // A plain number, with no unit and no percentage: what a scale factor is written as.

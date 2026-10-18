@@ -3,6 +3,7 @@
 #include <variant>
 
 #include "BasicType.hh"
+#include "Color.hh"
 
 // A link that points at nothing: no node ever lives at this id, so a walk that
 // reads it stops. It is one past the end of the virtual-id range, not a slot that
