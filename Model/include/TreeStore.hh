@@ -85,9 +85,9 @@ public:
     // children of this parent.
     void attach_last(Edit& edit, Id parent, Id node);
 
-    // The same two edits, placed in front of a sibling instead of at the end: the node
-    // lands immediately before `before` among that parent's children, and no_id is the
-    // last place again.
+    // The same two edits, placed before a sibling instead of at the end: the node lands
+    // immediately before `before` among that parent's children, and no_id is the last
+    // place again.
     Id insert_at(Edit& edit, Id parent, Id before, Node payload);
     void attach_at(Edit& edit, Id parent, Id before, Id node);
 

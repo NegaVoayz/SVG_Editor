@@ -169,6 +169,8 @@ int main() {
     CHECK(render(event::ContentSet{2}) == "set text on #2");
     CHECK(render(event::Deleted{5, SvgIdRef{"box"}, 0}) == "deleted box (#5)");
     CHECK(render(event::Deleted{6, SvgIdRef{"markers"}, 2}) == "deleted markers (#6) and 2 node(s) under it");
+    CHECK(render(event::AlreadyFront{SvgIdRef{"box"}}) == "box is already in front");
+    CHECK(render(event::AlreadyBack{SvgIdRef{"box"}}) == "box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");
     CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}}) ==
           "read a.svg\nwarning: assigned id rect1 to unnamed <rect>");

@@ -101,8 +101,8 @@ The instructions are:
 | `set <id> <attr> <value>`                       | one editable attribute; `id`, parent and children are not attributes |
 | `group <newGid> <id> <id> ...`                  | a new group, taking those nodes' place                     |
 | `ungroup <gid>`                                 | the group's children, back in its place                    |
-| `addto <gid> <id>`                              | the node, as the last child of a container                 |
-| `front <id>` / `back <id>`                      | the ends of the child order, the first child in front      |
+| `addto <gid> <id>`                              | the node, as the last child (the front) of a container     |
+| `front <id>` / `back <id>`                      | the ends of the child order, the last child in front       |
 | `undo` / `redo`                                 | one instruction back or forward                            |
 | `init [w] [h]`                                  | a fresh document, 800x600 by default                       |
 | `read <file.svg>`                               | read a document                                            |

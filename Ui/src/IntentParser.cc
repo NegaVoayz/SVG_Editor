@@ -57,7 +57,7 @@ Words words_of(std::string_view line) {
 
 std::string_view usage() {
     return "  view     tree [id]              the tree, the whole document by default\n"
-           "           show <id>              one element's own attributes\n"
+           "           show <id>              one element's attributes and parent\n"
            "           canvas                 the document's size, which is the root's\n"
            "           help                   this list\n"
            "  change   create <kind> <id> [values] [in <gid>]\n"
@@ -68,7 +68,7 @@ std::string_view usage() {
            "           move <id> <dx> <dy> | scale <id> <factor>\n"
            "           set <id> <attr> <value>   one attribute; id, parent and children are not attributes\n"
            "           group <newGid> <id> <id> ... | ungroup <gid> | addto <gid> <id>\n"
-           "           front <id> | back <id>   the ends of the child order, first child in front\n"
+           "           front <id> | back <id>   the ends of the child order, last child in front\n"
            "           canvas <w> [h]         a new size, and the history starts over\n"
            "           undo | redo\n"
            "  context  init [w] [h]           a fresh document, 800x600 by default\n"

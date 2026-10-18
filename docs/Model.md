@@ -21,7 +21,7 @@ std::optional<Id> find(std::string_view svg_id) const;
 Transaction transaction();
 Id append_child(Id parent, Node payload);
 void attach_last(Id parent, Id node);
-Id insert_at(Id parent, Id before, Node payload);   // in front of a sibling; no_id is the end
+Id insert_at(Id parent, Id before, Node payload);   // before a sibling; no_id is the end
 void attach_at(Id parent, Id before, Id node);
 void update(Id node, Node payload);
 void erase(Id node);
@@ -126,7 +126,7 @@ The transaction API is one operation per shape of tree edit:
 - `append_child` writes the node, the old last child and the parent's end links.
 - `attach_last` detaches the node from its old neighbours and links it at the
   new end. The node's payload is never moved into another record.
-- `insert_at` / `attach_at` do the same splice in front of a sibling. Because
+- `insert_at` / `attach_at` do the same splice before a sibling. Because
   the list is doubly linked, the anchor's place is known without walking the
   level, and `no_id` still means the end.
 - `update` replaces the payload and copies the existing place and child-list

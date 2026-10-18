@@ -71,7 +71,7 @@ struct ScaleBy { NodeRef node; float factor; };
 struct Group { std::string id; std::vector<NodeRef> nodes; };
 struct Ungroup { NodeRef node; };
 struct AddTo { NodeRef parent, node; };
-// The child chain is the z-order, first child in front.
+// The child chain is the z-order, last child in front: SVG paints later children on top.
 struct Front { NodeRef node; };
 struct Back { NodeRef node; };
 

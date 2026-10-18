@@ -448,7 +448,7 @@ int main() {
     }
 
     // A group takes the place of the first node it takes - standing where that node
-    // stood, in front of the first sibling after it that is not taken itself - and
+    // stood, before the first sibling after it that is not taken itself - and
     // holds the rest in the order the command wrote them.
     const std::optional<Id> box_node = document.find("box");
     const std::optional<Id> ruler_node = document.find("ruler");
@@ -498,12 +498,14 @@ int main() {
         }
     }
 
-    // `back` and `front` are the two ends of the child list: first child is front
+    // SVG paints later children on top, so the last child is the front.
     if (box_node && level) {
-        CHECK(planner.dispatch(Back{SvgIdRef{"box"}}).ok());
+        CHECK(happened_with<event::MovedToFront>(planner.dispatch(Front{SvgIdRef{"box"}})));
         CHECK(document.children(*level).back() == *box_node);
-        CHECK(planner.dispatch(Front{SvgIdRef{"box"}}).ok());
+        CHECK(happened_with<event::AlreadyFront>(planner.dispatch(Front{SvgIdRef{"box"}})));
+        CHECK(happened_with<event::MovedToBack>(planner.dispatch(Back{SvgIdRef{"box"}})));
         CHECK(document.children(*level).front() == *box_node);
+        CHECK(happened_with<event::AlreadyBack>(planner.dispatch(Back{SvgIdRef{"box"}})));
     }
     const Outcome rootless_order = planner.dispatch(Back{RootRef{}});
     CHECK(!rootless_order.ok());

@@ -160,8 +160,8 @@ until every one of them names it.
 | `set <id> <attr> <value>`                        | one editable attribute of that node                    | the Editor, one transaction |
 | `group <newGid> <id> <id> ...`                   | a new group, standing where the first node stood        | the Editor, one transaction |
 | `ungroup <gid>`                                  | the children, back in the group's place                | the Editor, one transaction |
-| `addto <gid> <id>`                               | the node, as the last child of a container             | the Editor, one transaction |
-| `front <id>` / `back <id>`                       | the two ends of the child order, first child in front   | the Editor, one transaction |
+| `addto <gid> <id>`                               | the node, as the last child (the front) of a container  | the Editor, one transaction |
+| `front <id>` / `back <id>`                       | the two ends of the child order, last child in front    | the Editor, one transaction |
 | `undo` / `redo`                                  | one instruction back, or forward again                 | the Editor, the history |
 | `canvas <w> [h]`                                 | a new size, and a checkpoint                           | the Editor, the history |
 | `init [w] [h]`                                   | a fresh document, 800x600 by default                   | the Planner, Model      |
@@ -203,12 +203,9 @@ accepted as the earlier spelling of that same edit.
 a node sits is the structural vocabulary (`addto`, `front`, `back`, ...). `width`/`height`
 mean the root's canvas or a rect's side, and `w`/`h` are the short spellings the tree prints.
 
-`front` and `back` are the two ends of the child order, and the first child is what this
-calls the front - the order the tree prints in is the order they move a node through.
-That is the one place where the vocabulary and SVG disagree: SVG paints what comes later
-over what came earlier, so a viewer draws the *last* child on top. If the tree is ever to
-mean SVG's z-order rather than its own line order, those two names are the ones that
-would have to swap.
+`front` and `back` follow SVG's paint order: the last child is painted last, so it is
+the front, and the first child is the back. The tree prints children in that same chain
+order, so a later line is nearer the front.
 
 A length is a number with an optional `px`, `pt`, `cm`, `mm`, `in`, `em`, `ex`, or a
 percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a CSS named or system colour,

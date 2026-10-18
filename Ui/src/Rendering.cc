@@ -399,10 +399,10 @@ struct EventText {
     }
     std::string operator()(const event::NothingMoved&) const { return "the offset is zero, nothing moved"; }
     std::string operator()(const event::AlreadyFront& front) const {
-        return describe(front.node) + " is already the first child";
+        return describe(front.node) + " is already in front";
     }
-    std::string operator()(const event::AlreadyLast& last) const {
-        return describe(last.node) + " is already the last child";
+    std::string operator()(const event::AlreadyBack& back) const {
+        return describe(back.node) + " is already at the back";
     }
     std::string operator()(const event::Initialized& initialized) const {
         return "canvas " + canvas_size_text(initialized.width, initialized.height) + " created";

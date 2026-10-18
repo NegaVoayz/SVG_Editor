@@ -71,12 +71,15 @@ template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {
         return refused(Kind::Change, fault::CannotGroupIntoOwnDescendant{intent.node});
     }
 
+    // The child chain is SVG's paint order: the last child is painted on top.
     Transaction edit = document_.transaction();
     edit.attach_last(*parent, *node);
     edit.commit();
     return happened(Kind::Change, event::AddedTo{*node, *parent});
 }
 
+// SVG paints children in document order, so the last child is the front. `front` and
+// `back` name the two ends of the same child chain the tree prints.
 template<> Outcome Editor::handle<Front>(const Front& intent) {
     const std::expected<Id, Refusal> node = resolve(intent.node);
     if (!node) return refused(Kind::Change, node.error());
@@ -86,12 +89,12 @@ template<> Outcome Editor::handle<Front>(const Front& intent) {
     }
 
     const std::vector<Id> siblings = document_.children(*parent);
-    if (!siblings.empty() && siblings.front() == *node) {
+    if (!siblings.empty() && siblings.back() == *node) {
         return happened(Kind::Change, event::AlreadyFront{intent.node});
     }
 
     Transaction edit = document_.transaction();
-    edit.attach_at(*parent, siblings.front(), *node);
+    edit.attach_last(*parent, *node);
     edit.commit();
     return happened(Kind::Change, event::MovedToFront{*node, *parent});
 }
@@ -105,12 +108,12 @@ template<> Outcome Editor::handle<Back>(const Back& intent) {
     }
 
     const std::vector<Id> siblings = document_.children(*parent);
-    if (!siblings.empty() && siblings.back() == *node) {
-        return happened(Kind::Change, event::AlreadyLast{intent.node});
+    if (!siblings.empty() && siblings.front() == *node) {
+        return happened(Kind::Change, event::AlreadyBack{intent.node});
     }
 
     Transaction edit = document_.transaction();
-    edit.attach_last(*parent, *node);
+    edit.attach_at(*parent, siblings.front(), *node);
     edit.commit();
     return happened(Kind::Change, event::MovedToBack{*node, *parent});
 }
@@ -129,8 +132,8 @@ template<> Outcome Editor::handle<Group>(const Group& intent) {
         members.push_back(*member);
     }
 
-    // The group takes the place of the first node it takes, which means standing in front
-    // of the first sibling after that node which is not being taken itself.
+    // The group takes the place of the first node it takes, which means standing before
+    // the first sibling after that node which is not being taken itself.
     const Id first = members.front();
     const std::optional<Id> parent = document_.parent(first);
     if (!parent) {
@@ -189,7 +192,7 @@ template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
 
     const std::vector<Id> members = document_.children(node);
     // What stood after the group keeps standing after its children: each of them is
-    // placed in front of that node, in order, which leaves them in the order they had.
+    // placed before that node, in order, which leaves them in the order they had.
     const std::vector<Id> siblings = document_.children(*parent);
     const auto at = std::find(siblings.begin(), siblings.end(), node);
     const Id anchor = (at != siblings.end() && at + 1 != siblings.end()) ? *(at + 1) : no_id;

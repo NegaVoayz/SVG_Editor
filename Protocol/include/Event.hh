@@ -108,7 +108,7 @@ struct AlreadyFront {
     NodeRef node;
 };
 
-struct AlreadyLast {
+struct AlreadyBack {
     NodeRef node;
 };
 
@@ -131,5 +131,5 @@ struct Saved {
 using Event = std::variant<event::Created, event::Deleted, event::Moved, event::Scaled, event::AddedTo,
                            event::MovedToFront, event::MovedToBack, event::Grouped, event::Ungrouped,
                            event::AttributeSet, event::ContentSet, event::CanvasSet, event::Undone, event::Redone,
-                           event::NothingMoved, event::AlreadyFront, event::AlreadyLast, event::Initialized,
+                           event::NothingMoved, event::AlreadyFront, event::AlreadyBack, event::Initialized,
                            event::Opened, event::Saved>;

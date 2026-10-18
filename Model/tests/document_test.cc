@@ -370,9 +370,9 @@ int main() {
     // the shape is still under the root, and the leaf still under the holder
     CHECK(document.children(root).size() == before + 2);
 
-    // --- placing a child in front of a sibling ---
+    // --- placing a child before a sibling ---
 
-    // A new node in front of the first child is a splice at the other end of the
+    // A new node before the first child is a splice at the other end of the
     // chain than an append: the same list, walked from its oldest link.
     Id frontmost = no_id;
     {

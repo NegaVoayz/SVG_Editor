@@ -146,8 +146,8 @@ public:
     // keeps its own children, and a node cannot be moved into its own subtree.
     void attach_last(Id parent, Id node);
 
-    // The same two edits into a place of their own: the node lands immediately in
-    // front of `before` among the parent's children, and no_id is the last place
+    // The same two edits into a place of their own: the node lands immediately
+    // before `before` among the parent's children, and no_id is the last place
     // again. A front end asks for one of these when a command is about order rather
     // than about being last - `front`, and the two halves of `group` and `ungroup`.
     Id insert_at(Id parent, Id before, Node payload);
