@@ -186,6 +186,7 @@ int main() {
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
     CHECK(render(fault::NegativeDimension{"width"}) == "error: width must not be negative");
     CHECK(render(fault::NonPositiveCanvas{"height"}) == "error: canvas height must be positive");
+    CHECK(render(fault::UndoAfterIo{}) == "error: undo not allowed after io command");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==
           "error: the offset 1in does not add up with 1cm: 1in is imperial and 1cm is metric - mm and cm are "
           "metric, in, pt and px are defined against the inch, and the two systems are not mixed");

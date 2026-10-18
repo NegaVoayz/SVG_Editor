@@ -82,6 +82,9 @@ public:
 
     bool can_undo() const;
     bool can_redo() const;
+    // Whether the history's baseline was established by an IO command (`init`, `read`
+    // or `save`) rather than by an ordinary edit checkpoint.
+    bool undo_barred_by_io() const;
     // Move one whole transaction back or forward, and return what that did to the
     // visible tree.
     TouchedNodes undo();
@@ -114,7 +117,10 @@ public:
     // resized canvas are checkpoints of that kind - they are what the file and the
     // frame behind the drawing now say, and undoing past them would leave the two
     // disagreeing about a state nobody wrote down.
-    void clear_history();
+    // `io` says why the baseline is being established: an IO command leaves undo at
+    // that baseline refused with the IO-specific error, while an ordinary checkpoint
+    // leaves the generic "nothing to undo".
+    void clear_history(bool io = false);
 
     friend class Transaction;
 
@@ -124,6 +130,7 @@ private:
     // storage and cannot be moved, so neither can the document that holds it.
     TreeStore store_;
     std::string source_path_;  // the file open() read, if it read one
+    bool io_barrier_ = false;
 };
 
 // One user-level edit. The ops are applied to the tree as they come, and the

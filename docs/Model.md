@@ -31,6 +31,7 @@ void commit();  void rollback();
 // history: the Model owns it, so the Planner never sees a commit id
 TouchedNodes undo();  TouchedNodes redo();
 bool can_undo() const;  bool can_redo() const;
+bool undo_barred_by_io() const;
 
 // the context: which document this is, rather than what is in it
 const std::string& source_path() const;

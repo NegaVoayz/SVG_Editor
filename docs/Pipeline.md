@@ -174,6 +174,9 @@ would be unreachable and unreclaimable. `help` is the one instruction that never
 leaves the front end: what the commands are is the syntax of that layer, and no other
 layer knows it or needs to.
 
+`init`, `read`, and `save` set an IO baseline. Undo at that baseline is refused with
+`error: undo not allowed after io command`; ordinary edits after it remain undoable.
+
 The verbs themselves are a table rather than a chain of tests: `Ui/src/Command.cc` holds one
 reader per verb - the words of a line in, the instruction out - and the table of them is the
 whole vocabulary of the front end. The first word of a line picks a row, so a new instruction

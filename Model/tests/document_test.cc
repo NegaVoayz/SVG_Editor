@@ -132,6 +132,7 @@ int main() {
     // `init` is what makes the first root; before it there is no document to edit.
     document.reset(std::nullopt, std::nullopt);
     const Id root = document.root();
+    CHECK(document.undo_barred_by_io());
 
     // the root is the first virtual id of the hive: a link that leads nowhere is
     // no_id, not a reserved id in front of it
@@ -466,6 +467,7 @@ int main() {
     document.undo();
     CHECK(document.find("after-reset") == std::nullopt);
     CHECK(!document.can_undo());  // and there is nothing behind the baseline
+    CHECK(document.undo_barred_by_io());
     document.redo();
     CHECK(document.find("after-reset") == kept);
 
@@ -489,6 +491,7 @@ int main() {
     CHECK(document.depth() == 0);
     CHECK(document.position() == 0);
     CHECK(!document.can_undo());
+    CHECK(!document.undo_barred_by_io());
     CHECK(!document.can_redo());
     // the tree stays: what the history forgot is the way back to it
     CHECK(document.find("after-reset") == kept);

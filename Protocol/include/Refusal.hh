@@ -70,6 +70,8 @@ struct EmptyGroup {};
 
 struct NothingToUndo {};
 
+struct UndoAfterIo {};
+
 struct NothingToRedo {};
 
 struct NoRootElement {};
@@ -124,7 +126,7 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,
-                             fault::NothingToUndo, fault::NothingToRedo, fault::NoRootElement,
+                             fault::NothingToUndo, fault::UndoAfterIo, fault::NothingToRedo, fault::NoRootElement,
                              fault::RootIsNotContainer, fault::RootIsNotSvg, fault::MissingSourcePath,
                              fault::CannotReadFile, fault::CannotWriteFile, fault::InvalidSvg,
                              fault::IncompatibleLengths,

@@ -479,6 +479,9 @@ struct RefusalText {
         return "error: a group needs at least one node to hold";
     }
     std::string operator()(const fault::NothingToUndo&) const { return "error: there is nothing left to undo"; }
+    std::string operator()(const fault::UndoAfterIo&) const {
+        return "error: undo not allowed after io command";
+    }
     std::string operator()(const fault::NothingToRedo&) const { return "error: there is nothing left to redo"; }
     std::string operator()(const fault::NoRootElement&) const {
         return "error: the document has no root element";

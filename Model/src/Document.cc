@@ -71,6 +71,7 @@ Transaction Document::transaction() { return Transaction{*this}; }
 
 bool Document::can_undo() const { return store_.can_undo(); }
 bool Document::can_redo() const { return store_.can_redo(); }
+bool Document::undo_barred_by_io() const { return io_barrier_; }
 TouchedNodes Document::undo() { return store_.undo(); }
 TouchedNodes Document::redo() { return store_.redo(); }
 std::size_t Document::depth() const { return store_.depth(); }
@@ -96,6 +97,7 @@ Status Document::open(std::string_view path) {
     const ParsedSvg& document = std::get<ParsedSvg>(parsed);
     load_parsed(store_, document);
     source_path_ = std::string{path};
+    io_barrier_ = true;
     return model_status::Opened{document.assigned_ids};
 }
 
@@ -116,16 +118,20 @@ Status Document::save(std::optional<std::string_view> path) {
     if (!std::holds_alternative<FileWritten>(file)) return model_status::CannotWriteFile{target};
     // What was written is what the file says from here on, so the way back to the
     // state before it goes with the history that remembered it.
-    clear_history();
+    clear_history(true);
     return model_status::Ok{};
 }
 
 void Document::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
     store_.reset(std::move(width), std::move(height));
     source_path_.clear();
+    io_barrier_ = true;
 }
 
-void Document::clear_history() { store_.clear_history(); }
+void Document::clear_history(bool io) {
+    store_.clear_history();
+    io_barrier_ = io;
+}
 
 Transaction::Transaction(Document& document) : document_(document), edit_(document.store_.begin()) {}
 

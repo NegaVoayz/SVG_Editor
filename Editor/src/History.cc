@@ -11,7 +11,10 @@
 // The parameter has no name: undo and redo are instructions with nothing in them, and a
 // name for nothing reads as if there were something.
 template<> Outcome Editor::handle<Undo>(const Undo&) {
-    if (!document_.can_undo()) return refused(Kind::Change, fault::NothingToUndo{});
+    if (!document_.can_undo()) {
+        if (document_.undo_barred_by_io()) return refused(Kind::Change, fault::UndoAfterIo{});
+        return refused(Kind::Change, fault::NothingToUndo{});
+    }
 
     TouchedNodes touched = document_.undo();
     return happened(Kind::Change, event::Undone{document_.position(), document_.depth(), std::move(touched)});

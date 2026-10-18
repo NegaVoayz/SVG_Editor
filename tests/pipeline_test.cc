@@ -112,6 +112,9 @@ int main() {
 
     // `init` is the context instruction that makes the first root.
     CHECK(planner.dispatch(Init{}).ok());
+    const Outcome undo_at_init = planner.dispatch(Undo{});
+    CHECK(!undo_at_init.ok());
+    CHECK(refused_with<fault::UndoAfterIo>(undo_at_init));
 
     const Outcome zero_canvas = planner.dispatch(SetCanvas{Length{0.0F, Length::Unit::UserUnit}, std::nullopt});
     CHECK(!zero_canvas.ok());
@@ -718,6 +721,9 @@ int main() {
     if (happened_with<event::Saved>(saved)) {
         CHECK(std::get<event::Saved>(saved.event()).elements == document.element_count());
     }
+    const Outcome undo_at_save = planner.dispatch(Undo{});
+    CHECK(!undo_at_save.ok());
+    CHECK(refused_with<fault::UndoAfterIo>(undo_at_save));
 
     // `init` replaces the document instead of editing it: the tree, the history, the
     // file behind it and the canvas all start over, and the canvas it names is what
@@ -729,6 +735,7 @@ int main() {
     CHECK(document.find("box") == std::nullopt);
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
+    CHECK(document.undo_barred_by_io());
     CHECK(document.source_path().empty());
     if (const std::optional<Node> payload = document.node(document.root())) {
         const Container& container = std::get<Container>(std::get<SVGNode>(*payload).data);
