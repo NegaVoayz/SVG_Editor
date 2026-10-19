@@ -46,7 +46,10 @@ std::optional<float> number(std::string_view text) {
     const char* end = begin + text.size();
     const std::from_chars_result parsed = std::from_chars(begin, end, value);
     if (parsed.ec != std::errc{} || parsed.ptr != end) return std::nullopt;
-    return static_cast<float>(value);
+    if (!std::isfinite(value)) return std::nullopt;
+    const float narrowed = static_cast<float>(value);
+    if (!std::isfinite(narrowed)) return std::nullopt;
+    return narrowed;
 }
 
 std::optional<Length::Unit> unit_of(std::string_view text) {
@@ -96,7 +99,7 @@ std::optional<Color> rgb_function(std::string_view text) {
         if (!value) return std::nullopt;
 
         const float channel = percent ? *value * 255.0F / 100.0F : *value;
-        if (channel < 0.0F || channel > 255.0F) return std::nullopt;
+        if (!std::isfinite(channel) || channel < 0.0F || channel > 255.0F) return std::nullopt;
         channels[index] = static_cast<uint8_t>(channel + 0.5F);
     }
     return Color{Color::FuncRGB{channels[0], channels[1], channels[2]}};
@@ -273,11 +276,14 @@ std::optional<LengthPercentage> length(std::string_view text) {
     if (parsed.ec != std::errc{} || parsed.ptr == begin) return std::nullopt;
 
     const std::string_view unit{parsed.ptr, static_cast<std::size_t>(end - parsed.ptr)};
-    if (unit == "%") return Percentage{static_cast<float>(value)};
+    if (!std::isfinite(value)) return std::nullopt;
+    const float narrowed = static_cast<float>(value);
+    if (!std::isfinite(narrowed)) return std::nullopt;
+    if (unit == "%") return Percentage{narrowed};
 
     const std::optional<Length::Unit> named = unit_of(unit);
     if (!named) return std::nullopt;
-    return Length{static_cast<float>(value), *named};
+    return Length{narrowed, *named};
 }
 
 std::optional<Color> color(std::string_view text) {

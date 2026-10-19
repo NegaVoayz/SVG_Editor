@@ -1,5 +1,6 @@
 #pragma once
 #include <charconv>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <optional>
@@ -30,6 +31,10 @@ inline float numeric_value(const LengthPercentage& value) {
     return std::holds_alternative<Percentage>(value) ? std::get<Percentage>(value).value
                                                      : std::get<Length>(value).value;
 }
+
+// Nothing in the model can carry a NaN or an infinity: SVG geometry is finite by
+// definition, and a value that overflows its float has no representation to write back.
+inline bool is_finite(const LengthPercentage& value) { return std::isfinite(numeric_value(value)); }
 
 // The shortest text a float has, capped at six significant figures: "5" rather than
 // "5.000000", and "0.333333" rather than a round-trip's worth of noise. SVG source and

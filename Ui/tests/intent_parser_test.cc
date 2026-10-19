@@ -346,6 +346,9 @@ int main() {
     if (refuses(bad_length)) CHECK(complaint(bad_length).find("as a length") != std::string::npos);
 
     CHECK(refuses(parse("create rect r 0 0 10 10furlong")));
+    CHECK(refuses(parse("create rect nn nan 0 1 1")));
+    CHECK(refuses(parse("create rect nn inf 0 1 1")));
+    CHECK(refuses(parse("create rect huge 1e308 0 1 1")));
 
     const Request bad_fill = parse("create rect r 0 0 10 10 notacolour");
     CHECK(refuses(bad_fill));

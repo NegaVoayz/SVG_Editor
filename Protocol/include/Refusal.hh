@@ -48,6 +48,10 @@ struct NonPositiveCanvas {
     std::string attribute;
 };
 
+struct NonFiniteValue {
+    std::string name;
+};
+
 struct CannotUngroupNonContainer {
     NodeRef node;
 };
@@ -126,7 +130,8 @@ struct InternalError {};
 
 using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::MissingContainer, fault::NotContainer,
                              fault::DuplicateId, fault::DuplicateGroupMember, fault::UnknownAttribute,
-                             fault::NegativeDimension, fault::NonPositiveCanvas, fault::CannotUngroupNonContainer,
+                             fault::NegativeDimension, fault::NonPositiveCanvas, fault::NonFiniteValue,
+                             fault::CannotUngroupNonContainer,
                              fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,

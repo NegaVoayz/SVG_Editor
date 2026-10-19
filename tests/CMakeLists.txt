@@ -145,6 +145,16 @@ set_tests_properties(cli_negative_set_width_not_saved PROPERTIES
     PASS_REGULAR_EXPRESSION "w=10 h=10"
     FAIL_REGULAR_EXPRESSION "w=-7")
 
+add_test(NAME cli_nan_length COMMAND $<TARGET_FILE:Cli> "init; create rect nn nan 0 1 1")
+set_tests_properties(cli_nan_length PROPERTIES PASS_REGULAR_EXPRESSION
+    "cannot read 'nan' as a length")
+
+add_test(NAME cli_scale_overflow
+    COMMAND $<TARGET_FILE:Cli> "init; create rect huge 3e38 0 3e38 1; scale huge 2; show huge")
+set_tests_properties(cli_scale_overflow PROPERTIES
+    PASS_REGULAR_EXPRESSION "error: scaled value must be a finite number"
+    FAIL_REGULAR_EXPRESSION "x=inf|w=inf")
+
 add_test(NAME cli_undo_after_init COMMAND $<TARGET_FILE:Cli> "init; undo")
 set_tests_properties(cli_undo_after_init PROPERTIES PASS_REGULAR_EXPRESSION
     "error: undo not allowed after io command")

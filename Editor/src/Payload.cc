@@ -56,6 +56,12 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
 }
 
 template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {
+    if (intent.width && !is_finite(*intent.width)) {
+        return refused(Kind::Change, fault::NonFiniteValue{"width"});
+    }
+    if (intent.height && !is_finite(*intent.height)) {
+        return refused(Kind::Change, fault::NonFiniteValue{"height"});
+    }
     if (intent.width && numeric_value(*intent.width) <= 0.0F) {
         return refused(Kind::Change, fault::NonPositiveCanvas{"width"});
     }

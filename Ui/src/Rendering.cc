@@ -419,6 +419,9 @@ struct RefusalText {
     std::string operator()(const fault::NonPositiveCanvas& dimension) const {
         return "error: canvas " + quote_if_needed(dimension.attribute) + " must be positive";
     }
+    std::string operator()(const fault::NonFiniteValue& value) const {
+        return "error: " + value.name + " must be a finite number";
+    }
     std::string operator()(const fault::CannotUngroupNonContainer& leaf) const {
         return "error: cannot ungroup a shape or text node: " + label(leaf.node);
     }

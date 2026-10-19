@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -773,6 +774,30 @@ int main() {
     CHECK(empty_ungroup.ok());
     CHECK(document.find("empty") == std::nullopt);
     CHECK(document.find("outer").has_value());
+
+    // A typed instruction cannot smuggle a non-finite value past the front-end parser:
+    // the Editor refuses it too. A finite value may still overflow when scaled, and a
+    // refused scale leaves the node exactly as it was.
+    const Outcome nan_rect =
+        planner.dispatch(Create{CreateRect{"nan-rect", Length{std::numeric_limits<float>::quiet_NaN(),
+                                                              Length::Unit::UserUnit},
+                                           units(0), units(1), units(1), std::nullopt}});
+    CHECK(!nan_rect.ok());
+    CHECK(refused_with<fault::NonFiniteValue>(nan_rect));
+
+    const Outcome huge = planner.dispatch(
+        Create{CreateRect{"huge", units(3.0e38F), units(0), units(3.0e38F), units(1), std::nullopt}});
+    CHECK(huge.ok());
+    const Outcome overflow = planner.dispatch(ScaleBy{SvgIdRef{"huge"}, 2.0F});
+    CHECK(!overflow.ok());
+    CHECK(refused_with<fault::NonFiniteValue>(overflow));
+    if (const std::optional<Id> huge_id = document.find("huge")) {
+        if (const std::optional<Node> payload = document.node(*huge_id)) {
+            const std::optional<Shape::Rect> geometry = rect_of(*payload);
+            CHECK(geometry.has_value());
+            if (geometry) CHECK(numeric_value(geometry->w) == 3.0e38F);
+        }
+    }
 
     if (failures != 0) {
         std::printf("pipeline: %d check(s) failed\n", failures);

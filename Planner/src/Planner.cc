@@ -159,6 +159,12 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
 // canvas an instruction may carry comes with the new root, and there is nothing left of
 // the old document to undo back into.
 template<> Outcome Planner::handle<Init>(const Init& intent) {
+    if (intent.width && !is_finite(*intent.width)) {
+        return refused(Kind::Context, fault::NonFiniteValue{"width"});
+    }
+    if (intent.height && !is_finite(*intent.height)) {
+        return refused(Kind::Context, fault::NonFiniteValue{"height"});
+    }
     if (intent.width && numeric_value(*intent.width) <= 0.0F) {
         return refused(Kind::Context, fault::NonPositiveCanvas{"width"});
     }

@@ -99,6 +99,20 @@ inline std::string_view element_name(const SVGNode& element) {
     return std::visit(ElementName{}, element.data);
 }
 
+struct FiniteTransform {
+    bool operator()(const Translate& translate) const {
+        return is_finite(translate.x) && is_finite(translate.y);
+    }
+    bool operator()(const Scale& scale) const { return std::isfinite(scale.x) && std::isfinite(scale.y); }
+    bool operator()(const Rotate& rotate) const { return std::isfinite(rotate.degrees); }
+    bool operator()(const Matrix& matrix) const {
+        return std::isfinite(matrix.a) && std::isfinite(matrix.b) && std::isfinite(matrix.c) &&
+               std::isfinite(matrix.d) && std::isfinite(matrix.e) && std::isfinite(matrix.f);
+    }
+};
+
+inline bool is_finite(const Transform& transform) { return std::visit(FiniteTransform{}, transform); }
+
 // The SVG element that can be a parent of shapes and other containers. A text also has
 // child storage, for its character data, but it is not a container a user can put an
 // element inside.

@@ -26,6 +26,13 @@ struct ToMatrix {
     Matrix operator()(const Matrix& matrix) const { return matrix; }
 };
 
+bool finite_matrix(const Matrix& matrix) {
+    return std::isfinite(matrix.a) && std::isfinite(matrix.b) && std::isfinite(matrix.c) &&
+           std::isfinite(matrix.d) && std::isfinite(matrix.e) && std::isfinite(matrix.f);
+}
+
+std::optional<Refusal> nonfinite_transform() { return Refusal{fault::NonFiniteValue{"transform"}}; }
+
 }  // namespace
 
 Matrix rotation_matrix(float degrees) {
@@ -55,8 +62,10 @@ std::optional<Refusal> move_transform(SVGNode& element, LengthPercentage dx, Len
         Translate& translation = std::get<Translate>(*transform);
         const std::optional<LengthPercentage> x = sum(translation.x, dx);
         if (!x) return Refusal{fault::IncompatibleLengths{dx, translation.x}};
+        if (!is_finite(*x)) return nonfinite_transform();
         const std::optional<LengthPercentage> y = sum(translation.y, dy);
         if (!y) return Refusal{fault::IncompatibleLengths{dy, translation.y}};
+        if (!is_finite(*y)) return nonfinite_transform();
         translation.x = *x;
         translation.y = *y;
         return std::nullopt;
@@ -72,7 +81,10 @@ std::optional<Refusal> move_transform(SVGNode& element, LengthPercentage dx, Len
         return Refusal{fault::MatrixNeedsUserUnitsForMove{dx}};
     }
     const Matrix existing = std::visit(ToMatrix{}, *transform);
-    transform = Matrix{existing.a, existing.b, existing.c, existing.d, existing.e + *offset_x, existing.f + *offset_y};
+    const Matrix moved{existing.a, existing.b, existing.c, existing.d, existing.e + *offset_x,
+                       existing.f + *offset_y};
+    if (!finite_matrix(moved)) return nonfinite_transform();
+    transform = moved;
     return std::nullopt;
 }
 
@@ -87,11 +99,15 @@ std::optional<Refusal> scale_transform(SVGNode& element, float factor) {
         Scale& scale = std::get<Scale>(*transform);
         scale.x *= factor;
         scale.y *= factor;
+        if (!std::isfinite(scale.x) || !std::isfinite(scale.y)) return nonfinite_transform();
         return std::nullopt;
     }
     if (std::holds_alternative<Rotate>(*transform)) {
         const Matrix turned = rotation_matrix(std::get<Rotate>(*transform).degrees);
-        transform = Matrix{turned.a * factor, turned.b * factor, turned.c * factor, turned.d * factor, 0.0F, 0.0F};
+        const Matrix scaled{
+            turned.a * factor, turned.b * factor, turned.c * factor, turned.d * factor, 0.0F, 0.0F};
+        if (!finite_matrix(scaled)) return nonfinite_transform();
+        transform = scaled;
         return std::nullopt;
     }
     if (std::holds_alternative<Matrix>(*transform)) {
@@ -102,6 +118,7 @@ std::optional<Refusal> scale_transform(SVGNode& element, float factor) {
         matrix.b *= factor;
         matrix.c *= factor;
         matrix.d *= factor;
+        if (!finite_matrix(matrix)) return nonfinite_transform();
         return std::nullopt;
     }
 
@@ -113,7 +130,9 @@ std::optional<Refusal> scale_transform(SVGNode& element, float factor) {
     if (!x || !y) {
         return Refusal{fault::MatrixNeedsUserUnitsForScale{translation.x, translation.y}};
     }
-    transform = Matrix{factor, 0.0F, 0.0F, factor, *x, *y};
+    const Matrix scaled{factor, 0.0F, 0.0F, factor, *x, *y};
+    if (!finite_matrix(scaled)) return nonfinite_transform();
+    transform = scaled;
     return std::nullopt;
 }
 

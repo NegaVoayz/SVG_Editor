@@ -13,10 +13,10 @@
 namespace {
 
 constexpr std::string_view length_syntax =
-    "a length is a number, optionally with px, pt, cm, mm, in, em, ex, or a percentage";
+    "a length is a finite number, optionally with px, pt, cm, mm, in, em, ex, or a percentage";
 constexpr std::string_view color_syntax =
     "a fill is #rgb, #rrggbb, rgb(r,g,b), a named or system colour, none or currentColor";
-constexpr std::string_view factor_syntax = "a scale is a plain number greater than zero";
+constexpr std::string_view factor_syntax = "a scale is a finite plain number greater than zero";
 
 }  // namespace
 

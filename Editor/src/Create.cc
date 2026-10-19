@@ -4,6 +4,7 @@
 //
 // The second level of the dispatch lives here too: `handle<Create>` is the question of which
 // element a create holds, asked where the builders it may answer with are.
+#include <cmath>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -42,25 +43,49 @@ void stroke(Node& payload, const std::optional<Color>& color) {
     std::get<SVGNode>(payload).paint_attr.stroke = Paint{*color};
 }
 
+std::optional<Refusal> finite_length(std::string_view attribute, LengthPercentage value) {
+    if (!is_finite(value)) return fault::NonFiniteValue{std::string{attribute}};
+    return std::nullopt;
+}
+
 std::optional<Refusal> nonnegative(std::string_view attribute, LengthPercentage value) {
+    if (std::optional<Refusal> problem = finite_length(attribute, value)) return problem;
     if (numeric_value(value) < 0.0F) return fault::NegativeDimension{std::string{attribute}};
     return std::nullopt;
 }
 
 std::optional<Refusal> dimension_problem(const CreateRect& intent) {
+    if (std::optional<Refusal> problem = finite_length("x", intent.x)) return problem;
+    if (std::optional<Refusal> problem = finite_length("y", intent.y)) return problem;
     if (std::optional<Refusal> problem = nonnegative("width", intent.width)) return problem;
     return nonnegative("height", intent.height);
 }
 
-std::optional<Refusal> dimension_problem(const CreateCircle& intent) { return nonnegative("r", intent.r); }
+std::optional<Refusal> dimension_problem(const CreateCircle& intent) {
+    if (std::optional<Refusal> problem = finite_length("cx", intent.cx)) return problem;
+    if (std::optional<Refusal> problem = finite_length("cy", intent.cy)) return problem;
+    return nonnegative("r", intent.r);
+}
 
 std::optional<Refusal> dimension_problem(const CreateEllipse& intent) {
+    if (std::optional<Refusal> problem = finite_length("cx", intent.cx)) return problem;
+    if (std::optional<Refusal> problem = finite_length("cy", intent.cy)) return problem;
     if (std::optional<Refusal> problem = nonnegative("rx", intent.rx)) return problem;
     return nonnegative("ry", intent.ry);
 }
 
-std::optional<Refusal> dimension_problem(const CreateLine&) { return std::nullopt; }
-std::optional<Refusal> dimension_problem(const CreateText&) { return std::nullopt; }
+std::optional<Refusal> dimension_problem(const CreateLine& intent) {
+    if (std::optional<Refusal> problem = finite_length("x1", intent.x1)) return problem;
+    if (std::optional<Refusal> problem = finite_length("y1", intent.y1)) return problem;
+    if (std::optional<Refusal> problem = finite_length("x2", intent.x2)) return problem;
+    return finite_length("y2", intent.y2);
+}
+
+std::optional<Refusal> dimension_problem(const CreateText& intent) {
+    if (std::optional<Refusal> problem = finite_length("x", intent.x)) return problem;
+    return finite_length("y", intent.y);
+}
+
 std::optional<Refusal> dimension_problem(const CreateGroup&) { return std::nullopt; }
 
 }  // namespace

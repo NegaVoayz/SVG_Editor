@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -23,6 +24,16 @@ std::optional<Length::Unit> unit_of(std::string_view text) {
     return std::nullopt;
 }
 
+// A number the model can hold: finite as a double and still finite after narrowing to the
+// float the model stores. "1e308" is finite as a double but overflows that float, so it
+// cannot be written into a document and is refused here rather than becoming infinity.
+std::optional<float> finite_float(double value) {
+    if (!std::isfinite(value)) return std::nullopt;
+    const float narrowed = static_cast<float>(value);
+    if (!std::isfinite(narrowed)) return std::nullopt;
+    return narrowed;
+}
+
 std::optional<float> number_of(std::string_view text) {
     if (text.empty()) return std::nullopt;
     double value = 0;
@@ -30,7 +41,7 @@ std::optional<float> number_of(std::string_view text) {
     const char* end = begin + text.size();
     const std::from_chars_result parsed = std::from_chars(begin, end, value);
     if (parsed.ec != std::errc{} || parsed.ptr != end) return std::nullopt;
-    return static_cast<float>(value);
+    return finite_float(value);
 }
 
 int hex_digit(char digit) {
@@ -80,7 +91,9 @@ std::optional<Color> parse_rgb_function(std::string_view text) {
         if (!value) return std::nullopt;
 
         const float channel_value = percent ? *value * 255.0F / 100.0F : *value;
-        if (channel_value < 0.0F || channel_value > 255.0F) return std::nullopt;
+        if (!std::isfinite(channel_value) || channel_value < 0.0F || channel_value > 255.0F) {
+            return std::nullopt;
+        }
         channel[index] = static_cast<uint8_t>(channel_value + 0.5F);
     }
     return Color{Color::FuncRGB{channel[0], channel[1], channel[2]}};
@@ -98,11 +111,13 @@ std::optional<LengthPercentage> parse_length(std::string_view text) {
     if (parsed.ec != std::errc{} || parsed.ptr == begin) return std::nullopt;
 
     const std::string_view unit{parsed.ptr, static_cast<std::size_t>(end - parsed.ptr)};
-    if (unit == "%") return Percentage{static_cast<float>(value)};
+    const std::optional<float> narrowed = finite_float(value);
+    if (!narrowed) return std::nullopt;
+    if (unit == "%") return Percentage{*narrowed};
 
     const std::optional<Length::Unit> named = unit_of(unit);
     if (!named) return std::nullopt;
-    return Length{static_cast<float>(value), *named};
+    return Length{*narrowed, *named};
 }
 
 std::optional<Color> parse_color(std::string_view text) {

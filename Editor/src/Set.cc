@@ -20,7 +20,13 @@
 
 namespace {
 
+std::optional<Refusal> finite_value(std::string_view attribute, LengthPercentage value) {
+    if (!is_finite(value)) return fault::NonFiniteValue{std::string{attribute}};
+    return std::nullopt;
+}
+
 std::optional<Refusal> nonnegative(std::string_view attribute, LengthPercentage value) {
+    if (std::optional<Refusal> problem = finite_value(attribute, value)) return problem;
     if (numeric_value(value) < 0.0F) return fault::NegativeDimension{std::string{attribute}};
     return std::nullopt;
 }
@@ -52,6 +58,7 @@ std::optional<Refusal> stroke_width_problem(const Document& document, Id node, L
 // frame and must have a positive size; a rect may be zero and disappears, as SVG says.
 std::optional<Refusal> canvas_or_rect_dimension(const Document& document, Id node, std::string_view attribute,
                                                 LengthPercentage value) {
+    if (!is_finite(value)) return fault::NonFiniteValue{std::string{attribute}};
     const std::optional<Node> payload = document.node(node);
     if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
     const SVGNode& element = std::get<SVGNode>(*payload);
@@ -119,6 +126,9 @@ bool set_canvas_member(SVGNode& element, Member member, LengthPercentage value) 
 }
 
 Outcome apply(Document& document, Id node, const SetX& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetX::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetX>(document, node, [value = intent.value](SVGNode& element) {
         if (std::holds_alternative<Text>(element.data)) {
             std::get<Text>(element.data).common.x = value;
@@ -136,6 +146,9 @@ Outcome apply(Document& document, Id node, const SetX& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetY& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetY::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetY>(document, node, [value = intent.value](SVGNode& element) {
         if (std::holds_alternative<Text>(element.data)) {
             std::get<Text>(element.data).common.y = value;
@@ -183,6 +196,9 @@ Outcome apply(Document& document, Id node, const SetH& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetCx& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetCx::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetCx>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.cx = value; }) {
             specific.cx = value;
@@ -194,6 +210,9 @@ Outcome apply(Document& document, Id node, const SetCx& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetCy& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetCy::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetCy>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.cy = value; }) {
             specific.cy = value;
@@ -250,6 +269,9 @@ Outcome apply(Document& document, Id node, const SetRy& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetX1& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetX1::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetX1>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.x1 = value; }) {
             specific.x1 = value;
@@ -261,6 +283,9 @@ Outcome apply(Document& document, Id node, const SetX1& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetY1& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetY1::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetY1>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.y1 = value; }) {
             specific.y1 = value;
@@ -272,6 +297,9 @@ Outcome apply(Document& document, Id node, const SetY1& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetX2& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetX2::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetX2>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.x2 = value; }) {
             specific.x2 = value;
@@ -283,6 +311,9 @@ Outcome apply(Document& document, Id node, const SetX2& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetY2& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetY2::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_shape<SetY2>(document, node, [value = intent.value](auto& specific) -> bool {
         if constexpr (requires { specific.y2 = value; }) {
             specific.y2 = value;
@@ -294,6 +325,9 @@ Outcome apply(Document& document, Id node, const SetY2& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetDx& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetDx::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetDx>(document, node, [value = intent.value](SVGNode& element) {
         if (!std::holds_alternative<Text>(element.data)) return false;
         std::get<Text>(element.data).common.dx = value;
@@ -302,6 +336,9 @@ Outcome apply(Document& document, Id node, const SetDx& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetDy& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetDy::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetDy>(document, node, [value = intent.value](SVGNode& element) {
         if (!std::holds_alternative<Text>(element.data)) return false;
         std::get<Text>(element.data).common.dy = value;
@@ -356,6 +393,9 @@ Outcome apply(Document& document, Id node, const SetHeight& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetStartOffset& intent) {
+    if (std::optional<Refusal> problem = finite_value(SetStartOffset::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
     return set_element<SetStartOffset>(document, node, [value = intent.value](SVGNode& element) {
         if (!std::holds_alternative<Text>(element.data)) return false;
         Text& text = std::get<Text>(element.data);
@@ -387,6 +427,9 @@ Outcome apply(Document& document, Id node, const SetStroke& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetTransform& intent) {
+    if (intent.value && !is_finite(*intent.value)) {
+        return refused(Kind::Change, fault::NonFiniteValue{"transform"});
+    }
     return set_element<SetTransform>(document, node, [value = intent.value](SVGNode& element) {
         element.transform_attr.transform = value;
         return true;

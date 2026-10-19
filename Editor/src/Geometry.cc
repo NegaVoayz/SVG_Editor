@@ -4,6 +4,7 @@
 // only asks it.
 #include "Geometry.hh"
 
+#include <cmath>
 #include <optional>
 #include <variant>
 
@@ -20,10 +21,19 @@ std::optional<Refusal> move_point(LengthPercentage& x, LengthPercentage dx, Leng
                                   LengthPercentage dy) {
     const std::optional<LengthPercentage> moved_x = sum(x, dx);
     if (!moved_x) return Refusal{fault::IncompatibleLengths{dx, x}};
+    if (!is_finite(*moved_x)) return Refusal{fault::NonFiniteValue{"moved coordinate"}};
     const std::optional<LengthPercentage> moved_y = sum(y, dy);
     if (!moved_y) return Refusal{fault::IncompatibleLengths{dy, y}};
+    if (!is_finite(*moved_y)) return Refusal{fault::NonFiniteValue{"moved coordinate"}};
     x = *moved_x;
     y = *moved_y;
+    return std::nullopt;
+}
+
+std::optional<Refusal> scale_value(LengthPercentage& value, float factor) {
+    const LengthPercentage result = scaled(value, factor);
+    if (!is_finite(result)) return Refusal{fault::NonFiniteValue{"scaled value"}};
+    value = result;
     return std::nullopt;
 }
 
@@ -34,34 +44,36 @@ std::optional<Refusal> move_point(LengthPercentage& x, LengthPercentage dx, Leng
 struct ScaleShape {
     float factor;
 
-    void operator()(Shape::Rect& rect) const {
-        rect.x = scaled(rect.x, factor);
-        rect.y = scaled(rect.y, factor);
-        rect.w = scaled(rect.w, factor);
-        rect.h = scaled(rect.h, factor);
+    std::optional<Refusal> operator()(Shape::Rect& rect) const {
+        if (std::optional<Refusal> problem = scale_value(rect.x, factor)) return problem;
+        if (std::optional<Refusal> problem = scale_value(rect.y, factor)) return problem;
+        if (std::optional<Refusal> problem = scale_value(rect.w, factor)) return problem;
+        return scale_value(rect.h, factor);
     }
-    void operator()(Shape::Circle& circle) const {
-        circle.cx = scaled(circle.cx, factor);
-        circle.cy = scaled(circle.cy, factor);
-        circle.r = scaled(circle.r, factor);
+    std::optional<Refusal> operator()(Shape::Circle& circle) const {
+        if (std::optional<Refusal> problem = scale_value(circle.cx, factor)) return problem;
+        if (std::optional<Refusal> problem = scale_value(circle.cy, factor)) return problem;
+        return scale_value(circle.r, factor);
     }
-    void operator()(Shape::Ellipse& ellipse) const {
-        ellipse.cx = scaled(ellipse.cx, factor);
-        ellipse.cy = scaled(ellipse.cy, factor);
-        ellipse.rx = scaled(ellipse.rx, factor);
-        ellipse.ry = scaled(ellipse.ry, factor);
+    std::optional<Refusal> operator()(Shape::Ellipse& ellipse) const {
+        if (std::optional<Refusal> problem = scale_value(ellipse.cx, factor)) return problem;
+        if (std::optional<Refusal> problem = scale_value(ellipse.cy, factor)) return problem;
+        if (std::optional<Refusal> problem = scale_value(ellipse.rx, factor)) return problem;
+        return scale_value(ellipse.ry, factor);
     }
-    void operator()(Shape::Line& line) const {
-        line.x1 = scaled(line.x1, factor);
-        line.y1 = scaled(line.y1, factor);
-        line.x2 = scaled(line.x2, factor);
-        line.y2 = scaled(line.y2, factor);
+    std::optional<Refusal> operator()(Shape::Line& line) const {
+        if (std::optional<Refusal> problem = scale_value(line.x1, factor)) return problem;
+        if (std::optional<Refusal> problem = scale_value(line.y1, factor)) return problem;
+        if (std::optional<Refusal> problem = scale_value(line.x2, factor)) return problem;
+        return scale_value(line.y2, factor);
     }
 };
 
 }  // namespace
 
 std::optional<Refusal> translate(Node& payload, LengthPercentage dx, LengthPercentage dy) {
+    if (!is_finite(dx)) return Refusal{fault::NonFiniteValue{"offset x"}};
+    if (!is_finite(dy)) return Refusal{fault::NonFiniteValue{"offset y"}};
     if (!std::holds_alternative<SVGNode>(payload)) {
         return Refusal{fault::TextCannotMove{}};
     }
@@ -96,7 +108,7 @@ std::optional<Refusal> scale(Node& payload, float factor) {
     // SVG can write, and neither is written here yet, so they are refused rather than
     // approximated - and a factor that is not a number at all lands here too, because "not
     // greater than zero" is what both cases are.
-    if (!(factor > 0.0F)) {
+    if (!std::isfinite(factor) || !(factor > 0.0F)) {
         return Refusal{fault::ScaleFactorNotPositive{}};
     }
     if (!std::holds_alternative<SVGNode>(payload)) {
@@ -106,8 +118,7 @@ std::optional<Refusal> scale(Node& payload, float factor) {
     SVGNode& element = std::get<SVGNode>(payload);
     if (!std::holds_alternative<Shape>(element.data)) return scale_transform(element, factor);
 
-    std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific);
-    return std::nullopt;
+    return std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific);
 }
 
 }  // namespace Geometry
