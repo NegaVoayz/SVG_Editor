@@ -13,9 +13,9 @@ namespace SvgValueReader {
 std::optional<LengthPercentage> length(std::string_view text);
 std::optional<Color> color(std::string_view text);
 std::optional<Paint> paint(std::string_view text);
-// An empty value and `none` both read as a list with no steps. Anything else must be a
-// complete list of transform functions.
-std::optional<std::vector<Transform>> transform(std::string_view text);
+// An empty value and `none` both read as the identity. Anything else must be a complete
+// list of transform functions, composed into one matrix.
+std::optional<Transform> transform(std::string_view text);
 std::optional<Container::ViewBox> view_box(std::string_view text);
 std::optional<Text::Anchor> text_anchor(std::string_view text);
 

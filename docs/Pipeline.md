@@ -129,12 +129,11 @@ template<> Outcome handle<Create>(const Create& intent) {
   declaration is load-bearing: a specialization the compiler has not met before the point
   where `std::visit` instantiates `handle<T>` is not a specialization at all, and the
   primary template's build error is what comes out instead.
-- The arithmetic underneath those is two sources, one question each: `Units.cc` is what a
-  length is worth and what it may be added to, and `Geometry.cc` is what a move or a scale
-  does to one node's params. A transform edit needs no promotion arithmetic: Model
-  prepends one immutable link to the node's list. The unit table is the one part of it
-  that is about values rather than about nodes, which is why it is the one part with no
-  model type in its interface beyond `LengthPercentage`.
+- The arithmetic underneath those is split by question: Model's `Units.cc` is what a
+  length is worth and what it may be added to, and the Editor's `Geometry.cc` is what a
+  move or a scale does to one node's params. Both a param edit and a transform matrix use
+  the same unit table. The unit table is the one part that is about values rather than
+  about nodes, which is why its interface needs nothing beyond `LengthPercentage`.
 - the visitors that name things - a node kind, a shape, a colour - are overload
   sets, so a new kind in the model is a build error until it is named too.
 
@@ -215,19 +214,22 @@ and `font-size` belong to text nodes, including `tspan` and `textPath`.
 the front, and the first child is the back. The tree prints children in that same chain
 order, so a later line is nearer the front.
 
-`move` and `scale` take two optional selectors. `transform` prepends a step to the node's
-transform list and leaves its params alone. A transform is a field of every SVG node, so
-this is accepted for containers too; the edit touches the container record and leaves its
-descendants untouched. `params` changes values directly. `restrict` edits only the node
+`move` and `scale` take two optional selectors. `transform` pre-multiplies the node's
+transform matrix and leaves its params alone. A transform is a field of every SVG node,
+so this is accepted for containers too; the edit touches the container record and leaves
+its descendants untouched. `params` changes values directly. `restrict` edits only the node
 itself: a leaf's params, or a container's own transform. `cascade` edits descendants; on a
 non-container the only node in that subtree is the node itself, so it behaves as a params
 edit. With neither selector, the defaults are `params` and `cascade`.
 `Editor/src/Payload.cc` resolves the node kind, collects a cascade's changed payloads
-before opening a transaction, and commits them as one undo step. A cascade stops at any
-descendant that already carries a transform: writing a parent-space delta into that
-node's params would be read in its local coordinate system and move it by the wrong
-amount. The operation is prepended to the transformed node's transform instead, and its
-subtree is left alone because the new step already covers it. `event::Moved`/
+before opening a transaction, and commits them as one undo step. A node that already
+carries a transform is a boundary, whether it is the node the instruction named or a
+descendant a cascade reached: writing a parent-space delta into its params would be read
+in its local coordinate system and move it by the wrong amount. The operation is
+pre-multiplied into that node's matrix instead, and a cascade leaves its subtree alone
+because the new matrix already covers it. A transformed node therefore takes a default or
+explicit `params` move or scale in its transform, and the answer says `in its transform`;
+an untransformed node still changes its params. `event::Moved`/
 `event::Scaled` carry the resolved mode and the number of nodes whose params or transform
 the edit changed.
 

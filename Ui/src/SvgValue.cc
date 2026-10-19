@@ -157,10 +157,10 @@ std::optional<Transform> parse_transform_step(std::string_view name, const std::
     if (name == "translate" && (words.size() == 1 || words.size() == 2)) {
         const std::optional<LengthPercentage> x = parse_length(words[0]);
         if (!x) return std::nullopt;
-        if (words.size() == 1) return Transform{Translate{*x, Length{0.0F, Length::Unit::UserUnit}}};
+        if (words.size() == 1) return translated(*x, Length{0.0F, Length::Unit::UserUnit});
         const std::optional<LengthPercentage> y = parse_length(words[1]);
         if (!y) return std::nullopt;
-        return Transform{Translate{*x, *y}};
+        return translated(*x, *y);
     }
 
     if (name == "scale" && (words.size() == 1 || words.size() == 2)) {
@@ -168,30 +168,30 @@ std::optional<Transform> parse_transform_step(std::string_view name, const std::
         if (!x) return std::nullopt;
         const std::optional<float> y = words.size() == 1 ? x : number_of(words[1]);
         if (!y) return std::nullopt;
-        return Transform{Scale{*x, *y}};
+        return scaled(*x, *y);
     }
 
     if (name == "rotate" && (words.size() == 1 || words.size() == 3)) {
         const std::optional<float> degrees = number_of(words[0]);
         if (!degrees) return std::nullopt;
-        if (words.size() == 1) return Transform{Rotate{*degrees}};
+        if (words.size() == 1) return rotated(*degrees);
 
         const std::optional<LengthPercentage> x = parse_length(words[1]);
         const std::optional<LengthPercentage> y = parse_length(words[2]);
         if (!x || !y) return std::nullopt;
-        return Transform{Rotate{*degrees, Rotate::Center{*x, *y}}};
+        return rotation_about(*degrees, *x, *y);
     }
 
     if (name == "skewX" && words.size() == 1) {
         const std::optional<float> degrees = number_of(words[0]);
         if (!degrees) return std::nullopt;
-        return Transform{SkewX{*degrees}};
+        return skewed_x(*degrees);
     }
 
     if (name == "skewY" && words.size() == 1) {
         const std::optional<float> degrees = number_of(words[0]);
         if (!degrees) return std::nullopt;
-        return Transform{SkewY{*degrees}};
+        return skewed_y(*degrees);
     }
 
     if (name == "matrix" && words.size() == 6) {
@@ -201,17 +201,18 @@ std::optional<Transform> parse_transform_step(std::string_view name, const std::
             if (!number) return std::nullopt;
             value[at] = *number;
         }
-        return Transform{Matrix{value[0], value[1], value[2], value[3], value[4], value[5]}};
+        return matrix_transform(value[0], value[1], value[2], value[3], value[4], value[5]);
     }
 
     return std::nullopt;
 }
 
-std::optional<std::vector<Transform>> parse_transform(std::string_view text) {
-    if (text.find_first_not_of(" \t") == std::string_view::npos) return std::vector<Transform>{};
+std::optional<Transform> parse_transform(std::string_view text) {
+    if (text.find_first_not_of(" \t") == std::string_view::npos) return Transform{};
 
-    std::vector<Transform> transforms;
+    Transform result;
     std::size_t index = 0;
+    bool any = false;
     while (index < text.size()) {
         while (index < text.size() && (text[index] == ' ' || text[index] == '\t' || text[index] == ',')) ++index;
         if (index == text.size()) break;
@@ -243,10 +244,13 @@ std::optional<std::vector<Transform>> parse_transform(std::string_view text) {
 
         std::optional<Transform> step = parse_transform_step(name, words);
         if (!step) return std::nullopt;
-        transforms.push_back(std::move(*step));
+        const std::optional<Transform> composed = compose(result, *step);
+        if (!composed) return std::nullopt;
+        result = *composed;
+        any = true;
     }
-    if (transforms.empty()) return std::nullopt;
-    return transforms;
+    if (!any) return std::nullopt;
+    return result;
 }
 
 std::optional<Container::ViewBox> parse_view_box(std::string_view text) {

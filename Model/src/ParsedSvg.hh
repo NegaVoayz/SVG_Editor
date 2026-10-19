@@ -13,9 +13,6 @@ struct ParsedNode {
     Node payload;
     std::string element;
     std::vector<std::size_t> children;
-    // The transform functions a file wrote, in document order. Links are installed only
-    // after the whole file has parsed, so a failed read cannot touch the document.
-    std::vector<Transform> transforms;
 };
 
 struct ParsedSvg {

@@ -159,10 +159,10 @@ std::optional<Transform> one_transform(const TransformFunction& function) {
     if (function.name == "translate" && (values.size() == 1 || values.size() == 2)) {
         const std::optional<LengthPercentage> x = SvgValueReader::length(values[0]);
         if (!x) return std::nullopt;
-        if (values.size() == 1) return Transform{Translate{*x, Length{0.0F, Length::Unit::UserUnit}}};
+        if (values.size() == 1) return translated(*x, Length{0.0F, Length::Unit::UserUnit});
         const std::optional<LengthPercentage> y = SvgValueReader::length(values[1]);
         if (!y) return std::nullopt;
-        return Transform{Translate{*x, *y}};
+        return translated(*x, *y);
     }
 
     if (function.name == "scale" && (values.size() == 1 || values.size() == 2)) {
@@ -170,41 +170,40 @@ std::optional<Transform> one_transform(const TransformFunction& function) {
         if (!x) return std::nullopt;
         const std::optional<float> y = values.size() == 1 ? x : number(values[1]);
         if (!y) return std::nullopt;
-        return Transform{Scale{*x, *y}};
+        return scaled(*x, *y);
     }
 
     if (function.name == "rotate" && (values.size() == 1 || values.size() == 3)) {
         const std::optional<float> degrees = number(values[0]);
         if (!degrees) return std::nullopt;
-        if (values.size() == 1) return Transform{Rotate{*degrees}};
+        if (values.size() == 1) return rotated(*degrees);
 
         const std::optional<LengthPercentage> x = SvgValueReader::length(values[1]);
         const std::optional<LengthPercentage> y = SvgValueReader::length(values[2]);
         if (!x || !y) return std::nullopt;
-        return Transform{Rotate{*degrees, Rotate::Center{*x, *y}}};
+        return rotation_about(*degrees, *x, *y);
     }
 
     if (function.name == "skewX" && values.size() == 1) {
         const std::optional<float> degrees = number(values[0]);
         if (!degrees) return std::nullopt;
-        return Transform{SkewX{*degrees}};
+        return skewed_x(*degrees);
     }
 
     if (function.name == "skewY" && values.size() == 1) {
         const std::optional<float> degrees = number(values[0]);
         if (!degrees) return std::nullopt;
-        return Transform{SkewY{*degrees}};
+        return skewed_y(*degrees);
     }
 
     if (function.name == "matrix" && values.size() == 6) {
-        Matrix matrix{};
-        float* members[] = {&matrix.a, &matrix.b, &matrix.c, &matrix.d, &matrix.e, &matrix.f};
+        float members[6] = {};
         for (std::size_t index = 0; index < 6; ++index) {
             const std::optional<float> value = number(values[index]);
             if (!value) return std::nullopt;
-            *members[index] = *value;
+            members[index] = *value;
         }
-        return Transform{matrix};
+        return matrix_transform(members[0], members[1], members[2], members[3], members[4], members[5]);
     }
 
     return std::nullopt;
@@ -289,19 +288,20 @@ std::optional<Paint> paint(std::string_view text) {
     return Paint{std::move(server)};
 }
 
-std::optional<std::vector<Transform>> transform(std::string_view text) {
+std::optional<Transform> transform(std::string_view text) {
     text = trimmed(text);
-    if (text.empty() || text == "none") return std::vector<Transform>{};
+    if (text.empty() || text == "none") return Transform{};
 
     const std::optional<std::vector<TransformFunction>> functions = transform_functions(text);
     if (!functions) return std::nullopt;
 
-    std::vector<Transform> result;
-    result.reserve(functions->size());
+    Transform result;
     for (const TransformFunction& function : *functions) {
         const std::optional<Transform> step = one_transform(function);
         if (!step) return std::nullopt;
-        result.push_back(*step);
+        const std::optional<Transform> composed = compose(result, *step);
+        if (!composed) return std::nullopt;
+        result = *composed;
     }
     return result;
 }

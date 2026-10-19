@@ -26,9 +26,8 @@ struct TreeRow {
     Id node;
     Node payload;
     std::string text;
-    // The element's transform list, in SVG order. It is materialized here because the
-    // payload holds only the head of an immutable chain in Model.
-    std::vector<Transform> transforms = {};
+    // The element's composed transform matrix; identity when it carries none.
+    Transform transform = {};
 };
 struct TreeView { std::vector<TreeRow> rows; };
 // Where a shown node hangs. The root has no parent, so this is absent there; every
@@ -42,7 +41,7 @@ struct NodeView {
     Node payload;
     std::string text;
     std::optional<NodeParent> parent = std::nullopt;
-    std::vector<Transform> transforms = {};
+    Transform transform = {};
 };
 
 // One of the two reads, or nothing: an outcome that is a change or a failure carries its

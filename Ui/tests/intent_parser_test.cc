@@ -1,4 +1,5 @@
 // What the text front end accepts and what it refuses, one line at a time.
+#include <cmath>
 #include <cstdio>
 #include <optional>
 #include <string>
@@ -245,56 +246,47 @@ int main() {
     const Request set_transform = parse("set layer transform translate(5 6)");
     CHECK(holds<SetTransform>(set_transform));
     if (holds<SetTransform>(set_transform)) {
-        CHECK(as<SetTransform>(set_transform).value.size() == 1);
-        if (!as<SetTransform>(set_transform).value.empty()) {
-            CHECK(std::holds_alternative<Translate>(as<SetTransform>(set_transform).value.front()));
-        }
+        const Transform& value = as<SetTransform>(set_transform).value;
+        CHECK(value.a == 1.0F);
+        CHECK(value.b == 0.0F);
+        CHECK(value.c == 0.0F);
+        CHECK(value.d == 1.0F);
+        CHECK(numeric_value(value.e) == 5.0F);
+        CHECK(numeric_value(value.f) == 6.0F);
     }
 
     const Request set_transform_list = parse("set layer transform \"scale(2 2) rotate(30) scale(3 1) rotate(45)\"");
     CHECK(holds<SetTransform>(set_transform_list));
     if (holds<SetTransform>(set_transform_list)) {
-        const std::vector<Transform>& value = as<SetTransform>(set_transform_list).value;
-        CHECK(value.size() == 4);
-        if (value.size() == 4) {
-            CHECK(std::holds_alternative<Scale>(value[0]));
-            CHECK(std::holds_alternative<Rotate>(value[1]));
-            CHECK(std::holds_alternative<Scale>(value[2]));
-            CHECK(std::holds_alternative<Rotate>(value[3]));
-        }
+        const Transform& value = as<SetTransform>(set_transform_list).value;
+        CHECK(std::fabs(value.a - 2.9671278F) < 1.0e-4F);
+        CHECK(std::fabs(value.b - 3.3460652F) < 1.0e-4F);
+        CHECK(std::fabs(value.c + 4.3813414F) < 1.0e-4F);
+        CHECK(std::fabs(value.d + 0.8965755F) < 1.0e-4F);
+        CHECK(numeric_value(value.e) == 0.0F);
+        CHECK(numeric_value(value.f) == 0.0F);
     }
 
     const Request set_transform_forms =
         parse("set layer transform \"rotate(30 10 20) skewX(15) skewY(-5)\"");
     CHECK(holds<SetTransform>(set_transform_forms));
     if (holds<SetTransform>(set_transform_forms)) {
-        const std::vector<Transform>& value = as<SetTransform>(set_transform_forms).value;
-        CHECK(value.size() == 3);
-        if (value.size() == 3) {
-            CHECK(std::holds_alternative<Rotate>(value[0]));
-            CHECK(std::holds_alternative<SkewX>(value[1]));
-            CHECK(std::holds_alternative<SkewY>(value[2]));
-            if (std::holds_alternative<Rotate>(value[0])) {
-                const Rotate& rotate = std::get<Rotate>(value[0]);
-                CHECK(rotate.degrees == 30.0F);
-                CHECK(rotate.center.has_value());
-                if (rotate.center) {
-                    CHECK(to_text(rotate.center->x) == "10");
-                    CHECK(to_text(rotate.center->y) == "20");
-                }
-            }
-            if (std::holds_alternative<SkewX>(value[1])) CHECK(std::get<SkewX>(value[1]).degrees == 15.0F);
-            if (std::holds_alternative<SkewY>(value[2])) CHECK(std::get<SkewY>(value[2]).degrees == -5.0F);
-        }
+        const Transform& value = as<SetTransform>(set_transform_forms).value;
+        CHECK(std::fabs(value.a - 0.8894679F) < 1.0e-4F);
+        CHECK(std::fabs(value.b - 0.4125113F) < 1.0e-4F);
+        CHECK(std::fabs(value.c + 0.2679492F) < 1.0e-4F);
+        CHECK(std::fabs(value.d - 1.0F) < 1.0e-4F);
+        CHECK(std::fabs(numeric_value(value.e) - 11.339746F) < 1.0e-3F);
+        CHECK(std::fabs(numeric_value(value.f) + 2.320508F) < 1.0e-3F);
     }
 
     const Request clear_transform = parse("set layer transform none");
     CHECK(holds<SetTransform>(clear_transform));
-    if (holds<SetTransform>(clear_transform)) CHECK(as<SetTransform>(clear_transform).value.empty());
+    if (holds<SetTransform>(clear_transform)) CHECK(is_identity(as<SetTransform>(clear_transform).value));
 
     const Request empty_transform = parse("set layer transform \"\"");
     CHECK(holds<SetTransform>(empty_transform));
-    if (holds<SetTransform>(empty_transform)) CHECK(as<SetTransform>(empty_transform).value.empty());
+    if (holds<SetTransform>(empty_transform)) CHECK(is_identity(as<SetTransform>(empty_transform).value));
 
     const Request unknown_attribute = parse("set box colour red");
     CHECK(refuses(unknown_attribute));

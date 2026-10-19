@@ -19,7 +19,6 @@ add_library(Editor
     src/Set.cc
     src/History.cc
     src/Naming.cc
-    src/Units.cc
     src/Geometry.cc)
 add_library(SvgEditor::Editor ALIAS Editor)
 

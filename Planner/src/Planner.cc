@@ -65,8 +65,7 @@ void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, 
     // element that holds it, and it travels with it.
     if (std::holds_alternative<PlainText>(*payload)) return;
 
-    rows.push_back(
-        TreeRow{depth, last, node, *payload, content_of(document, node), document.transforms(node)});
+    rows.push_back(TreeRow{depth, last, node, *payload, content_of(document, node), document.transform(node)});
 
     const std::vector<Id> children = document.children(node);
     for (std::size_t index = 0; index < children.size(); ++index) {
@@ -153,7 +152,7 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
     const std::optional<Node> payload = document_.node(*node);
     if (!payload) return refused(Kind::View, fault::InternalError{});  // cannot happen: look_up
     return viewed(Kind::View, View{NodeView{*node, *payload, content_of(document_, *node),
-                                            parent_of(document_, *node), document_.transforms(*node)}});
+                                            parent_of(document_, *node), document_.transform(*node)}});
 }
 
 // `init` replaces the document, file and all, rather than editing the tree in it: the

@@ -38,13 +38,6 @@ void load_parsed(TreeStore& store, const ParsedSvg& parsed) {
             pending.pop_back();
 
             Node payload = parsed.nodes[item.index].payload;
-            const Id transform = store.install_transforms(edit, parsed.nodes[item.index].transforms);
-            if (transform != no_id) {
-                if (!std::holds_alternative<SVGNode>(payload)) {
-                    throw std::invalid_argument("load_parsed: character data carries a transform");
-                }
-                std::get<SVGNode>(payload).transform_attr.head = transform;
-            }
             Id handle = no_id;
             if (item.index == parsed.root) {
                 handle = store.root();

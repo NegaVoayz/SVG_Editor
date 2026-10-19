@@ -43,6 +43,12 @@ Node group(std::string id) {
     return element(std::move(id), Container{ChildAttr{}, Container::Group{}});
 }
 
+Transform composed_transform(std::initializer_list<Transform> steps) {
+    Transform result;
+    for (const Transform& step : steps) result = *compose(result, step);
+    return result;
+}
+
 // The root element, which is where the canvas of the document lives.
 Node root_with(LengthPercentage width, LengthPercentage height) {
     return element("", Container{ChildAttr{}, Container::SVG{width, height}});
@@ -141,9 +147,11 @@ int main() {
     CHECK(render(NodeView{3, rect("float", 1.234567F, 0, 1, 1, std::nullopt), {}}) ==
           "rect#float x=1.23457 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("turned", 0, 0, 1, 1, std::nullopt), {}, std::nullopt,
-                          {Scale{2.0F, 2.0F}, Rotate{30.0F, Rotate::Center{units(10), units(20)}},
-                           SkewX{15.0F}, SkewY{-5.0F}}}) ==
-          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=scale(2 2) rotate(30 10 20) skewX(15) skewY(-5)");
+                          composed_transform(
+                              {scaled(2.0F, 2.0F), *rotation_about(30.0F, units(10), units(20)),
+                               skewed_x(15.0F), skewed_y(-5.0F)})}) ==
+          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=translate(22.6795 -4.64101) rotate(24.8806) "
+          "scale(1.96094 2.03984) skewX(10.2699)");
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {},
                            NodeParent{1, group("markers")}}) ==
           "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");

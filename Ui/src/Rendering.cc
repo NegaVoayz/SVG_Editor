@@ -136,7 +136,7 @@ std::string joined_details(const Words& words) {
     return out;
 }
 
-Words element_words(const SVGNode& element, const std::vector<Transform>& transforms, const std::string& text) {
+Words element_words(const SVGNode& element, const Transform& transform, const std::string& text) {
     Words words;
     const std::string_view kind = element_name(element);
     // The kind and the id the user wrote: the handle is not part of the drawing, because
@@ -161,7 +161,7 @@ Words element_words(const SVGNode& element, const std::vector<Transform>& transf
         append_detail(words, std::visit(AttrsText{}, element.data));
     }
 
-    if (!transforms.empty()) append_detail(words, "transform=" + transform_list_text(transforms));
+    if (!is_identity(transform)) append_detail(words, "transform=" + transform_text(transform));
     if (element.paint_attr.fill) {
         const std::string paint = to_text(*element.paint_attr.fill);
         if (!paint.empty()) append_detail(words, "fill=" + paint);
@@ -177,9 +177,9 @@ Words element_words(const SVGNode& element, const std::vector<Transform>& transf
     return words;
 }
 
-Words words_of(const Node& payload, const std::vector<Transform>& transforms, const std::string& text) {
+Words words_of(const Node& payload, const Transform& transform, const std::string& text) {
     if (std::holds_alternative<SVGNode>(payload)) {
-        return element_words(std::get<SVGNode>(payload), transforms, text);
+        return element_words(std::get<SVGNode>(payload), transform, text);
     }
 
     // Character data reaches a view on its own only when something asked for it by
@@ -219,7 +219,7 @@ std::string render(const TreeView& view) {
     std::vector<bool> followed(1, false);
     for (std::size_t index = 0; index < view.rows.size(); ++index) {
         const TreeRow& row = view.rows[index];
-        const Words words = words_of(row.payload, row.transforms, row.text);
+        const Words words = words_of(row.payload, row.transform, row.text);
 
         std::string prefix;
         if (index > 0) {  // the first row is what the view is rooted at, and it hangs from nothing
@@ -257,10 +257,10 @@ std::string render(const TreeView& view) {
 }
 
 std::string render(const NodeView& view) {
-    const Words words = words_of(view.payload, view.transforms, view.text);
+    const Words words = words_of(view.payload, view.transform, view.text);
     std::string out = words.name;
     if (view.parent) {
-        const Words parent = words_of(view.parent->payload, {}, {});
+        const Words parent = words_of(view.parent->payload, Transform{}, {});
         out += "  parent=" + parent.name;
     }
 

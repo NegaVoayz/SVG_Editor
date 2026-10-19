@@ -47,11 +47,11 @@ std::optional<Node> node_in(const Outcome& outcome, std::string_view svg_id) {
     return std::nullopt;
 }
 
-std::optional<std::vector<Transform>> transforms_in(const Outcome& outcome, std::string_view svg_id) {
+std::optional<Transform> transform_in(const Outcome& outcome, std::string_view svg_id) {
     if (!std::holds_alternative<TreeView>(outcome.view())) return std::nullopt;
     for (const TreeRow& row : std::get<TreeView>(outcome.view()).rows) {
         if (!std::holds_alternative<SVGNode>(row.payload)) continue;
-        if (std::get<SVGNode>(row.payload).identity_attr.id == svg_id) return row.transforms;
+        if (std::get<SVGNode>(row.payload).identity_attr.id == svg_id) return row.transform;
     }
     return std::nullopt;
 }
@@ -323,8 +323,8 @@ int main() {
     const Outcome after_moves = planner.dispatch(ShowTree{});
     const std::optional<Node> moved_layer = node_in(after_moves, "layer");
     CHECK(moved_layer.has_value());
-    const std::optional<std::vector<Transform>> moved_layer_transforms = transforms_in(after_moves, "layer");
-    CHECK(moved_layer_transforms && moved_layer_transforms->empty());
+    const std::optional<Transform> moved_layer_transform = transform_in(after_moves, "layer");
+    CHECK(moved_layer_transform && is_identity(*moved_layer_transform));
     const std::optional<Node> moved_box = node_in(after_moves, "box");
     CHECK(moved_box.has_value());
     if (moved_box) {
@@ -365,20 +365,12 @@ int main() {
                 CHECK(to_text(geometry->y) == "0");
             }
             const NodeView& node_view = std::get<NodeView>(transformed.view());
-            CHECK(node_view.transforms.size() == 1);
-            if (node_view.transforms.size() == 1) {
-                CHECK(std::holds_alternative<Translate>(node_view.transforms.front()));
-                if (std::holds_alternative<Translate>(node_view.transforms.front())) {
-                    CHECK(to_text(std::get<Translate>(node_view.transforms.front()).x) == "2");
-                    CHECK(to_text(std::get<Translate>(node_view.transforms.front()).y) == "3");
-                }
-            }
+            CHECK(transform_text(node_view.transform) == "translate(2 3)");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
 
-    // A transform list keeps a unit-bearing step next to a scale: the chain has no
-    // matrix that would force the millimetre offset into user units.
+    // The matrix keeps the millimetre translation, and the outer scale multiplies it.
     CHECK(planner.dispatch(
               Move{SvgIdRef{"box"}, Length{1.0F, Length::Unit::Mm}, units(0), EditTarget::Transform})
               .ok());
@@ -386,15 +378,10 @@ int main() {
     {
         const Outcome chained = planner.dispatch(Show{SvgIdRef{"box"}});
         if (std::holds_alternative<NodeView>(chained.view())) {
-            const std::vector<Transform>& transforms = std::get<NodeView>(chained.view()).transforms;
-            CHECK(transforms.size() == 2);
-            if (transforms.size() == 2) {
-                CHECK(std::holds_alternative<Scale>(transforms[0]));
-                CHECK(std::holds_alternative<Translate>(transforms[1]));
-                if (std::holds_alternative<Translate>(transforms[1])) {
-                    CHECK(to_text(std::get<Translate>(transforms[1]).x) == "1mm");
-                }
-            }
+            const Transform& transform = std::get<NodeView>(chained.view()).transform;
+            CHECK(transform_text(transform) == "translate(2mm 0) scale(2 2)");
+            CHECK(to_text(transform.e) == "2mm");
+            CHECK(numeric_value(transform.f) == 0.0F);
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
@@ -403,7 +390,7 @@ int main() {
     // A cascade must not write a parent-space delta into the params of a node that has
     // its own transform. The operation becomes a step in front of that transform, so a
     // 2x child still moves by exactly 1 parent unit.
-    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"box"}, {Scale{2.0F, 2.0F}}}}).ok());
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"box"}, scaled(2.0F, 2.0F)}}).ok());
     const Outcome through_scale = planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(0)});
     CHECK(through_scale.ok());
     if (happened_with<event::Moved>(through_scale)) {
@@ -419,13 +406,13 @@ int main() {
                 CHECK(to_text(geometry->x) == "0");
                 CHECK(to_text(geometry->y) == "0");
             }
-            CHECK(transform_list_text(view.transforms) == "translate(1 0) scale(2 2)");
+            CHECK(transform_text(view.transform) == "translate(1 0) scale(2 2)");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
     CHECK(planner.dispatch(Undo{}).ok());
 
-    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"box"}, {Scale{2.0F, 2.0F}}}}).ok());
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"box"}, scaled(2.0F, 2.0F)}}).ok());
     const Outcome scale_through_scale = planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 3.0F});
     CHECK(scale_through_scale.ok());
     {
@@ -438,7 +425,7 @@ int main() {
                 CHECK(to_text(geometry->x) == "0");
                 CHECK(to_text(geometry->w) == "10");
             }
-            CHECK(transform_list_text(view.transforms) == "scale(3 3) scale(2 2)");
+            CHECK(transform_text(view.transform) == "scale(6 6)");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
@@ -451,7 +438,7 @@ int main() {
     CHECK(planner.dispatch(Create{CreateRect{"deep", units(0), units(0), units(4), units(4), std::nullopt,
                                             SvgIdRef{"inner"}}})
               .ok());
-    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"inner"}, {Scale{2.0F, 2.0F}}}}).ok());
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"inner"}, scaled(2.0F, 2.0F)}}).ok());
     CHECK(planner.dispatch(Move{SvgIdRef{"outer"}, units(1), units(0)}).ok());
     {
         const Outcome deep = planner.dispatch(Show{SvgIdRef{"deep"}});
@@ -465,8 +452,7 @@ int main() {
         }
         const Outcome inner = planner.dispatch(Show{SvgIdRef{"inner"}});
         if (std::holds_alternative<NodeView>(inner.view())) {
-            CHECK(transform_list_text(std::get<NodeView>(inner.view()).transforms) ==
-                  "translate(1 0) scale(2 2)");
+            CHECK(transform_text(std::get<NodeView>(inner.view()).transform) == "translate(1 0) scale(2 2)");
         }
     }
     for (int edit = 0; edit < 5; ++edit) CHECK(planner.dispatch(Undo{}).ok());
@@ -493,7 +479,7 @@ int main() {
     {
         const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
         if (std::holds_alternative<NodeView>(layer.view())) {
-            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "translate(1 1)");
+            CHECK(transform_text(std::get<NodeView>(layer.view()).transform) == "translate(1 1)");
         }
         const Outcome box = planner.dispatch(Show{SvgIdRef{"box"}});
         if (std::holds_alternative<NodeView>(box.view())) {
@@ -512,7 +498,7 @@ int main() {
     {
         const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
         if (std::holds_alternative<NodeView>(layer.view())) {
-            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "translate(1 1)");
+            CHECK(transform_text(std::get<NodeView>(layer.view()).transform) == "translate(1 1)");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
@@ -641,8 +627,8 @@ int main() {
     const Outcome after_scale = planner.dispatch(ShowTree{});
     const std::optional<Node> grown_layer = node_in(after_scale, "layer");
     CHECK(grown_layer.has_value());
-    const std::optional<std::vector<Transform>> grown_layer_transforms = transforms_in(after_scale, "layer");
-    CHECK(grown_layer_transforms && grown_layer_transforms->empty());
+    const std::optional<Transform> grown_layer_transform = transform_in(after_scale, "layer");
+    CHECK(grown_layer_transform && is_identity(*grown_layer_transform));
     const std::optional<Node> grown_box = node_in(after_scale, "box");
     CHECK(grown_box.has_value());
     if (grown_box) {
@@ -658,8 +644,8 @@ int main() {
         const Outcome back = planner.dispatch(ShowTree{});
         const std::optional<Node> plain_layer = node_in(back, "layer");
         CHECK(plain_layer.has_value());
-        const std::optional<std::vector<Transform>> plain_layer_transforms = transforms_in(back, "layer");
-        CHECK(plain_layer_transforms && plain_layer_transforms->empty());
+        const std::optional<Transform> plain_layer_transform = transform_in(back, "layer");
+        CHECK(plain_layer_transform && is_identity(*plain_layer_transform));
     }
 
     // A leaf's transform scale leaves its params where they are.
@@ -673,13 +659,7 @@ int main() {
             CHECK(geometry.has_value());
             if (geometry) CHECK(to_text(geometry->w) == "10");
             const NodeView& node_view = std::get<NodeView>(grown.view());
-            CHECK(node_view.transforms.size() == 1);
-            if (node_view.transforms.size() == 1) {
-                CHECK(std::holds_alternative<Scale>(node_view.transforms.front()));
-                if (std::holds_alternative<Scale>(node_view.transforms.front())) {
-                    CHECK(std::get<Scale>(node_view.transforms.front()).x == 2.0F);
-                }
-            }
+            CHECK(transform_text(node_view.transform) == "scale(2 2)");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
@@ -706,7 +686,7 @@ int main() {
     {
         const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
         if (std::holds_alternative<NodeView>(layer.view())) {
-            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "scale(2 2)");
+            CHECK(transform_text(std::get<NodeView>(layer.view()).transform) == "scale(2 2)");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
@@ -719,7 +699,7 @@ int main() {
     {
         const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
         if (std::holds_alternative<NodeView>(layer.view())) {
-            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "scale(2 2)");
+            CHECK(transform_text(std::get<NodeView>(layer.view()).transform) == "scale(2 2)");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
@@ -878,22 +858,18 @@ int main() {
     }
 
     // the transform is one attribute, and `none` clears it
-    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"layer"}, {Translate{units(5), units(6)}}}}).ok());
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"layer"}, translated(units(5), units(6))}}).ok());
     const Outcome transformed = planner.dispatch(Show{SvgIdRef{"layer"}});
     if (std::holds_alternative<NodeView>(transformed.view())) {
         const NodeView& node_view = std::get<NodeView>(transformed.view());
-        CHECK(node_view.transforms.size() == 1);
-        if (node_view.transforms.size() == 1) {
-            CHECK(std::holds_alternative<Translate>(node_view.transforms.front()));
-            if (std::holds_alternative<Translate>(node_view.transforms.front())) {
-                CHECK(to_text(std::get<Translate>(node_view.transforms.front()).x) == "5");
-            }
-        }
+        CHECK(transform_text(node_view.transform) == "translate(5 6)");
+        CHECK(to_text(node_view.transform.e) == "5");
+        CHECK(to_text(node_view.transform.f) == "6");
     }
-    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"layer"}, {}}}).ok());
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"layer"}, Transform{}}}).ok());
     const Outcome cleared = planner.dispatch(Show{SvgIdRef{"layer"}});
     if (std::holds_alternative<NodeView>(cleared.view())) {
-        CHECK(std::get<NodeView>(cleared.view()).transforms.empty());
+        CHECK(is_identity(std::get<NodeView>(cleared.view()).transform));
     }
 
     // `width` is the root element's canvas; `w` is a rect's side, and neither node has
@@ -1077,6 +1053,95 @@ int main() {
             const std::optional<Shape::Rect> geometry = rect_of(*payload);
             CHECK(geometry.has_value());
             if (geometry) CHECK(numeric_value(geometry->w) == 3.0e38F);
+        }
+    }
+
+    // A transformed node is a coordinate-system boundary itself. Moving a group turned 90
+    // degrees by (10,0) has to be a parent-space move, so it belongs in front of the
+    // rotation; writing x += 10 under the rotation would move it down instead.
+    {
+        Document turned_document;
+        Editor turned_editor{turned_document};
+        Planner turned_planner{turned_document, turned_editor};
+        CHECK(turned_planner.dispatch(Init{}).ok());
+        CHECK(turned_planner.dispatch(Create{CreateGroup{"turned"}}).ok());
+        CHECK(turned_planner.dispatch(Create{CreateRect{"under-turned", units(0), units(0), units(10), units(10),
+                                                        std::nullopt, SvgIdRef{"turned"}}})
+                  .ok());
+        CHECK(turned_planner.dispatch(Set{SetTransform{SvgIdRef{"turned"}, rotated(90.0F)}}).ok());
+
+        const Outcome default_move = turned_planner.dispatch(Move{SvgIdRef{"turned"}, units(10), units(0)});
+        CHECK(default_move.ok());
+        if (happened_with<event::Moved>(default_move)) {
+            const event::Moved& moved = std::get<event::Moved>(default_move.event());
+            CHECK(moved.mode == EditMode::Transform);
+            CHECK(moved.nodes == 1);
+        }
+        const Outcome after_default = turned_planner.dispatch(ShowTree{});
+        const std::optional<Transform> turned_transform = transform_in(after_default, "turned");
+        CHECK(turned_transform.has_value());
+        if (turned_transform) {
+            CHECK(transform_text(*turned_transform) == "translate(10 0) rotate(90)");
+        }
+        const std::optional<Node> child = node_in(after_default, "under-turned");
+        CHECK(child.has_value());
+        if (child) {
+            const std::optional<Shape::Rect> geometry = rect_of(*child);
+            CHECK(geometry.has_value());
+            if (geometry) {
+                CHECK(to_text(geometry->x) == "0");
+                CHECK(to_text(geometry->y) == "0");
+            }
+        }
+        CHECK(turned_planner.dispatch(Undo{}).ok());
+
+        // Saying `params` does not make local params mean parent space: the transformed
+        // node still takes the edit in its transform.
+        const Outcome params_move = turned_planner.dispatch(
+            Move{SvgIdRef{"turned"}, units(10), units(0), EditTarget::Params, EditScope::Cascade});
+        CHECK(params_move.ok());
+        if (happened_with<event::Moved>(params_move)) {
+            CHECK(std::get<event::Moved>(params_move.event()).mode == EditMode::Transform);
+        }
+        const Outcome after_params = turned_planner.dispatch(Show{SvgIdRef{"turned"}});
+        if (std::holds_alternative<NodeView>(after_params.view())) {
+            CHECK(transform_text(std::get<NodeView>(after_params.view()).transform) == "translate(10 0) rotate(90)");
+        }
+        CHECK(turned_planner.dispatch(Undo{}).ok());
+
+        // A leaf with its own transform is the same boundary, and scale takes the same
+        // route so a rotated leaf grows around its own origin in the parent's space.
+        CHECK(turned_planner.dispatch(Create{CreateRect{"turned-leaf", units(0), units(0), units(10), units(10),
+                                                        std::nullopt}})
+                  .ok());
+        CHECK(turned_planner.dispatch(Set{SetTransform{SvgIdRef{"turned-leaf"}, rotated(90.0F)}}).ok());
+        const Outcome leaf_move = turned_planner.dispatch(
+            Move{SvgIdRef{"turned-leaf"}, units(10), units(0), EditTarget::Params, EditScope::Restrict});
+        CHECK(leaf_move.ok());
+        if (happened_with<event::Moved>(leaf_move)) {
+            CHECK(std::get<event::Moved>(leaf_move.event()).mode == EditMode::Transform);
+        }
+        const Outcome leaf_view = turned_planner.dispatch(Show{SvgIdRef{"turned-leaf"}});
+        if (std::holds_alternative<NodeView>(leaf_view.view())) {
+            const NodeView& view = std::get<NodeView>(leaf_view.view());
+            const std::optional<Shape::Rect> geometry = rect_of(view.payload);
+            CHECK(geometry.has_value());
+            if (geometry) {
+                CHECK(to_text(geometry->x) == "0");
+                CHECK(to_text(geometry->y) == "0");
+            }
+            CHECK(transform_text(view.transform) == "translate(10 0) rotate(90)");
+        }
+        CHECK(turned_planner.dispatch(Undo{}).ok());
+        const Outcome leaf_scale =
+            turned_planner.dispatch(ScaleBy{SvgIdRef{"turned-leaf"}, 2.0F, EditTarget::Params, EditScope::Restrict});
+        CHECK(leaf_scale.ok());
+        if (happened_with<event::Scaled>(leaf_scale)) {
+            CHECK(std::get<event::Scaled>(leaf_scale.event()).mode == EditMode::Transform);
+        }
+        const Outcome after_leaf_scale = turned_planner.dispatch(Show{SvgIdRef{"turned-leaf"}});
+        if (std::holds_alternative<NodeView>(after_leaf_scale.view())) {
+            CHECK(transform_text(std::get<NodeView>(after_leaf_scale.view()).transform) == "rotate(90) scale(2 2)");
         }
     }
 

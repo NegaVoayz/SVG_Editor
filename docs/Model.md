@@ -74,8 +74,8 @@ left to undo into, so it lands on the Model's `reset()` rather than in a transac
 
 The tree is one `mvcc_hive::MVCCHive<Node>`. There is no side table for parent or
 child links: a `Node` is the whole record, and its place in the tree is part of it.
-Transform chains are the one side table, because a list of transform steps is not
-part of the tree's shape and is shared by every historical version of a node.
+The transform is part of the record too, as one affine matrix, so a node version and
+its geometry always agree without a second structure to keep in step.
 
 ```C++
 struct SVGNode {
@@ -99,12 +99,7 @@ using Node = std::variant<SVGNode, PlainText>;
 
 struct ChildAttr { Id first_child = no_id; Id last_child = no_id; };
 
-struct TransformLink {
-    Transform transform;
-    Id previous = no_id;
-};
-
-struct TransformAttr { Id head = no_id; };
+struct TransformAttr { Transform transform{}; };
 ```
 
 A container or a text carries `ChildAttr`, a shape does not. The children of a
@@ -252,66 +247,61 @@ a front end what to refresh.
 
 ## The transform
 
-A node may carry a transform list, and each step is kept in the form SVG writes it:
+A node carries one affine transform matrix:
 
 ```C++
-struct Translate { LengthPercentage x, y; };
-struct Scale { float x, y; };
-struct Rotate {
-    struct Center { LengthPercentage x, y; };
-    float degrees;
-    std::optional<Center> center;  // absent for rotate(deg)
-};
-struct SkewX { float degrees; };
-struct SkewY { float degrees; };
-struct Matrix { float a, b, c, d, e, f; };
-using Transform = std::variant<Translate, Scale, Rotate, SkewX, SkewY, Matrix>;
-```
-
-The list is a persistent linked list of immutable records:
-
-```C++
-struct TransformLink {
-    Transform transform;
-    Id previous = no_id;
+struct Transform {
+    float a = 1.0F, b = 0.0F, c = 0.0F, d = 1.0F;
+    LengthPercentage e, f;  // translation
 };
 ```
 
-`TransformAttr` in a node is only the head index. Reading from the head towards
-`no_id` gives the functions in SVG order, so
-`scale(2) rotate(30 10 20) skewX(15) skewY(-5) rotate(45)` keeps all five steps and
-their order. Nothing composes them into a matrix, which
-means one step never has to be approximated to carry another. A translate in `mm`
-can sit next to a scale and stay `mm`; the unit-system rules still apply when a
-command adds two lengths, but no longer restrict what a transform may contain.
+It maps a point as
 
-The link records live in `TreeStore`, beside the nodes, and only `Model` reads or
-appends them. `move ... transform` and `scale ... transform` prepend one link: the
-new step is in front of the old head, which is `translate(...) <old list>` in SVG and
-puts the move in the parent's coordinate system. `set transform` replaces the head
-with a newly built list; an empty list clears the attribute. Because the old links
-are never rewritten, undo and redo only switch a node record to the head it used to
-name. A rolled-back transaction truncates the links it appended.
+```C++
+x' = a*x + c*y + e
+y' = b*x + d*y + f
+```
 
-The cost is one extra index operation per step and an append for each edit, instead
-of recomputing and rewriting the whole transform. The records are small and
-contiguous, and only the edited node record is written by the hive. History can
-leave unreachable links behind until a `read`/`init` clears the document; a future
-compaction pass can rebuild the reachable chains without changing the public
-`Document` API.
+The four linear entries are plain numbers. The translation is a vector of lengths, so a
+transform can keep `1mm` in a document whose user units mean something else. Composition
+uses the same unit table as a coordinate edit: a unit sum that has no exact value makes
+the edit fail instead of approximating. The identity matrix means the node carries no
+transform.
 
-A shape moves its own coordinates instead, since it has them: `move r 1 2` changes
-`x` and `y` and leaves the transform alone. That keeps a shape's coordinates in the
-units they were written with, at the price of the unit rule above - a rect whose `x`
-is `50%` cannot be moved by a length, and a transform could.
+A transform list is composed into this matrix when a file or a command is read. The order
+is SVG's order: `translate(10 0) rotate(90)` becomes `T * R`, so points are rotated first
+and then translated. `move` and `scale` write a parent-space operation by pre-multiplying:
+`T(dx,dy) * M` and `S(factor) * M`. A move therefore stays a move to the right even when
+the node is already rotated.
+
+The user and the serializer read the matrix in a TRS+skew form:
+
+```text
+translate(tx ty) rotate(degrees) scale(sx sy) skewX(degrees)
+```
+
+Identity components are omitted. The decomposition is exact for every finite matrix; a
+mirror appears as a negative y scale, and a singular matrix as a zero scale. `matrix(...)`
+is still accepted as input, but the output is the decomposition so a reader can see what
+the transform does rather than multiplying six numbers in their head.
+
+A shape without a transform moves its own coordinates instead, since it has them:
+`move r 1 2` changes `x` and `y` and leaves the transform alone. That keeps a shape's
+coordinates in the units they were written with, at the price of the unit rule above - a
+rect whose `x` is `50%` cannot be moved by a length, and a transform could. A shape that
+does carry a transform takes the move in its transform instead, because its `x` and `y`
+are read in the local coordinate system that transform establishes, not in the parent's.
+The same rule applies to a container: an untransformed container moves its descendants'
+params, while a transformed one pre-multiplies the operation into its own matrix.
 
 `scale` lands the same way round: a shape's own values are multiplied where they stand,
 each in the unit it was written in, so a scale never asks the unit table anything. Its
-`stroke-width` is a drawn dimension and is multiplied with the geometry. A container takes
-the scale as a new first transform step; `scale(factor) <old list>` leaves the node where a
-move put it and grows what is drawn under it from the node's own origin. A factor of
-nothing, or a negative one, is refused: SVG can mirror and collapse, and nothing here
-writes either yet.
+`stroke-width` is a drawn dimension and is multiplied with the geometry. A transform-based
+scale is `S(factor) * M`, which is also where a scale on a node that already carries a
+transform goes; it leaves the node where a move put it and grows what is drawn under it
+from the node's own origin. A factor of nothing, or a negative one, is refused: SVG can
+mirror and collapse, and nothing here writes either yet.
 
 ## SVG file I/O
 
@@ -331,7 +321,7 @@ Prefixed namespace declarations are ignored. Everything else is refused: there i
 silent drop that a later `save` could turn into data loss. Colours cover hex, `rgb()`,
 `none`, `currentColor`, all 148 CSS Color 4 named colours and the system-colour set;
 alpha, `transparent`, `style` and element kinds such as `path` remain outside the model.
-An empty or whitespace-only `transform` attribute is accepted as an empty list, just
+An empty or whitespace-only `transform` attribute is accepted as the identity, just
 like `transform="none"`.
 
 Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,

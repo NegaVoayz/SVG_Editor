@@ -115,8 +115,6 @@ void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<Lengt
     // keep the old generation alive, and none of it can be reached from this document.
     view_.reset();
     nodes_.clear();
-    transform_links_.clear();
-    transform_mark_ = 0;
     depth_ = 0;
     position_ = 0;
 
@@ -132,7 +130,6 @@ void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<Lengt
 
 TreeStore::Edit TreeStore::begin() {
     if (!view_) throw std::logic_error("TreeStore: no document");
-    transform_mark_ = transform_links_.size();
     return nodes_.begin_transaction();
 }
 
@@ -140,7 +137,6 @@ void TreeStore::commit(Edit& edit) {
     const Hive::CommitId before = view_->commit_id();
     const Snapshot next = edit.commit();
     view_ = next;
-    transform_mark_ = transform_links_.size();
     if (next.commit_id() == before) return;  // an edit that wrote nothing is no block
 
     ++position_;
@@ -149,7 +145,6 @@ void TreeStore::commit(Edit& edit) {
 
 void TreeStore::rollback(Edit& edit) noexcept {
     edit.rollback();
-    transform_links_.resize(transform_mark_);
 }
 
 bool TreeStore::can_undo() const { return position_ > 0; }
@@ -202,49 +197,6 @@ void TreeStore::clear_history() {
     depth_ = 0;
     position_ = 0;
     view_ = nodes_.head();
-}
-
-Id TreeStore::install_transforms(Edit&, std::span<const Transform> transforms) {
-    Id head = no_id;
-    for (auto step = transforms.rbegin(); step != transforms.rend(); ++step) {
-        transform_links_.push_back(TransformLink{*step, head});
-        head = static_cast<Id>(transform_links_.size() - 1);
-    }
-    return head;
-}
-
-void TreeStore::prepend_transform(Edit& edit, Id node, Transform transform) {
-    patch_node(edit, node, [this, transform = std::move(transform)](Node& record) {
-        if (!std::holds_alternative<SVGNode>(record)) {
-            throw std::logic_error("TreeStore: character data has no transform");
-        }
-        SVGNode& element = std::get<SVGNode>(record);
-        transform_links_.push_back(TransformLink{std::move(transform), element.transform_attr.head});
-        element.transform_attr.head = static_cast<Id>(transform_links_.size() - 1);
-    });
-}
-
-void TreeStore::set_transforms(Edit& edit, Id node, std::span<const Transform> transforms) {
-    const Id head = install_transforms(edit, transforms);
-    patch_node(edit, node, [head](Node& record) {
-        if (!std::holds_alternative<SVGNode>(record)) {
-            throw std::logic_error("TreeStore: character data has no transform");
-        }
-        std::get<SVGNode>(record).transform_attr.head = head;
-    });
-}
-
-std::vector<Transform> TreeStore::transforms(Id head) const {
-    std::vector<Transform> result;
-    while (head != no_id) {
-        if (head >= transform_links_.size()) {
-            throw std::logic_error("TreeStore: a transform link names no stored step");
-        }
-        const TransformLink& link = transform_links_[head];
-        result.push_back(link.transform);
-        head = link.previous;
-    }
-    return result;
 }
 
 bool TreeStore::has_node(Id node) const { return live_node(node).has_value(); }

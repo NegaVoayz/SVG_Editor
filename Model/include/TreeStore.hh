@@ -100,26 +100,6 @@ public:
     // A node and everything under it, as one removal.
     void erase_subtree(Edit& edit, Id node);
 
-    // --- transform chains ---
-
-    // Append the links for a transform list and return the head of the chain. The list
-    // is in SVG order; the records are appended backwards so the head walks forward
-    // through the list. This is the only point where a loaded document installs the
-    // transform a file wrote.
-    Id install_transforms(Edit& edit, std::span<const Transform> transforms);
-
-    // Add one step in front of a node's chain. A move and a scale are this operation:
-    // the transform they add is applied after what the node already carried, which is
-    // what `translate(...) <old list>` means in SVG. The node record is rewritten, but
-    // the chain it pointed at is untouched.
-    void prepend_transform(Edit& edit, Id node, Transform transform);
-
-    // Replace a node's whole transform list. An empty list clears the attribute.
-    void set_transforms(Edit& edit, Id node, std::span<const Transform> transforms);
-
-    // The steps a chain names, from its head towards its end.
-    std::vector<Transform> transforms(Id head) const;
-
 private:
     using NodeRef = std::reference_wrapper<const Node>;
     enum class Direction { Undo, Redo };
@@ -160,8 +140,6 @@ private:
     // sees. MVCCHive owns the checkout itself; TreeStore does not keep redo snapshots
     // alive, so a new commit is free to discard the redo tail.
     Hive nodes_;
-    std::vector<TransformLink> transform_links_;
-    std::size_t transform_mark_ = 0;
     std::optional<Snapshot> view_;
     Id root_ = no_id;
     std::size_t depth_ = 0;

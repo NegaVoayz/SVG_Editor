@@ -12,6 +12,7 @@ add_library(Model
     src/SvgValueReader.cc
     src/SvgWriter.cc
     src/TinyXml2Adapter.cc
+    src/Units.cc
     src/XmlSnapshot.cc
     src/TreeStore.cc)
 add_library(SvgEditor::Model ALIAS Model)

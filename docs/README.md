@@ -60,7 +60,7 @@ instructions separated by `;`. A view is printed as what it describes; a change 
 back as a structured event, and a refusal as a typed reason, both rendered here by the
 ui layer. A line whose first non-space character is `#` is a comment and runs to the end
 of the line. Quoted text accepts `\"` and `\\`. `transform=""`, a whitespace-only
-transform value and `transform="none"` all mean an empty transform list. A session starts
+transform value and `transform="none"` all mean the identity transform. A session starts
 without a document:
 
 A create reports the element as `kind#id`. It reports the parent only when the command
@@ -122,19 +122,27 @@ Quotes group words that contain spaces, which is how text content and file paths
 written. They do not make an SVG id valid: an id is an XML name, so `create g "a b"` is
 refused.
 
-`transform` adds one step to the node's transform list. Every SVG node has that field, so
-it works for a shape, a text, a group and the root alike. `params` changes values
+`transform` applies the move or scale to the node's transform matrix. Every SVG node has
+that field, so it works for a shape, a text, a group and the root alike. `params` changes values
 directly. `restrict` limits the edit to the node itself: on a leaf that is its params, and
 on a container it is the container's own transform, so the message is
 `g#node2 moved by (0,100)`. `cascade` changes every descendant's params. A non-container
 has no container descendants, so its cascade changes that node's own params. With no
-selector, `move` and `scale` use `params` and `cascade`. A container cascade stops at a
-descendant that already has a transform: it prepends the move or scale to that transform
-and leaves the subtree below alone, because editing those params would apply the
-operation in the child's local units instead of the parent's.
+selector, `move` and `scale` use `params` and `cascade`. A node that already carries a
+transform is a coordinate-system boundary too: a parent-space offset written into its
+params would be read in its local units, so the operation pre-multiplies its matrix
+instead, and the answer says `in its transform`. This applies to the node the instruction
+named as well as to a transformed descendant; an untransformed node still changes its
+params by default. When a cascade reaches such a descendant, it pre-multiplies the move
+or scale into that descendant's matrix and leaves the subtree below alone, because the
+new matrix already covers it.
 
 A transform list is one or more of `translate(x [y])`, `scale(x [y])`,
 `rotate(deg [cx cy])`, `skewX(deg)`, `skewY(deg)` and `matrix(a b c d e f)`.
+The list is composed into one matrix when it is read. `show` and a saved file print that
+matrix in TRS+skew form - `translate(...) rotate(...) scale(...) skewX(...)` - leaving
+out identity steps, so `rotate(30 10 20)` reads back as its equivalent
+`translate(11.3397 -2.32051) rotate(30)`.
 
 Moving or scaling an empty container is refused with
 `error: cannot move or scale an empty container: g#node2`. Such an edit would be

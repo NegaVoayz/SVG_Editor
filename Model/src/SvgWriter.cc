@@ -191,8 +191,9 @@ void write_element(const TreeStore& store, Id id, const SVGNode& element, std::s
     if (element.paint_attr.stroke_width) {
         append_attribute(out, "stroke-width", to_text(*element.paint_attr.stroke_width));
     }
-    const std::vector<Transform> transforms = store.transforms(element.transform_attr.head);
-    if (!transforms.empty()) append_attribute(out, "transform", transform_list_text(transforms));
+    if (!is_identity(element.transform_attr.transform)) {
+        append_attribute(out, "transform", transform_text(element.transform_attr.transform));
+    }
 
     const std::vector<Id> children = store.children(id);
     if (children.empty()) {

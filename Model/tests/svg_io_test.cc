@@ -1,7 +1,9 @@
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -34,6 +36,13 @@ bool write_text(const std::filesystem::path& path, std::string_view text) {
     return file.good();
 }
 
+std::string read_text(const std::filesystem::path& path) {
+    std::ifstream file{path, std::ios::binary};
+    std::ostringstream text;
+    text << file.rdbuf();
+    return text.str();
+}
+
 std::optional<Id> named(const Document& document, std::string_view id) { return document.find(id); }
 
 std::optional<SVGNode> element_at(const Document& document, Id id) {
@@ -53,6 +62,8 @@ std::optional<SvgDiagnostic> diagnostic_of(const Status& status) {
     }
     return std::nullopt;
 }
+
+bool near(float left, float right, float tolerance = 1.0e-4F) { return std::fabs(left - right) <= tolerance; }
 
 constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"?>
 <!-- declaration and comments are syntax, not tree nodes -->
@@ -156,8 +167,8 @@ int main() {
     const std::optional<Id> spaced_group = named(empty_transform_document, "spaced");
     CHECK(plain_group.has_value());
     CHECK(spaced_group.has_value());
-    if (plain_group) CHECK(empty_transform_document.transforms(*plain_group).empty());
-    if (spaced_group) CHECK(empty_transform_document.transforms(*spaced_group).empty());
+    if (plain_group) CHECK(is_identity(empty_transform_document.transform(*plain_group)));
+    if (spaced_group) CHECK(is_identity(empty_transform_document.transform(*spaced_group)));
 
     const std::optional<Id> root = named(document, "");
     CHECK(!root.has_value());
@@ -199,23 +210,14 @@ int main() {
                     CHECK(server.fallback.has_value());
                 }
             }
-            const std::vector<Transform> transforms = document.transforms(*layer);
-            CHECK(transforms.size() == 5);
-            if (transforms.size() == 5) {
-                CHECK(std::holds_alternative<Translate>(transforms[0]));
-                CHECK(std::holds_alternative<Scale>(transforms[1]));
-                CHECK(std::holds_alternative<Rotate>(transforms[2]));
-                CHECK(std::holds_alternative<SkewX>(transforms[3]));
-                CHECK(std::holds_alternative<SkewY>(transforms[4]));
-                if (std::holds_alternative<Rotate>(transforms[2])) {
-                    const Rotate& rotate = std::get<Rotate>(transforms[2]);
-                    CHECK(rotate.center.has_value());
-                    if (rotate.center) {
-                        CHECK(to_text(rotate.center->x) == "10");
-                        CHECK(to_text(rotate.center->y) == "20");
-                    }
-                }
-            }
+            const Transform transform = document.transform(*layer);
+            CHECK(!is_identity(transform));
+            CHECK(near(transform.a, 1.7789358F));
+            CHECK(near(transform.b, 0.8250227F));
+            CHECK(near(transform.c, -0.5358984F));
+            CHECK(near(transform.d, 2.0F));
+            CHECK(near(numeric_value(transform.e), 23.67949F, 1.0e-3F));
+            CHECK(near(numeric_value(transform.f), -2.641016F, 1.0e-3F));
             CHECK(document.children(*layer).size() == 4);
         }
     }
@@ -365,15 +367,14 @@ int main() {
             CHECK(std::holds_alternative<Color::Named>(fill.specific));
             CHECK(std::get<Color::Named>(fill.specific).id == Color::NamedColorId::Red);
         }
-        const std::vector<Transform> transforms = reread.transforms(*saved_layer);
-        CHECK(transforms.size() == 5);
-        if (transforms.size() == 5) {
-            CHECK(std::holds_alternative<Translate>(transforms[0]));
-            CHECK(std::holds_alternative<Scale>(transforms[1]));
-            CHECK(std::holds_alternative<Rotate>(transforms[2]));
-            CHECK(std::holds_alternative<SkewX>(transforms[3]));
-            CHECK(std::holds_alternative<SkewY>(transforms[4]));
-        }
+        const Transform saved_transform = reread.transform(*saved_layer);
+        CHECK(!is_identity(saved_transform));
+        CHECK(near(saved_transform.a, 1.7789358F));
+        CHECK(near(saved_transform.b, 0.8250227F));
+        CHECK(near(saved_transform.c, -0.5358984F));
+        CHECK(near(saved_transform.d, 2.0F));
+        CHECK(near(numeric_value(saved_transform.e), 23.67949F, 1.0e-3F));
+        CHECK(near(numeric_value(saved_transform.f), -2.641016F, 1.0e-3F));
     }
     const std::optional<Id> saved_small = named(reread, "small");
     CHECK(saved_small.has_value());
@@ -386,6 +387,17 @@ int main() {
             CHECK(std::get<Color::Named>(fill.specific).id == Color::NamedColorId::RebeccaPurple);
         }
     }
+
+    // The file and the user read the same TRS+skew form: the matrix a file writes becomes
+    // translate(...) rotate(...) scale(...) skewX(...), with identity steps left out.
+    const std::filesystem::path trs_path = file_named("svg_io_transform_trs.svg");
+    CHECK(write_text(trs_path,
+                     R"SVG(<svg><rect id="turned" width="10" height="10" transform="matrix(0 1 -1 0 10 0)"/></svg>)SVG"));
+    Document trs_document;
+    CHECK(ok(trs_document.open(trs_path.string())));
+    CHECK(ok(trs_document.save(trs_path.string())));
+    const std::string trs_svg = read_text(trs_path);
+    CHECK(trs_svg.find("transform=\"translate(10 0) rotate(90)\"") != std::string::npos);
 
     if (failures != 0) {
         std::printf("svg_io: %d check(s) failed\n", failures);

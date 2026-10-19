@@ -188,7 +188,7 @@ that are handled another way.
 | Command | Variant command | `Intent` is the command, `Planner::dispatch()` invokes it, `Editor::translate()` executes it, and `Document` receives the transaction. One command is one commit; undo and redo are commands over the history |
 | Composite | Tree | `Node` is a variant of `SVGNode` and `PlainText`, and `ChildAttr` holds the ends of a child list. Tree views, subtree erasure and grouping recurse through the same structure |
 | Facade | Document boundary | `Document` exposes `root()`, `node()`, `children()`, `parent()`, `find()` and `transaction()` while `TreeStore` and MVCCHive stay behind it |
-| Visitor | Static visitor | `std::visit` over `Intent`, `Create`, `Set`, `Node`, `Transform`, `Event` and `Refusal`, with `template<> handle<T>()` and overload sets. A missing case is a build error |
+| Visitor | Static visitor | `std::visit` over `Intent`, `Create`, `Set`, `Node`, `Event` and `Refusal`, with `template<> handle<T>()` and overload sets. A missing case is a build error |
 
 ### Grey zone: the spirit without the class hierarchy
 
@@ -317,8 +317,8 @@ abstraction worthwhile. The third group is as much a design decision as the firs
 | Incremental or asynchronous loading | Not reserved | Commands are synchronous and `read` returns only when the parse is done. Chunked commits help the bulk-insert cost, but cancellation and progress reporting would need new protocol and Model APIs |
 | SVG-id lookup becomes a hot path | Yes | `Document::find()` is the seam; it currently walks the tree. An index can be added behind it without changing callers, with invalidation tied to the same transactions that change ids |
 | History retention needs a policy | Partly | `clear_history()` exists and MVCCHive can prune history, but there is no user-visible retention setting. Adding one belongs in Model, because commit ids and pruning are storage details |
-| A new length system or unit family appears | Partly | `Length::Unit` and the Editor's unit table are the place to extend. Metric and imperial are intentionally separate, so a new family needs a conversion rule and a rendering name; user units, `em` and `ex` stay outside both systems |
-| A new transform operation appears | Yes | `Transform` is a variant of function forms, and a node stores a chain of them. A new named form needs a visitor case in parsing and rendering; the Editor prepends the form without composing it, so the missing case is visible and no matrix conversion is involved |
+| A new length system or unit family appears | Partly | `Length::Unit` and Model's unit table are the place to extend. Metric and imperial are intentionally separate, so a new family needs a conversion rule and a rendering name; user units, `em` and `ex` stay outside both systems |
+| A new transform operation appears | Yes | The model stores one affine matrix. A new named input form is a parsing case that composes a matrix, and the TRS+skew writer needs no case for it; a form that the decomposition cannot represent is the only design question |
 | The interface is localized or themed | Partly | All user-facing prose is already isolated in `Ui/src/Rendering.cc` and `usage()`, and outcomes are structured rather than pre-worded. There is no message catalog or locale parameter yet |
 | A format other than SVG is imported or exported | Not reserved | `Model/FileSystem` is byte I/O, and `Document::open/save` assume the SVG tree. A general codec interface would be a new Model boundary, not a change inside the existing one |
 | The pipeline is split across a process or network | Not reserved | `Intent`, `View`, `Event` and `Refusal` are in-process C++ values with no serialization or versioning. The clean boundary makes it possible, but no wire format is reserved |

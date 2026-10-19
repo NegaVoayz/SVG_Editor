@@ -1,17 +1,3 @@
-// The unit table.
-//
-// Lengths come in two systems here, and nothing adds up across them. The metric one is mm
-// and cm, a power of ten apart. The other is the one CSS defines against the inch - 1in,
-// 72pt, 96px - which is exact within itself. An inch is also exactly 25.4mm by definition,
-// and yet 1mm + 1in is refused: a document that allowed it would hold 26.4mm, and whoever
-// reads that value next cannot tell it was written in two systems. The table stops at the
-// edge of each system for that reason, not because the arithmetic is impossible.
-//
-// A user unit, an em and an ex are in neither system. A user unit's size is whatever the
-// viewport's user coordinate system says it is, and an em or an ex is font metrics, so none
-// of the three has a size this could know. A user unit is deliberately not a px either:
-// "1 user unit + 1 px = 2px" only holds in a viewport whose user coordinate system happens
-// to be one pixel wide.
 #include "Units.hh"
 
 #include <optional>
@@ -25,13 +11,13 @@ enum class System { Metric, Imperial };
 
 std::optional<System> system_of(Length::Unit unit) {
     switch (unit) {
-        case Length::Unit::Mm: [[fallthrough]]
+        case Length::Unit::Mm:
         case Length::Unit::Cm: return System::Metric;
-        case Length::Unit::In: [[fallthrough]]
-        case Length::Unit::Pt: [[fallthrough]]
+        case Length::Unit::In:
+        case Length::Unit::Pt:
         case Length::Unit::Px: return System::Imperial;
-        case Length::Unit::UserUnit: [[fallthrough]]
-        case Length::Unit::Em: [[fallthrough]]
+        case Length::Unit::UserUnit:
+        case Length::Unit::Em:
         case Length::Unit::Ex: return std::nullopt;
     }
     return std::nullopt;
@@ -46,8 +32,8 @@ std::optional<float> per_anchor(Length::Unit unit) {
         case Length::Unit::In: return 1.0F;
         case Length::Unit::Pt: return 72.0F;
         case Length::Unit::Px: return 96.0F;
-        case Length::Unit::UserUnit: [[fallthrough]]
-        case Length::Unit::Em: [[fallthrough]]
+        case Length::Unit::UserUnit:
+        case Length::Unit::Em:
         case Length::Unit::Ex: return std::nullopt;
     }
     return std::nullopt;
@@ -65,9 +51,7 @@ std::optional<float> factor_between(Length::Unit from, Length::Unit to) {
 
 // Zero is exactly zero in every unit, so it neither needs a conversion nor blocks one: a
 // coordinate of 0 can take an offset in any unit, and a zero offset leaves any coordinate
-// alone. Without this, "move r 5px 5px" on a rect whose x and y are zero user units would
-// be refused, which would make the first move of a fresh element depend on how it was
-// written.
+// alone.
 bool is_zero(LengthPercentage value) {
     if (std::holds_alternative<Percentage>(value)) return std::get<Percentage>(value).value == 0.0F;
     return std::get<Length>(value).value == 0.0F;

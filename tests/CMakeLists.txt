@@ -90,6 +90,26 @@ add_test(NAME cli_move_transform_container
 set_tests_properties(cli_move_transform_container PROPERTIES PASS_REGULAR_EXPRESSION
     "transform=translate\\(0 100\\)")
 
+# A node that already has a transform is a coordinate-system boundary: the default move
+# belongs in front of that transform, in the parent's space, not inside the rotated params.
+add_test(NAME cli_move_transformed_container_default
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g gR; create rect a 0 0 10 10 in gR; set gR transform \"rotate(90)\"; move gR 10 0; show gR")
+set_tests_properties(cli_move_transformed_container_default PROPERTIES PASS_REGULAR_EXPRESSION
+    "moved g#gR by 10 0 in its transform")
+
+add_test(NAME cli_move_transformed_container_chain
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g gR; create rect a 0 0 10 10 in gR; set gR transform \"rotate(90)\"; move gR 10 0; show gR")
+set_tests_properties(cli_move_transformed_container_chain PROPERTIES PASS_REGULAR_EXPRESSION
+    "transform=translate\\(10 0\\) rotate\\(90\\)")
+
+add_test(NAME cli_move_transformed_container_params
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g gR; create rect a 0 0 10 10 in gR; set gR transform \"rotate(90)\"; move gR 10 0 params cascade; show a")
+set_tests_properties(cli_move_transformed_container_params PROPERTIES PASS_REGULAR_EXPRESSION
+    "x=0 y=0 w=10 h=10")
+
 add_test(NAME cli_scale_transform_container
     COMMAND $<TARGET_FILE:Cli>
         "init; create g g1; create rect r 0 0 1 1 in g1; scale g1 2 transform; show g1")
@@ -113,11 +133,19 @@ add_test(NAME cli_set
 set_tests_properties(cli_set PROPERTIES PASS_REGULAR_EXPRESSION
     "rect#box +x=5 y=0 w=10 h=10 fill=#00ff00 stroke-width=2")
 
-add_test(NAME cli_set_transform_forms
+add_test(NAME cli_set_transform_rotate_center
     COMMAND $<TARGET_FILE:Cli>
-        "init; create rect box 0 0 10 10; set box transform \"rotate(30 10 20) skewX(15) skewY(-5)\"; show box")
-set_tests_properties(cli_set_transform_forms PROPERTIES PASS_REGULAR_EXPRESSION
-    "transform=rotate\\(30 10 20\\) skewX\\(15\\) skewY\\(-5\\)")
+        "init; create rect box 0 0 10 10; set box transform \"rotate(30 10 20)\"; show box")
+set_tests_properties(cli_set_transform_rotate_center PROPERTIES PASS_REGULAR_EXPRESSION
+    "transform=translate\\(11.3397 -2.32051\\) rotate\\(30\\)")
+
+add_test(NAME cli_set_transform_skew
+    COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"skewX(15)\"; show box")
+set_tests_properties(cli_set_transform_skew PROPERTIES PASS_REGULAR_EXPRESSION "transform=skewX\\(15\\)")
+
+add_test(NAME cli_set_transform_matrix
+    COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"matrix(1 0 0 1 5 6)\"; show box")
+set_tests_properties(cli_set_transform_matrix PROPERTIES PASS_REGULAR_EXPRESSION "transform=translate\\(5 6\\)")
 
 # an attribute the node does not carry is refused with its own spelling
 add_test(NAME cli_unknown_attribute COMMAND $<TARGET_FILE:Cli> "init; create circle dot 1 1 1; set dot x 5")
