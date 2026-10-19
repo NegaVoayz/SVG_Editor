@@ -29,7 +29,6 @@ struct RunInstruction {
     Planner& planner;
 
     bool operator()(const ParseError& error) const {
-        std::cout << "[parse] ";
         if (!error.message.starts_with("error:")) std::cout << "error: ";
         std::cout << error.message << "\n";
         return false;
@@ -55,7 +54,7 @@ struct RunInstruction {
         } catch (const std::exception& error) {
             // The front end is the boundary: whatever a lower layer throws comes out
             // as a line here, never as a crash.
-            std::cout << "[failed] " << error.what() << "\n";
+            std::cout << error.what() << "\n";
             return false;
         }
     }

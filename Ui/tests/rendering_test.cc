@@ -201,26 +201,31 @@ int main() {
           "svg (1024x768)px");
     CHECK(render(NodeView{0, root_with(Length{2.0F, Length::Unit::Cm}, Length{3.0F, Length::Unit::Mm}), {}}) ==
           "svg (2cmx3mm)");
+    CHECK(render(NodeView{0,
+                          element("", Container{ChildAttr{}, Container::SVG{units(300), std::nullopt}}),
+                          {}}) == "svg (300 x unset)");
+    CHECK(render(NodeView{0,
+                          element("", Container{ChildAttr{}, Container::SVG{std::nullopt, units(300)}}),
+                          {}}) == "svg (unset x 300)");
 
     // Character data asked for by handle has no id and no kind of its own: it is the
     // labelled words it is made of.
     CHECK(render(NodeView{7, Node{PlainText{"hello"}}, "hello"}) == "<text-node> text=\"hello\"");
 
     // The other half of the boundary: an event and a refusal are data until this file
-    // turns them into words. Editor results have no route prefix; the special branches
-    // keep theirs.
+    // turns them into words. Every branch is plain prose; a refusal starts with `error:`.
     CHECK(render(event::Created{{"rect", "box"}, {"g", "markers"}, false}) == "rect#box created");
     CHECK(render(event::Created{{"text", "start label"}, {"g", "node 1"}, true}) ==
           "text#\"start label\" created in g#\"node 1\"");
     CHECK(render(event::Grouped{{"g", "markers"}, {"svg", ""}, 2}) ==
-          "g#markers created with 2 children");
+          "g#markers created (2 elements)");
     CHECK(render(event::Ungrouped{{"g", "pair"}, {"svg", ""}, 2}) ==
           "g#pair ungrouped into svg (2 elements)");
     CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7)}) == "rect#r1 moved by (5, 7)");
     CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7), EditMode::Transform}) ==
           "rect#r1 moved by (5, 7)");
     CHECK(render(event::Moved{{"g", "g1"}, units(5), units(7), EditMode::Cascade, 3}) ==
-          "g#g1 moved by (5, 7) (3 elements affected)");
+          "g#g1 moved by (5, 7) (3 elements)");
     CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::ContainerTransform}) ==
           "g#node2 moved by (0, 100)");
     CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::Transform}) ==
@@ -228,7 +233,7 @@ int main() {
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F}) == "rect#r1 scaled by 2");
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F, EditMode::Transform}) == "rect#r1 scaled by 2");
     CHECK(render(event::Scaled{{"g", "g1"}, 2.0F, EditMode::Cascade, 2}) ==
-          "g#g1 scaled by 2 (2 elements affected)");
+          "g#g1 scaled by 2 (2 elements)");
     CHECK(render(event::Scaled{{"g", "node2"}, 3.0F, EditMode::ContainerTransform}) ==
           "g#node2 scaled by 3");
     CHECK(render(event::AddedTo{{"rect", "r1"}, {"g", "g1"}}) == "rect#r1 moved to the end of g#g1");
@@ -241,6 +246,8 @@ int main() {
           "rect#r1 updated: class=\"layer one\"");
     CHECK(render(event::ContentSet{{"text", "title"}, "Hello World"}) ==
           "text#title updated: text=\"Hello World\"");
+    CHECK(render(event::CanvasSet{units(300), std::nullopt}) ==
+          "the canvas is now 300 x unset, and the history starts from here");
     CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "rect#box deleted");
     CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "g#markers deleted (2 elements)");
     CHECK(render(event::Undone{
@@ -282,12 +289,12 @@ int main() {
     CHECK(render(Outcome{Kind::Change, Refusal{fault::UnknownAttribute{"x"}}}) ==
           "error: unknown attribute: x");
     CHECK(render(Outcome{Kind::View, Refusal{fault::MissingShape{SvgIdRef{"id with space"}}}}) ==
-          "[view] error: no such shape: \"id with space\"");
+          "error: no such shape: \"id with space\"");
     CHECK(render(Outcome{Kind::Change, Event{event::NothingMoved{}}}) ==
           "the offset is zero, nothing moved");
     CHECK(render(Outcome{Kind::Context, Event{event::Initialized{units(800), units(600)}}}) ==
-          "[context] canvas 800x600 created");
-    CHECK(render(Outcome{Kind::Unknown, Refusal{fault::InternalError{}}}) == "[unknown] error: internal error");
+          "canvas 800x600 created");
+    CHECK(render(Outcome{Kind::Unknown, Refusal{fault::InternalError{}}}) == "error: internal error");
 
     if (failures != 0) {
         std::printf("rendering: %d check(s) failed\n", failures);

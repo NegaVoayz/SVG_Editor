@@ -20,7 +20,9 @@ set_tests_properties(cli_no_document PROPERTIES PASS_REGULAR_EXPRESSION
     "error: no document. use 'init' or 'read' first")
 
 add_test(NAME cli_tree COMMAND $<TARGET_FILE:Cli> "init; tree")
-set_tests_properties(cli_tree PROPERTIES PASS_REGULAR_EXPRESSION "svg .800x600.")
+set_tests_properties(cli_tree PROPERTIES
+    PASS_REGULAR_EXPRESSION "svg .800x600."
+    FAIL_REGULAR_EXPRESSION "\\[(view|context|unknown|parse|failed|change)\\]")
 
 add_test(NAME cli_chain COMMAND $<TARGET_FILE:Cli> "init; create g layer; tree")
 set_tests_properties(cli_chain PROPERTIES PASS_REGULAR_EXPRESSION "g#layer")
@@ -192,12 +194,12 @@ add_test(NAME cli_text_content_last COMMAND $<TARGET_FILE:Cli>
 set_tests_properties(cli_text_content_last PROPERTIES PASS_REGULAR_EXPRESSION
     "\\(20,40\\) fill=red text=\"hello\"")
 
-# Deleting a leaf does not claim a subtree went with it, and edits have no route label.
+# Deleting a leaf does not claim a subtree went with it, and answers have no route label.
 add_test(NAME cli_delete_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 1 1; delete box")
 set_tests_properties(cli_delete_leaf PROPERTIES
     PASS_REGULAR_EXPRESSION "rect#box deleted"
-    FAIL_REGULAR_EXPRESSION "under it|\\[change\\]")
+    FAIL_REGULAR_EXPRESSION "under it|\\[[a-z]+\\]")
 
 # Character data is not a user-visible node: deleting a text element that holds only
 # its words is still a leaf delete.
@@ -257,7 +259,7 @@ set_tests_properties(cli_group_duplicate PROPERTIES
 add_test(NAME cli_group_result COMMAND $<TARGET_FILE:Cli>
     "init; create rect a 0 0 1 1; create rect b 0 0 1 1; group gg a b")
 set_tests_properties(cli_group_result PROPERTIES PASS_REGULAR_EXPRESSION
-    "g#gg created with 2 children")
+    "g#gg created \\(2 elements\\)")
 
 add_test(NAME cli_ungroup_result COMMAND $<TARGET_FILE:Cli>
     "init; create g layer; create rect a 0 0 1 1 in layer; create rect b 0 0 1 1 in layer; group gg a b; ungroup gg")
@@ -392,6 +394,11 @@ add_test(NAME cli_read_unsized_view_box COMMAND $<TARGET_FILE:Cli>
     "read ${CMAKE_SOURCE_DIR}/tests/fixtures/viewbox-only.svg; show svg")
 set_tests_properties(cli_read_unsized_view_box PROPERTIES PASS_REGULAR_EXPRESSION
     "svg \\(unsized\\) viewBox=\"0 0 100 50\"")
+
+add_test(NAME cli_read_partial_canvas COMMAND $<TARGET_FILE:Cli>
+    "read ${CMAKE_SOURCE_DIR}/tests/fixtures/width-only.svg; show svg")
+set_tests_properties(cli_read_partial_canvas PROPERTIES PASS_REGULAR_EXPRESSION
+    "svg \\(300 x unset\\)")
 
 add_test(NAME cli_invalid_view_box COMMAND $<TARGET_FILE:Cli>
     "init; set svg viewBox \"0 0 -1 10\"")

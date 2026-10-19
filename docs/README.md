@@ -72,7 +72,7 @@ pipeline command is refused with `error: no document. use 'init' or 'read' first
 
 ```
 svg> init
-[context] canvas 800x600 created
+canvas 800x600 created
 svg> create g markers
 g#markers created
 svg> create rect box 0 0 10 10 #ff0000 in markers
@@ -138,10 +138,10 @@ or scale into that descendant's matrix and leaves the subtree below alone, becau
 new matrix already covers it.
 
 A `move` answer uses one sentence for every mode: `<target> moved by (x, y)`. A cascade
-adds how many inner elements changed: `g#g1 moved by (5, 7) (3 elements affected)`. The
+adds how many inner elements changed: `g#g1 moved by (5, 7) (3 elements)`. The
 mode is still in `event::Moved`, but is not repeated in the prose.
 
-Other edit answers keep the subject first as well: `g#gg created with 2 children`,
+Other edit answers keep the subject first as well: `g#gg created (2 elements)`,
 `g#gg ungrouped into g#layer (2 elements)`, and `circle#c1 scaled by 2`. A text edit
 reports its value directly: `text#t updated: text="Hello World"`.
 

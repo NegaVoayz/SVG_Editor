@@ -47,9 +47,10 @@ std::string canvas_text(const Container::SVG& canvas) {
                    std::string{unit_text(width.unit)};
         }
     }
-    const std::string width = canvas.width ? to_text(*canvas.width) : "?";
-    const std::string height = canvas.height ? to_text(*canvas.height) : "?";
-    return "(" + width + "x" + height + ")";
+    const bool complete = canvas.width && canvas.height;
+    const std::string width = canvas.width ? to_text(*canvas.width) : "unset";
+    const std::string height = canvas.height ? to_text(*canvas.height) : "unset";
+    return complete ? "(" + width + "x" + height + ")" : "(" + width + " x " + height + ")";
 }
 
 // The size an `init` created, without the tree's parentheses. Both sides are always
@@ -64,8 +65,8 @@ std::string canvas_size_text(const std::optional<LengthPercentage>& width_value,
             return number_text(width.value) + "x" + number_text(height.value) + std::string{unit_text(width.unit)};
         }
     }
-    const std::string width = width_value ? to_text(*width_value) : "?";
-    const std::string height = height_value ? to_text(*height_value) : "?";
+    const std::string width = width_value ? to_text(*width_value) : "unset";
+    const std::string height = height_value ? to_text(*height_value) : "unset";
     return width + " x " + height;
 }
 
@@ -301,12 +302,8 @@ std::string element_count_text(std::size_t count) {
     return std::to_string(count) + (count == 1 ? " element" : " elements");
 }
 
-std::string child_count_text(std::size_t count) {
-    return std::to_string(count) + (count == 1 ? " child" : " children");
-}
-
-std::string affected_count_text(std::size_t count) {
-    return " (" + element_count_text(count) + " affected)";
+std::string element_count_suffix(std::size_t count) {
+    return " (" + element_count_text(count) + ")";
 }
 
 std::string_view system_name(Length::Unit unit) {
@@ -333,20 +330,18 @@ struct EventText {
     }
     std::string operator()(const event::Deleted& gone) const {
         std::string message = element_label(gone.node) + " deleted";
-        if (gone.descendants != 0) {
-            message += " (" + element_count_text(gone.descendants) + ")";
-        }
+        if (gone.descendants != 0) message += element_count_suffix(gone.descendants);
         return message;
     }
     std::string operator()(const event::Moved& moved) const {
         std::string message =
             element_label(moved.node) + " moved by (" + to_text(moved.dx) + ", " + to_text(moved.dy) + ")";
-        if (moved.mode == EditMode::Cascade) message += affected_count_text(moved.nodes);
+        if (moved.mode == EditMode::Cascade) message += element_count_suffix(moved.nodes);
         return message;
     }
     std::string operator()(const event::Scaled& scaled) const {
         std::string message = element_label(scaled.node) + " scaled by " + number_text(scaled.factor);
-        if (scaled.mode == EditMode::Cascade) message += affected_count_text(scaled.nodes);
+        if (scaled.mode == EditMode::Cascade) message += element_count_suffix(scaled.nodes);
         return message;
     }
     std::string operator()(const event::AddedTo& moved) const {
@@ -359,11 +354,11 @@ struct EventText {
         return element_label(moved.node) + " moved to the back of " + element_label(moved.parent);
     }
     std::string operator()(const event::Grouped& grouped) const {
-        return element_label(grouped.node) + " created with " + child_count_text(grouped.members);
+        return element_label(grouped.node) + " created" + element_count_suffix(grouped.members);
     }
     std::string operator()(const event::Ungrouped& released) const {
-        return element_label(released.erased) + " ungrouped into " + element_label(released.parent) + " (" +
-               element_count_text(released.members) + ")";
+        return element_label(released.erased) + " ungrouped into " + element_label(released.parent) +
+               element_count_suffix(released.members);
     }
     std::string operator()(const event::AttributeSet& set) const {
         return element_label(set.node) + " updated: " + quote_if_needed(set.attribute) + "=" +
@@ -373,8 +368,8 @@ struct EventText {
         return element_label(set.node) + " updated: text=" + quoted(set.content);
     }
     std::string operator()(const event::CanvasSet& canvas) const {
-        const std::string width = canvas.width ? to_text(*canvas.width) : "?";
-        const std::string height = canvas.height ? to_text(*canvas.height) : "?";
+        const std::string width = canvas.width ? to_text(*canvas.width) : "unset";
+        const std::string height = canvas.height ? to_text(*canvas.height) : "unset";
         return "the canvas is now " + width + " x " + height + ", and the history starts from here";
     }
     std::string operator()(const event::Undone& undo) const;
@@ -566,19 +561,9 @@ struct RefusalText {
 };
 
 struct OutcomeText {
-    Kind kind;
-
     std::string operator()(const View& view) const { return render(view); }
-    std::string operator()(const Event& event) const {
-        const std::string message = render(event);
-        if (kind == Kind::Change) return message;
-        return "[" + std::string{kind_name(kind)} + "] " + message;
-    }
-    std::string operator()(const Refusal& refusal) const {
-        const std::string message = render(refusal);
-        if (kind == Kind::Change) return message;
-        return "[" + std::string{kind_name(kind)} + "] " + message;
-    }
+    std::string operator()(const Event& event) const { return render(event); }
+    std::string operator()(const Refusal& refusal) const { return render(refusal); }
 };
 
 }  // namespace
@@ -587,5 +572,5 @@ std::string render(const Event& event) { return std::visit(EventText{}, event); 
 
 std::string render(const Refusal& refusal) { return std::visit(RefusalText{}, refusal); }
 
-std::string render(const Outcome& outcome) { return std::visit(OutcomeText{outcome.kind}, outcome.result); }
+std::string render(const Outcome& outcome) { return std::visit(OutcomeText{}, outcome.result); }
 

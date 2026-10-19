@@ -15,7 +15,5 @@ std::string render(const View& view);
 std::string render(const Event& event);
 std::string render(const Refusal& refusal);
 
-// The whole answer. Non-edit branches keep their `[view]`, `[context]` or `[unknown]`
-// marker; an Editor edit is plain prose because its event already names the operation.
-// Refusals carry only the `error:` prefix.
+// The whole answer. Every branch is plain prose; a refusal carries the `error:` prefix.
 std::string render(const Outcome& outcome);

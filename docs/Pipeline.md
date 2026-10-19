@@ -267,7 +267,7 @@ Printed floats use at most six significant figures.
 had to invent:
 
 ```text
-[context] read diagram.svg (12 elements)
+read diagram.svg (12 elements)
 warning: assigned id rect1 to unnamed <rect>
 warning: assigned id circle1 to unnamed <circle>
 ```
@@ -289,9 +289,8 @@ deeper in the tree can be ungrouped; it is simply removed.
 
 The prompt is `svg> `, one line may hold several instructions separated by `;`, and a
 view is printed as the thing it describes rather than as a sentence about it. Anything
-else is the sentence it already is. Edits have no route marker because the result
-already names the operation. The special branches keep `[view]`, `[context]` or
-`[unknown]` in front, and a refusal starts with `error:`.
+else is the sentence it already is. Answers carry no route marker because the result
+already names the operation, and a refusal starts with `error:`.
 
 A create reports the element as `kind#id`. The parent appears only when the instruction
 named one: a default root insertion says `g#markers created`, and an explicit position
@@ -299,7 +298,7 @@ says `rect#box created in g#markers`.
 
 ```
 svg> init
-[context] canvas 800x600 created
+canvas 800x600 created
 svg> create g markers
 g#markers created
 svg> create rect box 0 0 10 10 #ff0000 in markers
