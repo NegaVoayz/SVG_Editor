@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -234,13 +235,22 @@ int main() {
     CHECK(undo_create.ok());
     CHECK(happened_with<event::Undone>(undo_create));
     if (box_before_undo && happened_with<event::Undone>(undo_create)) {
-        CHECK(kind_of(std::get<event::Undone>(undo_create.event()).touched, *box_before_undo) ==
-              TouchedKind::Remove);
+        const event::Undone& undone = std::get<event::Undone>(undo_create.event());
+        CHECK(kind_of(undone.touched, *box_before_undo) == TouchedKind::Remove);
+        CHECK(undone.original != nullptr);
+        if (undone.original) CHECK(std::holds_alternative<event::Created>(*undone.original));
     }
     CHECK(document.find("box") == std::nullopt);
     CHECK(document.children(document.root()).size() == 1);
 
-    CHECK(planner.dispatch(Redo{}).ok());
+    const Outcome redo_create = planner.dispatch(Redo{});
+    CHECK(redo_create.ok());
+    CHECK(happened_with<event::Redone>(redo_create));
+    if (happened_with<event::Redone>(redo_create)) {
+        const event::Redone& redone = std::get<event::Redone>(redo_create.event());
+        CHECK(redone.original != nullptr);
+        if (redone.original) CHECK(std::holds_alternative<event::Created>(*redone.original));
+    }
     CHECK(document.find("layer").has_value());
     CHECK(document.find("box").has_value());
     CHECK(document.children(document.root()).size() == 2);
@@ -1142,6 +1152,55 @@ int main() {
         const Outcome after_leaf_scale = turned_planner.dispatch(Show{SvgIdRef{"turned-leaf"}});
         if (std::holds_alternative<NodeView>(after_leaf_scale.view())) {
             CHECK(transform_text(std::get<NodeView>(after_leaf_scale.view()).transform) == "rotate(90) scale(2 2)");
+        }
+    }
+
+    // The Editor keeps each committed edit's structured event beside its history
+    // position. Undo and redo expose that original event, and a new branch after undo
+    // replaces the redo tail rather than reusing its metadata.
+    {
+        Document replay_document;
+        Editor replay_editor(replay_document);
+        Planner replay_planner(replay_document, replay_editor);
+        CHECK(replay_planner.dispatch(Init{}).ok());
+        CHECK(replay_planner.dispatch(Create{CreateRect{"r", units(0), units(0), units(1), units(1), std::nullopt}})
+                  .ok());
+        CHECK(replay_planner.dispatch(Move{SvgIdRef{"r"}, units(5), units(7)}).ok());
+
+        const Outcome undo_move = replay_planner.dispatch(Undo{});
+        CHECK(happened_with<event::Undone>(undo_move));
+        if (happened_with<event::Undone>(undo_move)) {
+            const std::shared_ptr<const event::EditEvent> original =
+                std::get<event::Undone>(undo_move.event()).original;
+            CHECK(original != nullptr);
+            if (original) {
+                CHECK(std::holds_alternative<event::Moved>(*original));
+                if (std::holds_alternative<event::Moved>(*original)) {
+                    const event::Moved& moved = std::get<event::Moved>(*original);
+                    CHECK(to_text(moved.dx) == "5");
+                    CHECK(to_text(moved.dy) == "7");
+                }
+            }
+        }
+
+        const Outcome redo_move = replay_planner.dispatch(Redo{});
+        CHECK(happened_with<event::Redone>(redo_move));
+        if (happened_with<event::Redone>(redo_move)) {
+            const std::shared_ptr<const event::EditEvent> original =
+                std::get<event::Redone>(redo_move.event()).original;
+            CHECK(original != nullptr);
+            if (original) CHECK(std::holds_alternative<event::Moved>(*original));
+        }
+
+        CHECK(replay_planner.dispatch(Undo{}).ok());
+        CHECK(replay_planner.dispatch(Create{CreateCircle{"c", units(1), units(1), units(1), std::nullopt}}).ok());
+        const Outcome undo_branch = replay_planner.dispatch(Undo{});
+        CHECK(happened_with<event::Undone>(undo_branch));
+        if (happened_with<event::Undone>(undo_branch)) {
+            const std::shared_ptr<const event::EditEvent> original =
+                std::get<event::Undone>(undo_branch.event()).original;
+            CHECK(original != nullptr);
+            if (original) CHECK(std::holds_alternative<event::Created>(*original));
         }
     }
 

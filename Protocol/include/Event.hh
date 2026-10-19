@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -17,7 +18,8 @@
 // has to read a message written by a lower layer.
 //
 // The event is deliberately a report of the edit, not a replayable patch. The document is
-// still the source of truth; an event says which part of it moved.
+// still the source of truth; an event says which part of it moved. History keeps the edit
+// event beside its commit so undo and redo can report the original structured operation.
 namespace event {
 
 // The name a node is shown by: its element and the SVG id its document gives it. The
@@ -96,18 +98,6 @@ struct CanvasSet {
     std::optional<LengthPercentage> height;
 };
 
-struct Undone {
-    std::size_t position;
-    std::size_t depth;
-    TouchedNodes touched;
-};
-
-struct Redone {
-    std::size_t position;
-    std::size_t depth;
-    TouchedNodes touched;
-};
-
 struct NothingMoved {};
 
 struct AlreadyFront {
@@ -132,6 +122,26 @@ struct Opened {
 struct Saved {
     std::string path;
     std::size_t elements = 0;
+};
+
+// Every event a history entry can carry. Undo and redo are reports about a history move,
+// not entries of their own, so they are kept out of the replayable edit vocabulary.
+using EditEvent = std::variant<Created, Deleted, Moved, Scaled, AddedTo, MovedToFront, MovedToBack, Grouped,
+                               Ungrouped, AttributeSet, ContentSet, CanvasSet, NothingMoved, AlreadyFront,
+                               AlreadyBack, Initialized, Opened, Saved>;
+
+struct Undone {
+    std::size_t position;
+    std::size_t depth;
+    TouchedNodes touched;
+    std::shared_ptr<const EditEvent> original;
+};
+
+struct Redone {
+    std::size_t position;
+    std::size_t depth;
+    TouchedNodes touched;
+    std::shared_ptr<const EditEvent> original;
 };
 
 }  // namespace event

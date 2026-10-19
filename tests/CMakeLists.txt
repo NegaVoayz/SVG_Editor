@@ -337,6 +337,11 @@ add_test(NAME cli_undo_after_canvas COMMAND $<TARGET_FILE:Cli> "init; canvas 102
 set_tests_properties(cli_undo_after_canvas PROPERTIES PASS_REGULAR_EXPRESSION
     "error: undo not allowed after io command")
 
+add_test(NAME cli_undo_redo_history_outcome COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; move r 5 7; undo; redo")
+set_tests_properties(cli_undo_redo_history_outcome PROPERTIES PASS_REGULAR_EXPRESSION
+    "undo: rect#r moved by \\(5, 7\\)\nredo: rect#r moved by \\(5, 7\\)")
+
 # A parameter with a space is one word when it is quoted, and the answer prints it back
 # the same way so the reader can copy it into another instruction.
 add_test(NAME cli_invalid_quoted_id COMMAND $<TARGET_FILE:Cli> "init; create g \"a b\"")

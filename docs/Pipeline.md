@@ -39,6 +39,9 @@ hive's virtual handle. A `Refusal` names the missing node, the duplicate id, the
 that cannot be added, or the file that could not be read. A graphical front end can react
 to those fields directly; it does not have to recover them from a sentence.
 `Ui/src/Rendering.cc` is the only place that turns either one into English.
+An `Undone` or `Redone` event also carries the original structured edit event when the
+Editor recorded one, alongside the nodes whose state changed during the history move.
+The text front end prints it as `undo: <original edit>` or `redo: <original edit>`.
 
 ## How an intent is dispatched
 

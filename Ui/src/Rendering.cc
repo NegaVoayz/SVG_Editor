@@ -376,12 +376,8 @@ struct EventText {
         const std::string height = canvas.height ? to_text(*canvas.height) : "?";
         return "the canvas is now " + width + " x " + height + ", and the history starts from here";
     }
-    std::string operator()(const event::Undone& undo) const {
-        return "undone, at " + std::to_string(undo.position) + " of " + std::to_string(undo.depth) + " edits";
-    }
-    std::string operator()(const event::Redone& redo) const {
-        return "redone, at " + std::to_string(redo.position) + " of " + std::to_string(redo.depth) + " edits";
-    }
+    std::string operator()(const event::Undone& undo) const;
+    std::string operator()(const event::Redone& redo) const;
     std::string operator()(const event::NothingMoved&) const { return "the offset is zero, nothing moved"; }
     std::string operator()(const event::AlreadyFront& front) const {
         return element_label(front.node) + " is already in front";
@@ -411,6 +407,16 @@ struct EventText {
         return "saved to " + quote_if_needed(saved.path) + " (" + element_count_text(saved.elements) + ")";
     }
 };
+
+std::string EventText::operator()(const event::Undone& undo) const {
+    if (undo.original) return "undo: " + std::visit(*this, *undo.original);
+    return "undone, at " + std::to_string(undo.position) + " of " + std::to_string(undo.depth) + " edits";
+}
+
+std::string EventText::operator()(const event::Redone& redo) const {
+    if (redo.original) return "redo: " + std::visit(*this, *redo.original);
+    return "redone, at " + std::to_string(redo.position) + " of " + std::to_string(redo.depth) + " edits";
+}
 
 struct RefusalText {
     std::string operator()(const fault::NoDocument&) const {

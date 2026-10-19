@@ -1,10 +1,12 @@
 #pragma once
 
 #include <expected>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <optional>
 #include <variant>
+#include <vector>
 
 #include "Document.hh"
 #include "Intent.hh"
@@ -89,6 +91,11 @@ private:
     // kinds ask for it is the visit in Create.cc, so the list of them is the variant.
     template<typename T>
     Outcome create(const T& intent);
+
+    // Structured events are made beside the commits they describe. This keeps those
+    // events aligned with the history position without teaching Model about Protocol.
+    void sync_history_events();
+    std::vector<std::shared_ptr<const event::EditEvent>> history_events_;
 
     Document& document_;
 };

@@ -1,6 +1,7 @@
 // The drawing itself: the tree a view prints, with the box characters, the one column
 // its attributes line up in, and the words of a text inside the line that holds them.
 #include <cstdio>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -232,6 +233,14 @@ int main() {
           "text#title updated: text=\"Hello World\"");
     CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "rect#box deleted");
     CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "g#markers deleted (2 elements)");
+    CHECK(render(event::Undone{
+              3, 3, {},
+              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)})}) ==
+          "undo: rect#r1 moved by (5, 7)");
+    CHECK(render(event::Redone{
+              3, 3, {},
+              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)})}) ==
+          "redo: rect#r1 moved by (5, 7)");
     CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
     CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");

@@ -161,7 +161,8 @@ coordinate system.
 
 `init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
 says `error: undo not allowed after io command`; once an edit has been made, undo works
-until the baseline is reached again.
+until the baseline is reached again. Undo and redo report the edit outcome they move:
+`undo: rect#box moved by (5, 7)` and `redo: rect#box moved by (5, 7)`.
 
 `show` prints the node's parent on its heading when it is not the root, then one
 indented line for each group of attributes:
