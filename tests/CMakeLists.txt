@@ -29,6 +29,59 @@ add_test(NAME cli_shape
     COMMAND $<TARGET_FILE:Cli> "init; create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5; tree")
 set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +x=5 y=5 w=10 h=10 fill=#ff0000")
 
+# `move` and `scale` can change a leaf's transform, a leaf's own params, or a
+# container's descendants' params. The mismatched combinations are refused.
+add_test(NAME cli_move_transform
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 10 10; move r 5 0 transform; show r")
+set_tests_properties(cli_move_transform PROPERTIES PASS_REGULAR_EXPRESSION "transform=translate\\(5 0\\)")
+
+add_test(NAME cli_move_restrict_params
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 10 10; move r 5 0 params restrict; show r")
+set_tests_properties(cli_move_restrict_params PROPERTIES PASS_REGULAR_EXPRESSION "x=5 y=0 w=10 h=10")
+
+add_test(NAME cli_move_cascade_rect
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g g1; create rect r 0 0 10 10 in g1; move g1 2 3 cascade; tree")
+set_tests_properties(cli_move_cascade_rect PROPERTIES PASS_REGULAR_EXPRESSION "x=2 y=3 w=10 h=10")
+
+add_test(NAME cli_move_cascade_text
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g g1; create text t 5 6 \"hi\" in g1; move g1 2 3; tree")
+set_tests_properties(cli_move_cascade_text PROPERTIES PASS_REGULAR_EXPRESSION "\\(7,9\\) \"hi\"")
+
+add_test(NAME cli_move_cascade_text_children COMMAND $<TARGET_FILE:Cli>
+    "read ${CMAKE_SOURCE_DIR}/tests/fixtures/mixed-text.svg; move svg 2 3; tree")
+set_tests_properties(cli_move_cascade_text_children PROPERTIES PASS_REGULAR_EXPRESSION "\\(2,23\\)")
+
+add_test(NAME cli_scale_cascade
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g g1; create rect r 0 0 10 10 in g1; scale g1 2; tree")
+set_tests_properties(cli_scale_cascade PROPERTIES PASS_REGULAR_EXPRESSION "x=0 y=0 w=20 h=20")
+
+add_test(NAME cli_scale_transform
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 10 10; scale r 2 transform; show r")
+set_tests_properties(cli_scale_transform PROPERTIES PASS_REGULAR_EXPRESSION "transform=scale\\(2 2\\)")
+
+add_test(NAME cli_move_cascade_leaf
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1 cascade")
+set_tests_properties(cli_move_cascade_leaf PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: cascade is only for containers")
+
+add_test(NAME cli_move_restrict_container
+    COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 restrict")
+set_tests_properties(cli_move_restrict_container PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: restrict is only for non-containers")
+
+add_test(NAME cli_move_transform_container
+    COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 transform")
+set_tests_properties(cli_move_transform_container PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: transform mode is only for non-containers")
+
+add_test(NAME cli_move_transform_scope
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1 transform cascade")
+set_tests_properties(cli_move_transform_scope PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: transform does not take cascade or restrict")
+
 # `show` names the node's parent on the heading line, not only its own attributes.
 add_test(NAME cli_show_parent
     COMMAND $<TARGET_FILE:Cli> "init; create g markers; create circle c1 100 100 20 red in markers; show c1")

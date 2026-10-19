@@ -301,36 +301,82 @@ int main() {
     CHECK(refused_with<fault::DuplicateId>(taken));
     CHECK(planner.dispatch(Create{CreateGroup{"other"}}).ok());
 
-    // Moving a container is its transform, because a group has no coordinates of its
-    // own: the first move becomes a translate and a later one extends it.
-    CHECK(planner.dispatch(Move{SvgIdRef{"layer"}, units(3), units(4)}).ok());
+    // The undo above left box at the root. Put it back under the group so the container
+    // modes have a descendant to reach.
+    CHECK(planner.dispatch(AddTo{SvgIdRef{"layer"}, SvgIdRef{"box"}}).ok());
+
+    // A container's default is cascade: its own transform is untouched and every
+    // descendant's params change.
+    const Outcome first_cascade = planner.dispatch(Move{SvgIdRef{"layer"}, units(3), units(4)});
+    CHECK(first_cascade.ok());
+    if (happened_with<event::Moved>(first_cascade)) {
+        const event::Moved& result = std::get<event::Moved>(first_cascade.event());
+        CHECK(result.mode == EditMode::Cascade);
+        CHECK(result.nodes == 1);
+    }
     CHECK(planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1)}).ok());
     const Outcome after_moves = planner.dispatch(ShowTree{});
     const std::optional<Node> moved_layer = node_in(after_moves, "layer");
     CHECK(moved_layer.has_value());
-    if (moved_layer) {
-        const std::optional<Transform> transform = transform_of(*moved_layer);
-        CHECK(transform.has_value());
-        if (transform) {
-            CHECK(std::holds_alternative<Translate>(*transform));
-            CHECK(to_text(std::get<Translate>(*transform).x) == "4");
-            CHECK(to_text(std::get<Translate>(*transform).y) == "5");
+    if (moved_layer) CHECK(!transform_of(*moved_layer).has_value());
+    const std::optional<Node> moved_box = node_in(after_moves, "box");
+    CHECK(moved_box.has_value());
+    if (moved_box) {
+        const std::optional<Shape::Rect> geometry = rect_of(*moved_box);
+        CHECK(geometry.has_value());
+        if (geometry) {
+            CHECK(to_text(geometry->x) == "4");
+            CHECK(to_text(geometry->y) == "5");
         }
     }
 
     CHECK(planner.dispatch(Undo{}).ok());
-    const Outcome after_undo = planner.dispatch(ShowTree{});
-    const std::optional<Node> once_moved = node_in(after_undo, "layer");
-    CHECK(once_moved.has_value());
-    if (once_moved) {
-        const std::optional<Transform> transform = transform_of(*once_moved);
-        if (transform) CHECK(to_text(std::get<Translate>(*transform).x) == "3");
-    }
     CHECK(planner.dispatch(Undo{}).ok());
     const Outcome after_both = planner.dispatch(ShowTree{});
-    const std::optional<Node> never_moved = node_in(after_both, "layer");
+    const std::optional<Node> never_moved = node_in(after_both, "box");
     CHECK(never_moved.has_value());
-    if (never_moved) CHECK(!transform_of(*never_moved).has_value());
+    if (never_moved) {
+        const std::optional<Shape::Rect> geometry = rect_of(*never_moved);
+        CHECK(geometry.has_value());
+        if (geometry) {
+            CHECK(to_text(geometry->x) == "0");
+            CHECK(to_text(geometry->y) == "0");
+        }
+    }
+
+    // A leaf can change either its transform or its own params, never a cascade.
+    const Outcome leaf_transform =
+        planner.dispatch(Move{SvgIdRef{"box"}, units(2), units(3), EditTarget::Transform});
+    CHECK(leaf_transform.ok());
+    {
+        const Outcome transformed = planner.dispatch(Show{SvgIdRef{"box"}});
+        if (std::holds_alternative<NodeView>(transformed.view())) {
+            const Node& payload = std::get<NodeView>(transformed.view()).payload;
+            const std::optional<Shape::Rect> geometry = rect_of(payload);
+            CHECK(geometry.has_value());
+            if (geometry) {
+                CHECK(to_text(geometry->x) == "0");
+                CHECK(to_text(geometry->y) == "0");
+            }
+            const std::optional<Transform> transform = transform_of(payload);
+            CHECK(transform.has_value());
+            if (transform) {
+                CHECK(std::holds_alternative<Translate>(*transform));
+                CHECK(to_text(std::get<Translate>(*transform).x) == "2");
+                CHECK(to_text(std::get<Translate>(*transform).y) == "3");
+            }
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
+
+    CHECK(refused_with<fault::CascadeRequiresContainer>(
+        planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Params, EditScope::Cascade})));
+    CHECK(refused_with<fault::RestrictOnContainer>(
+        planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Params, EditScope::Restrict})));
+    CHECK(refused_with<fault::TransformOnContainer>(
+        planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Transform})));
+    CHECK(refused_with<fault::TransformHasNoScope>(planner.dispatch(
+        Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Transform, EditScope::Cascade})));
 
     // Units: mm and cm are one system and convert, in the unit the value was written
     // in; inches are the other system and are not mixed into it.
@@ -425,21 +471,27 @@ int main() {
     CHECK(planner.dispatch(Create{CreateEllipse{"oval", units(0), units(0), units(30), units(10), std::nullopt}}).ok());
     CHECK(document.find("oval").has_value());
 
-    // A scale of a container is its transform: the group had no transform left after
-    // the two moves above were undone, so this is where a plain scale lands.
-    CHECK(planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F}).ok());
+    // A container's default scale cascades into its descendants' params and leaves the
+    // container's transform alone.
+    const Outcome first_scale = planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F});
+    CHECK(first_scale.ok());
+    if (happened_with<event::Scaled>(first_scale)) {
+        const event::Scaled& result = std::get<event::Scaled>(first_scale.event());
+        CHECK(result.mode == EditMode::Cascade);
+        CHECK(result.nodes >= 1);
+    }
     const Outcome after_scale = planner.dispatch(ShowTree{});
     const std::optional<Node> grown_layer = node_in(after_scale, "layer");
     CHECK(grown_layer.has_value());
-    if (grown_layer) {
-        const std::optional<Transform> transform = transform_of(*grown_layer);
-        CHECK(transform.has_value());
-        if (transform) {
-            CHECK(std::holds_alternative<Scale>(*transform));
-            if (std::holds_alternative<Scale>(*transform)) {
-                CHECK(std::get<Scale>(*transform).x == 2.0F);
-                CHECK(std::get<Scale>(*transform).y == 2.0F);
-            }
+    if (grown_layer) CHECK(!transform_of(*grown_layer).has_value());
+    const std::optional<Node> grown_box = node_in(after_scale, "box");
+    CHECK(grown_box.has_value());
+    if (grown_box) {
+        const std::optional<Shape::Rect> geometry = rect_of(*grown_box);
+        CHECK(geometry.has_value());
+        if (geometry) {
+            CHECK(to_text(geometry->w) == "20");
+            CHECK(to_text(geometry->h) == "20");
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
@@ -449,6 +501,35 @@ int main() {
         CHECK(plain_layer.has_value());
         if (plain_layer) CHECK(!transform_of(*plain_layer).has_value());
     }
+
+    // A leaf's transform scale leaves its params where they are.
+    const Outcome leaf_scale = planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F, EditTarget::Transform});
+    CHECK(leaf_scale.ok());
+    {
+        const Outcome grown = planner.dispatch(Show{SvgIdRef{"box"}});
+        if (std::holds_alternative<NodeView>(grown.view())) {
+            const Node& payload = std::get<NodeView>(grown.view()).payload;
+            const std::optional<Shape::Rect> geometry = rect_of(payload);
+            CHECK(geometry.has_value());
+            if (geometry) CHECK(to_text(geometry->w) == "10");
+            const std::optional<Transform> transform = transform_of(payload);
+            CHECK(transform.has_value());
+            if (transform) {
+                CHECK(std::holds_alternative<Scale>(*transform));
+                if (std::holds_alternative<Scale>(*transform)) {
+                    CHECK(std::get<Scale>(*transform).x == 2.0F);
+                }
+            }
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
+
+    CHECK(refused_with<fault::CascadeRequiresContainer>(
+        planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F, EditTarget::Params, EditScope::Cascade})));
+    CHECK(refused_with<fault::RestrictOnContainer>(
+        planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Params, EditScope::Restrict})));
+    CHECK(refused_with<fault::TransformOnContainer>(
+        planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Transform})));
 
     // A scale of a shape is its own values, and the whole instruction is one undo
     if (dot) {

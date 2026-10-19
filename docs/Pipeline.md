@@ -156,8 +156,8 @@ until every one of them names it.
 | `create text <id> <x> <y> "content"`             | a text element and the character data inside it        | the Editor, one transaction |
 | `create g <id>`                                  | a group                                                | the Editor, one transaction |
 | `delete <id>`                                    | the node and its descendants                           | the Editor, one transaction |
-| `move <id> <dx> <dy>`                            | a shape's geometry, or a container's transform         | the Editor, one transaction |
-| `scale <id> <factor>`                            | a shape's own values, or a container's transform       | the Editor, one transaction |
+| `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants | the Editor, one transaction |
+| `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants | the Editor, one transaction |
 | `set <id> <attr> <value>`                        | one editable attribute of that node                    | the Editor, one transaction |
 | `group <newGid> <id> <id> ...`                   | a new group, standing where the first node stood        | the Editor, one transaction |
 | `ungroup <gid>`                                  | the children, back in the group's place                | the Editor, one transaction |
@@ -213,6 +213,17 @@ and `font-size` belong to text nodes, including `tspan` and `textPath`.
 `front` and `back` follow SVG's paint order: the last child is painted last, so it is
 the front, and the first child is the back. The tree prints children in that same chain
 order, so a later line is nearer the front.
+
+`move` and `scale` take two optional selectors. `transform` changes the node's transform
+matrix and leaves its params alone; it is accepted only for a non-container, because a
+container's transform would also move everything below it. `params` changes values
+directly: `restrict` edits only the node's own values and is refused for a container,
+which has none, while `cascade` edits every non-container descendant and is refused for
+a leaf. With neither selector, a leaf is `restrict` and a container is `cascade`.
+`Editor/src/Payload.cc` resolves the node kind, collects a cascade's changed payloads
+before opening a transaction, and commits them as one undo step. A cascade leaves nested
+containers and their transforms untouched; `event::Moved`/`event::Scaled` carry the
+resolved mode and the number of nodes it edited.
 
 A length is a number with an optional `px`, `pt`, `cm`, `mm`, `in`, `em`, `ex`, or a
 percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a CSS named or system colour,

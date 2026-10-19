@@ -6,6 +6,7 @@
 #include <variant>
 #include <vector>
 
+#include "EditSelectors.hh"
 #include "NodeRef.hh"
 #include "SVGNode.hh"
 
@@ -64,8 +65,21 @@ struct CreateGroup {
     bool parent_named = false;
 };
 struct Delete { NodeRef node; };
-struct Move { NodeRef node; LengthPercentage dx, dy; };
-struct ScaleBy { NodeRef node; float factor; };
+// The selectors are optional. With neither, a leaf changes its own params and a
+// container changes its descendants' params; the Editor refuses the combinations that
+// have no meaning for the node it resolved.
+struct Move {
+    NodeRef node;
+    LengthPercentage dx, dy;
+    EditTarget target = EditTarget::Default;
+    EditScope scope = EditScope::Default;
+};
+struct ScaleBy {
+    NodeRef node;
+    float factor;
+    EditTarget target = EditTarget::Default;
+    EditScope scope = EditScope::Default;
+};
 // A group comes into being where the first node it takes used to stand, and takes the rest
 // of them in the order they were written.
 struct Group { std::string id; std::vector<NodeRef> nodes; };

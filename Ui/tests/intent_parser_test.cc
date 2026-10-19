@@ -181,12 +181,38 @@ int main() {
         CHECK(std::get<SvgIdRef>(intent.node).name == "layer");
         CHECK(std::get<Length>(intent.dx).unit == Length::Unit::Px);
         CHECK(std::get<Percentage>(intent.dy).value == 50.0F);
+        CHECK(intent.target == EditTarget::Default);
+        CHECK(intent.scope == EditScope::Default);
     }
 
     const Request scaled = parse("scale layer 2.5");
     CHECK(holds<ScaleBy>(scaled));
     if (holds<ScaleBy>(scaled)) CHECK(as<ScaleBy>(scaled).factor == 2.5F);
     CHECK(refuses(parse("scale layer wide")));
+
+    // The two selectors are independent words and read the same in either order.
+    const Request transformed = parse("move layer 5 6 transform");
+    CHECK(holds<Move>(transformed));
+    if (holds<Move>(transformed)) {
+        CHECK(as<Move>(transformed).target == EditTarget::Transform);
+        CHECK(as<Move>(transformed).scope == EditScope::Default);
+    }
+    const Request cascaded = parse("scale layer 2 cascade params");
+    CHECK(holds<ScaleBy>(cascaded));
+    if (holds<ScaleBy>(cascaded)) {
+        CHECK(as<ScaleBy>(cascaded).target == EditTarget::Params);
+        CHECK(as<ScaleBy>(cascaded).scope == EditScope::Cascade);
+    }
+    const Request restricted = parse("move box 1 1 restrict");
+    CHECK(holds<Move>(restricted));
+    if (holds<Move>(restricted)) {
+        CHECK(as<Move>(restricted).target == EditTarget::Default);
+        CHECK(as<Move>(restricted).scope == EditScope::Restrict);
+    }
+    CHECK(refuses(parse("move layer 1 1 transform cascade")));
+    CHECK(refuses(parse("scale layer 2 transform restrict")));
+    CHECK(refuses(parse("move layer 1 1 cascade restrict")));
+    CHECK(refuses(parse("move layer 1 1 sideways")));
 
     // `set` names one attribute at runtime; the name is in the table and decides both the
     // value's syntax and which typed instruction comes out.

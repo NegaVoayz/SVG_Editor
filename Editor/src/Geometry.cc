@@ -8,7 +8,6 @@
 #include <optional>
 #include <variant>
 
-#include "Transform.hh"
 #include "Units.hh"
 
 namespace Geometry {
@@ -69,22 +68,10 @@ struct ScaleShape {
     }
 };
 
-}  // namespace
-
-std::optional<Refusal> translate(Node& payload, LengthPercentage dx, LengthPercentage dy) {
-    if (!is_finite(dx)) return Refusal{fault::NonFiniteValue{"offset x"}};
-    if (!is_finite(dy)) return Refusal{fault::NonFiniteValue{"offset y"}};
-    if (!std::holds_alternative<SVGNode>(payload)) {
-        return Refusal{fault::TextCannotMove{}};
-    }
-
-    SVGNode& element = std::get<SVGNode>(payload);
-    if (!std::holds_alternative<Shape>(element.data)) return move_transform(element, dx, dy);
-
+std::optional<Refusal> translate_shape(Shape& shape, LengthPercentage dx, LengthPercentage dy) {
     // Every shape moves its own coordinates and nothing else: a rect its corner, a circle
     // and an ellipse their centre, a line both of its ends. Radii and sides stay where they
     // are, because a translation is not a scale.
-    Shape& shape = std::get<Shape>(element.data);
     if (std::holds_alternative<Shape::Rect>(shape.specific)) {
         Shape::Rect& rect = std::get<Shape::Rect>(shape.specific);
         return move_point(rect.x, dx, rect.y, dy);
@@ -103,7 +90,74 @@ std::optional<Refusal> translate(Node& payload, LengthPercentage dx, LengthPerce
     return move_point(line.x2, dx, line.y2, dy);
 }
 
-std::optional<Refusal> scale(Node& payload, float factor) {
+// A <text>'s x and y are its position; an absent coordinate is the SVG default of zero,
+// so the first move gives it the offset itself. A <tspan> or <textPath> with an absent
+// coordinate inherits the position before it, so a move changes only coordinates that
+// are written; writing an inherited coordinate would break that chain. The dx and dy
+// adjustments are relative offsets and are not rewritten by a move.
+std::optional<Refusal> translate_text(Text& text, LengthPercentage dx, LengthPercentage dy) {
+    const bool owns_origin = std::holds_alternative<Text::Wrapper>(text.specific);
+    std::optional<LengthPercentage> moved_x;
+    if (!text.common.x) {
+        if (owns_origin) moved_x = dx;
+    } else {
+        moved_x = sum(*text.common.x, dx);
+        if (!moved_x) return Refusal{fault::IncompatibleLengths{dx, *text.common.x}};
+    }
+    if (moved_x && !is_finite(*moved_x)) return Refusal{fault::NonFiniteValue{"moved coordinate"}};
+
+    std::optional<LengthPercentage> moved_y;
+    if (!text.common.y) {
+        if (owns_origin) moved_y = dy;
+    } else {
+        moved_y = sum(*text.common.y, dy);
+        if (!moved_y) return Refusal{fault::IncompatibleLengths{dy, *text.common.y}};
+    }
+    if (moved_y && !is_finite(*moved_y)) return Refusal{fault::NonFiniteValue{"moved coordinate"}};
+
+    if (moved_x) text.common.x = *moved_x;
+    if (moved_y) text.common.y = *moved_y;
+    return std::nullopt;
+}
+
+std::optional<Refusal> scale_optional(std::optional<LengthPercentage>& value, float factor) {
+    if (!value) return std::nullopt;
+    return scale_value(*value, factor);
+}
+
+// Position, relative offsets and font size are all lengths the text owns. Scaling them
+// keeps the text at the same place in the parent's coordinate system (the origin stays
+// zero) and grows the type with everything else.
+std::optional<Refusal> scale_text(Text& text, float factor) {
+    if (std::optional<Refusal> problem = scale_optional(text.common.x, factor)) return problem;
+    if (std::optional<Refusal> problem = scale_optional(text.common.y, factor)) return problem;
+    if (std::optional<Refusal> problem = scale_optional(text.common.dx, factor)) return problem;
+    if (std::optional<Refusal> problem = scale_optional(text.common.dy, factor)) return problem;
+    if (std::optional<Refusal> problem = scale_optional(text.common.font_size, factor)) return problem;
+    if (Text::Path* path = std::get_if<Text::Path>(&text.specific)) {
+        return scale_optional(path->startOffset, factor);
+    }
+    return std::nullopt;
+}
+
+}  // namespace
+
+std::optional<Refusal> translate_params(Node& payload, LengthPercentage dx, LengthPercentage dy) {
+    if (!is_finite(dx)) return Refusal{fault::NonFiniteValue{"offset x"}};
+    if (!is_finite(dy)) return Refusal{fault::NonFiniteValue{"offset y"}};
+    if (!std::holds_alternative<SVGNode>(payload)) return Refusal{fault::NoDirectParams{}};
+
+    SVGNode& element = std::get<SVGNode>(payload);
+    if (std::holds_alternative<Shape>(element.data)) {
+        return translate_shape(std::get<Shape>(element.data), dx, dy);
+    }
+    if (std::holds_alternative<Text>(element.data)) {
+        return translate_text(std::get<Text>(element.data), dx, dy);
+    }
+    return Refusal{fault::NoDirectParams{}};
+}
+
+std::optional<Refusal> scale_params(Node& payload, float factor) {
     // A factor of nothing collapses the node and a negative one mirrors it. Both are things
     // SVG can write, and neither is written here yet, so they are refused rather than
     // approximated - and a factor that is not a number at all lands here too, because "not
@@ -111,14 +165,14 @@ std::optional<Refusal> scale(Node& payload, float factor) {
     if (!std::isfinite(factor) || !(factor > 0.0F)) {
         return Refusal{fault::ScaleFactorNotPositive{}};
     }
-    if (!std::holds_alternative<SVGNode>(payload)) {
-        return Refusal{fault::TextCannotScale{}};
-    }
+    if (!std::holds_alternative<SVGNode>(payload)) return Refusal{fault::NoDirectParams{}};
 
     SVGNode& element = std::get<SVGNode>(payload);
-    if (!std::holds_alternative<Shape>(element.data)) return scale_transform(element, factor);
-
-    return std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific);
+    if (std::holds_alternative<Shape>(element.data)) {
+        return std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific);
+    }
+    if (std::holds_alternative<Text>(element.data)) return scale_text(std::get<Text>(element.data), factor);
+    return Refusal{fault::NoDirectParams{}};
 }
 
 }  // namespace Geometry

@@ -10,9 +10,53 @@
 #include <vector>
 
 #include "Create.hh"  // the one reader that lives with the kinds it reads
+#include "Quoting.hh"
 #include "Set.hh"     // the one reader that lives with the attributes it reads
 
 namespace {
+
+struct Selectors {
+    EditTarget target = EditTarget::Default;
+    EditScope scope = EditScope::Default;
+};
+
+// The two selectors are independent words, so either order reads the same. A target or
+// a scope said twice is refused instead of letting the last one win silently.
+Selectors edit_selectors(const Words& words, std::size_t first, std::string_view command) {
+    Selectors selectors;
+    const std::string owner{command};
+    for (std::size_t index = first; index < words.size(); ++index) {
+        const std::string& word = words[index];
+        if (word == "transform") {
+            if (selectors.target != EditTarget::Default) {
+                throw ParseFailed{owner + " takes one target selector: transform or params"};
+            }
+            selectors.target = EditTarget::Transform;
+        } else if (word == "params" || word == "direct") {
+            if (selectors.target != EditTarget::Default) {
+                throw ParseFailed{owner + " takes one target selector: transform or params"};
+            }
+            selectors.target = EditTarget::Params;
+        } else if (word == "cascade") {
+            if (selectors.scope != EditScope::Default) {
+                throw ParseFailed{owner + " takes one scope selector: cascade or restrict"};
+            }
+            selectors.scope = EditScope::Cascade;
+        } else if (word == "restrict") {
+            if (selectors.scope != EditScope::Default) {
+                throw ParseFailed{owner + " takes one scope selector: cascade or restrict"};
+            }
+            selectors.scope = EditScope::Restrict;
+        } else {
+            throw ParseFailed{"unknown " + owner + " selector " + quote_if_needed(word) +
+                              ": expected transform, params, cascade or restrict"};
+        }
+    }
+    if (selectors.target == EditTarget::Transform && selectors.scope != EditScope::Default) {
+        throw ParseFailed{"transform does not take cascade or restrict"};
+    }
+    return selectors;
+}
 
 Request parse_delete(const Words& words) {
     expect(words.size(), 2, "delete takes '<id>'");
@@ -20,13 +64,16 @@ Request parse_delete(const Words& words) {
 }
 
 Request parse_move(const Words& words) {
-    expect(words.size(), 4, "move takes '<id> <dx> <dy>'");
-    return Move{reference_of(words[1]), length_of(words[2]), length_of(words[3])};
+    expect_between(words.size(), 4, 6,
+                   "move takes '<id> <dx> <dy> [transform|params] [cascade|restrict]'");
+    const Selectors selectors = edit_selectors(words, 4, "move");
+    return Move{reference_of(words[1]), length_of(words[2]), length_of(words[3]), selectors.target, selectors.scope};
 }
 
 Request parse_scale(const Words& words) {
-    expect(words.size(), 3, "scale takes '<id> <factor>'");
-    return ScaleBy{reference_of(words[1]), factor_of(words[2])};
+    expect_between(words.size(), 3, 5, "scale takes '<id> <factor> [transform|params] [cascade|restrict]'");
+    const Selectors selectors = edit_selectors(words, 3, "scale");
+    return ScaleBy{reference_of(words[1]), factor_of(words[2]), selectors.target, selectors.scope};
 }
 
 Request parse_group(const Words& words) {

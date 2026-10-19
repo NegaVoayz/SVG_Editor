@@ -6,6 +6,7 @@
 #include <variant>
 #include <vector>
 
+#include "EditSelectors.hh"
 #include "History.hh"
 #include "SVGNode.hh"
 #include "SvgDiagnostic.hh"
@@ -42,11 +43,15 @@ struct Moved {
     NodeName node;
     LengthPercentage dx;
     LengthPercentage dy;
+    EditMode mode = EditMode::Params;
+    std::size_t nodes = 1;
 };
 
 struct Scaled {
     NodeName node;
     float factor;
+    EditMode mode = EditMode::Params;
+    std::size_t nodes = 1;
 };
 
 struct AddedTo {

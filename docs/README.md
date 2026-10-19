@@ -98,8 +98,8 @@ The instructions are:
 | `create text <id> <x> <y> "content"`            | a text element, and the character data inside it           |
 | `create g <id>`                                 | a group                                                    |
 | `delete <id>`                                   | the node and its descendants                               |
-| `move <id> <dx> <dy>`                           | a shape's coordinates, or a container's transform          |
-| `scale <id> <factor>`                           | a shape's values, or a container's transform               |
+| `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants |
+| `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants |
 | `set <id> <attr> <value>`                       | one editable attribute; `id`, parent and children are not attributes |
 | `group <newGid> <id> <id> ...`                  | a new group, taking those nodes' place                     |
 | `ungroup <gid>`                                 | the group's children, back in its place; top-level groups are refused |
@@ -119,6 +119,13 @@ The hive's internal handle is not part of the command language.
 Quotes group words that contain spaces, which is how text content and file paths are
 written. They do not make an SVG id valid: an id is an XML name, so `create g "a b"` is
 refused.
+
+`transform` stays in the node's transform matrix and is refused for a container.
+`params` changes values directly; `restrict` limits it to the node itself and is refused
+for a container, while `cascade` changes every descendant's params and is refused for a
+leaf. With no selector, a leaf is restricted and a container cascades. A cascade leaves
+nested containers' transforms alone, so it edits the values the tree holds rather than
+adding a second transform above them.
 
 `init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
 says `error: undo not allowed after io command`; once an edit has been made, undo works

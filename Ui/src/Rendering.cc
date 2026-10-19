@@ -346,9 +346,25 @@ struct EventText {
         return message;
     }
     std::string operator()(const event::Moved& moved) const {
-        return "moved " + element_label(moved.node) + " by " + to_text(moved.dx) + " " + to_text(moved.dy);
+        std::string message;
+        if (moved.mode == EditMode::Cascade) {
+            message = "moved " + std::to_string(moved.nodes) + " node(s) under " + element_label(moved.node);
+        } else {
+            message = "moved " + element_label(moved.node);
+        }
+        message += " by " + to_text(moved.dx) + " " + to_text(moved.dy);
+        if (moved.mode == EditMode::Transform) message += " in its transform";
+        return message;
     }
     std::string operator()(const event::Scaled& scaled) const {
+        if (scaled.mode == EditMode::Cascade) {
+            return "scaled " + std::to_string(scaled.nodes) + " node(s) under " + element_label(scaled.node) +
+                   " by " + number_text(scaled.factor);
+        }
+        if (scaled.mode == EditMode::Transform) {
+            return "scaled " + element_label(scaled.node) + " by " + number_text(scaled.factor) +
+                   " in its transform";
+        }
         return "scaled " + element_label(scaled.node) + " by " + number_text(scaled.factor) +
                ", so everything drawn with it grew by that much";
     }
@@ -465,6 +481,21 @@ struct RefusalText {
     }
     std::string operator()(const fault::ScaleFactorNotPositive&) const {
         return "error: scale factor must be positive";
+    }
+    std::string operator()(const fault::TransformOnContainer&) const {
+        return "error: transform mode is only for non-containers";
+    }
+    std::string operator()(const fault::TransformHasNoScope&) const {
+        return "error: transform does not take cascade or restrict";
+    }
+    std::string operator()(const fault::CascadeRequiresContainer&) const {
+        return "error: cascade is only for containers";
+    }
+    std::string operator()(const fault::RestrictOnContainer&) const {
+        return "error: restrict is only for non-containers";
+    }
+    std::string operator()(const fault::NoDirectParams&) const {
+        return "error: this node has no direct params";
     }
     std::string operator()(const fault::RootCannotBeErased&) const {
         return "error: the root cannot be erased";
