@@ -168,10 +168,21 @@ std::optional<Refusal> scale_params(Node& payload, float factor) {
 
     SVGNode& element = std::get<SVGNode>(payload);
     if (std::holds_alternative<Shape>(element.data)) {
-        return std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific);
+        if (std::optional<Refusal> problem = std::visit(ScaleShape{factor}, std::get<Shape>(element.data).specific)) {
+            return problem;
+        }
+    } else if (std::holds_alternative<Text>(element.data)) {
+        if (std::optional<Refusal> problem = scale_text(std::get<Text>(element.data), factor)) return problem;
+    } else {
+        return Refusal{fault::NoDirectParams{}};
     }
-    if (std::holds_alternative<Text>(element.data)) return scale_text(std::get<Text>(element.data), factor);
-    return Refusal{fault::NoDirectParams{}};
+
+    // Stroke width is a drawn dimension like a radius or a side. A scale changes it with
+    // the geometry; a transform-based scale already covers it through the transform.
+    if (element.paint_attr.stroke_width) {
+        return scale_value(*element.paint_attr.stroke_width, factor);
+    }
+    return std::nullopt;
 }
 
 }  // namespace Geometry

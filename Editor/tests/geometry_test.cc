@@ -195,6 +195,15 @@ int main() {
         CHECK(to_text(ends.y2) == "10");
     }
 
+    // Stroke width is a drawn dimension, so it grows with the geometry.
+    Node stroked = rect(user_units(0), user_units(0));
+    std::get<SVGNode>(stroked).paint_attr.stroke_width = user_units(2);
+    CHECK(resized(stroked, 3.0F));
+    CHECK(std::get<SVGNode>(stroked).paint_attr.stroke_width.has_value());
+    if (std::get<SVGNode>(stroked).paint_attr.stroke_width) {
+        CHECK(to_text(*std::get<SVGNode>(stroked).paint_attr.stroke_width) == "6");
+    }
+
     // a percentage is a percentage at any size
     Node grown_percent = rect(Percentage{50.0F}, Percentage{0.0F});
     CHECK(resized(grown_percent, 2.0F));

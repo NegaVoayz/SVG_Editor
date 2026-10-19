@@ -299,12 +299,12 @@ units they were written with, at the price of the unit rule above - a rect whose
 is `50%` cannot be moved by a length, and a transform could.
 
 `scale` lands the same way round: a shape's own values are multiplied where they stand,
-each in the unit it was written in, so a scale never asks the unit table anything, and a
-container takes the scale as a new first transform step. `scale(factor) <old list>` leaves
-the node where a move put it and grows what is drawn under it from the node's own origin;
-it is the same drawing that multiplying every coordinate under the node would leave, in
-one payload instead of all of them. A factor of nothing, or a negative one, is refused:
-SVG can mirror and collapse, and nothing here writes either yet.
+each in the unit it was written in, so a scale never asks the unit table anything. Its
+`stroke-width` is a drawn dimension and is multiplied with the geometry. A container takes
+the scale as a new first transform step; `scale(factor) <old list>` leaves the node where a
+move put it and grows what is drawn under it from the node's own origin. A factor of
+nothing, or a negative one, is refused: SVG can mirror and collapse, and nothing here
+writes either yet.
 
 ## SVG file I/O
 
