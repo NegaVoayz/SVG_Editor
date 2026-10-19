@@ -5,6 +5,7 @@
 #include <string_view>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 #include "Command.hh"
 #include "IntentParser.hh"
@@ -244,15 +245,28 @@ int main() {
     const Request set_transform = parse("set layer transform translate(5 6)");
     CHECK(holds<SetTransform>(set_transform));
     if (holds<SetTransform>(set_transform)) {
-        CHECK(as<SetTransform>(set_transform).value.has_value());
-        if (as<SetTransform>(set_transform).value) {
-            CHECK(std::holds_alternative<Translate>(*as<SetTransform>(set_transform).value));
+        CHECK(as<SetTransform>(set_transform).value.size() == 1);
+        if (!as<SetTransform>(set_transform).value.empty()) {
+            CHECK(std::holds_alternative<Translate>(as<SetTransform>(set_transform).value.front()));
+        }
+    }
+
+    const Request set_transform_list = parse("set layer transform \"scale(2 2) rotate(30) scale(3 1) rotate(45)\"");
+    CHECK(holds<SetTransform>(set_transform_list));
+    if (holds<SetTransform>(set_transform_list)) {
+        const std::vector<Transform>& value = as<SetTransform>(set_transform_list).value;
+        CHECK(value.size() == 4);
+        if (value.size() == 4) {
+            CHECK(std::holds_alternative<Scale>(value[0]));
+            CHECK(std::holds_alternative<Rotate>(value[1]));
+            CHECK(std::holds_alternative<Scale>(value[2]));
+            CHECK(std::holds_alternative<Rotate>(value[3]));
         }
     }
 
     const Request clear_transform = parse("set layer transform none");
     CHECK(holds<SetTransform>(clear_transform));
-    if (holds<SetTransform>(clear_transform)) CHECK(!as<SetTransform>(clear_transform).value.has_value());
+    if (holds<SetTransform>(clear_transform)) CHECK(as<SetTransform>(clear_transform).value.empty());
 
     const Request unknown_attribute = parse("set box colour red");
     CHECK(refuses(unknown_attribute));

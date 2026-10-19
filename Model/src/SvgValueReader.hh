@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "SVGNode.hh"
 
@@ -12,7 +13,7 @@ namespace SvgValueReader {
 std::optional<LengthPercentage> length(std::string_view text);
 std::optional<Color> color(std::string_view text);
 std::optional<Paint> paint(std::string_view text);
-std::optional<Transform> transform(std::string_view text);
+std::optional<std::vector<Transform>> transform(std::string_view text);
 std::optional<Container::ViewBox> view_box(std::string_view text);
 std::optional<Text::Anchor> text_anchor(std::string_view text);
 

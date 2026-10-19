@@ -72,9 +72,10 @@ left to undo into, so it lands on the Model's `reset()` rather than in a transac
 
 ## The tree in a hive
 
-The tree is one `mvcc_hive::MVCCHive<Node>`. There are no side tables for parent
-or child links: a `Node` is the whole record, and its place in the tree is part
-of it.
+The tree is one `mvcc_hive::MVCCHive<Node>`. There is no side table for parent or
+child links: a `Node` is the whole record, and its place in the tree is part of it.
+Transform chains are the one side table, because a list of transform steps is not
+part of the tree's shape and is shared by every historical version of a node.
 
 ```C++
 struct SVGNode {
@@ -97,6 +98,13 @@ struct PlainText {
 using Node = std::variant<SVGNode, PlainText>;
 
 struct ChildAttr { Id first_child = no_id; Id last_child = no_id; };
+
+struct TransformLink {
+    Transform transform;
+    Id previous = no_id;
+};
+
+struct TransformAttr { Id head = no_id; };
 ```
 
 A container or a text carries `ChildAttr`, a shape does not. The children of a
@@ -244,7 +252,7 @@ a front end what to refresh.
 
 ## The transform
 
-A node may carry a transform, and it is kept in the form SVG writes it:
+A node may carry a transform list, and each step is kept in the form SVG writes it:
 
 ```C++
 struct Translate { LengthPercentage x, y; };
@@ -254,16 +262,36 @@ struct Matrix { float a, b, c, d, e, f; };
 using Transform = std::variant<Translate, Scale, Rotate, Matrix>;
 ```
 
-The simple forms stay simple, because they say exactly what they mean and stay
-exact under an edit; the matrix is what a transform becomes when a simple form can
-no longer hold what it has to carry. `move` on a container is where that shows: the
-first move writes a `translate`, a later move extends it, and a node that already
-carries a scale or a rotation becomes a matrix with the translation in `e` and `f`
-- which puts the translation in front of the transform the node had, so the node
-moves in its parent's coordinate system, which is what moving it means. A matrix
-counts in user units, so an offset that is not a plain number cannot go into one and
-is refused rather than approximated. A rotation needs its cosine and sine to become
-a matrix, which is the one place a matrix stops being exact.
+The list is a persistent linked list of immutable records:
+
+```C++
+struct TransformLink {
+    Transform transform;
+    Id previous = no_id;
+};
+```
+
+`TransformAttr` in a node is only the head index. Reading from the head towards
+`no_id` gives the functions in SVG order, so `scale(2) rotate(30) scale(3) rotate(45)`
+keeps all four steps and their order. Nothing composes them into a matrix, which
+means one step never has to be approximated to carry another. A translate in `mm`
+can sit next to a scale and stay `mm`; the unit-system rules still apply when a
+command adds two lengths, but no longer restrict what a transform may contain.
+
+The link records live in `TreeStore`, beside the nodes, and only `Model` reads or
+appends them. `move ... transform` and `scale ... transform` prepend one link: the
+new step is in front of the old head, which is `translate(...) <old list>` in SVG and
+puts the move in the parent's coordinate system. `set transform` replaces the head
+with a newly built list; an empty list clears the attribute. Because the old links
+are never rewritten, undo and redo only switch a node record to the head it used to
+name. A rolled-back transaction truncates the links it appended.
+
+The cost is one extra index operation per step and an append for each edit, instead
+of recomputing and rewriting the whole transform. The records are small and
+contiguous, and only the edited node record is written by the hive. History can
+leave unreachable links behind until a `read`/`init` clears the document; a future
+compaction pass can rebuild the reachable chains without changing the public
+`Document` API.
 
 A shape moves its own coordinates instead, since it has them: `move r 1 2` changes
 `x` and `y` and leaves the transform alone. That keeps a shape's coordinates in the
@@ -272,17 +300,11 @@ is `50%` cannot be moved by a length, and a transform could.
 
 `scale` lands the same way round: a shape's own values are multiplied where they stand,
 each in the unit it was written in, so a scale never asks the unit table anything, and a
-container takes the scale in its transform. That scale goes *behind* what the node
-already carries - `translate(...) scale(...)` - which leaves the node where a move put it
-and grows what is drawn under it from the node's own origin; it is the same drawing that
-multiplying every coordinate under the node would leave, in one payload instead of all of
-them. What the transform already is decides how it takes the factor: a scale stays a
-scale, a matrix takes it in the four linear entries and keeps its translation, a rotation
-becomes its cosine and sine - the one place a matrix stops being exact - and a translate
-has to become a matrix, which counts in user units, so a translate written in a unit
-refuses the scale instead of approximating it. A factor of nothing, or a negative one,
-is refused for the same reason: SVG can mirror and collapse, and nothing here writes
-either yet.
+container takes the scale as a new first transform step. `scale(factor) <old list>` leaves
+the node where a move put it and grows what is drawn under it from the node's own origin;
+it is the same drawing that multiplying every coordinate under the node would leave, in
+one payload instead of all of them. A factor of nothing, or a negative one, is refused:
+SVG can mirror and collapse, and nothing here writes either yet.
 
 ## SVG file I/O
 

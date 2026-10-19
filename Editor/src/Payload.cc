@@ -16,7 +16,6 @@
 #include "Naming.hh"
 #include "NodeRef.hh"
 #include "Outcome.hh"
-#include "Transform.hh"
 #include "Translations.hh"
 
 namespace {
@@ -90,12 +89,11 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
         if (!std::holds_alternative<SVGNode>(*payload)) {
             return refused(Kind::Change, fault::TextCannotMove{});
         }
-        std::optional<Refusal> problem =
-            Geometry::move_transform(std::get<SVGNode>(*payload), intent.dx, intent.dy);
-        if (problem) return refused(Kind::Change, std::move(*problem));
+        if (!is_finite(intent.dx)) return refused(Kind::Change, fault::NonFiniteValue{"offset x"});
+        if (!is_finite(intent.dy)) return refused(Kind::Change, fault::NonFiniteValue{"offset y"});
 
         Transaction edit = document_.transaction();
-        edit.update(*node, std::move(*payload));
+        edit.prepend_transform(*node, Translate{intent.dx, intent.dy});
         edit.commit();
         return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy, EditMode::Transform, 1});
     }
@@ -138,11 +136,9 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
         if (!std::holds_alternative<SVGNode>(*payload)) {
             return refused(Kind::Change, fault::TextCannotScale{});
         }
-        std::optional<Refusal> problem = Geometry::scale_transform(std::get<SVGNode>(*payload), intent.factor);
-        if (problem) return refused(Kind::Change, std::move(*problem));
 
         Transaction edit = document_.transaction();
-        edit.update(*node, std::move(*payload));
+        edit.prepend_transform(*node, Scale{intent.factor, intent.factor});
         edit.commit();
         return happened(Kind::Change, event::Scaled{named, intent.factor, EditMode::Transform, 1});
     }

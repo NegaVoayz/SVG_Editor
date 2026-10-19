@@ -6,7 +6,6 @@
 #include <variant>
 
 #include "Geometry.hh"
-#include "Transform.hh"
 
 namespace {
 
@@ -40,8 +39,6 @@ Node line() {
         Shape{Shape::Line{user_units(0), user_units(0), user_units(5), user_units(5)}})};
 }
 
-Node group() { return Node{element_with(Container{ChildAttr{}, Container::Group{}})}; }
-
 Node plain_text() { return Node{PlainText{"hello"}}; }
 
 Node text_element() {
@@ -72,21 +69,7 @@ bool resized(Node& payload, float factor) {
     return !problem;
 }
 
-bool moved_transform(Node& payload, LengthPercentage dx, LengthPercentage dy) {
-    problem = Geometry::move_transform(std::get<SVGNode>(payload), dx, dy);
-    return !problem;
-}
-
-bool resized_transform(Node& payload, float factor) {
-    problem = Geometry::scale_transform(std::get<SVGNode>(payload), factor);
-    return !problem;
-}
-
 const Shape& shape_of(const Node& payload) { return std::get<Shape>(std::get<SVGNode>(payload).data); }
-
-const std::optional<Transform>& transform_of(const Node& payload) {
-    return std::get<SVGNode>(payload).transform_attr.transform;
-}
 
 }  // namespace
 
@@ -161,43 +144,6 @@ int main() {
     CHECK(to_text(std::get<Shape::Rect>(shape_of(kept).specific).x) == "10mm");
     CHECK(to_text(std::get<Shape::Rect>(shape_of(kept).specific).y) == "10mm");
 
-    // A container has no direct params, so the transform mode is what moves it.
-    Node layer = group();
-    CHECK(moved_transform(layer, user_units(2), user_units(3)));
-    const std::optional<Transform>& first = std::get<SVGNode>(layer).transform_attr.transform;
-    CHECK(first.has_value());
-    CHECK(std::holds_alternative<Translate>(*first));
-    CHECK(to_text(std::get<Translate>(*first).y) == "3");
-
-    // two translates are one translate
-    CHECK(moved_transform(layer, user_units(1), user_units(1)));
-    CHECK(to_text(std::get<Translate>(*std::get<SVGNode>(layer).transform_attr.transform).x) == "3");
-
-    // a scale has no simple form that holds a translation next to it, so it becomes a
-    // matrix with the translation in e and f
-    Node scaled = group();
-    std::get<SVGNode>(scaled).transform_attr.transform = Scale{2.0F, 3.0F};
-    CHECK(moved_transform(scaled, user_units(5), user_units(7)));
-    const Matrix& matrix = std::get<Matrix>(*std::get<SVGNode>(scaled).transform_attr.transform);
-    CHECK(matrix.a == 2.0F && matrix.d == 3.0F);
-    CHECK(matrix.e == 5.0F && matrix.f == 7.0F);
-
-    // a rotation becomes its cosine and sine, which is where a matrix stops being exact
-    Node turned = group();
-    std::get<SVGNode>(turned).transform_attr.transform = Rotate{90.0F};
-    CHECK(moved_transform(turned, user_units(1), user_units(0)));
-    const Matrix& rotated = std::get<Matrix>(*std::get<SVGNode>(turned).transform_attr.transform);
-    CHECK(std::fabs(rotated.a) < 1e-6F);
-    CHECK(std::fabs(rotated.b - 1.0F) < 1e-6F);
-    CHECK(std::fabs(rotated.c + 1.0F) < 1e-6F);
-    CHECK(rotated.e == 1.0F);
-
-    // a matrix counts in user units, so an offset with a unit cannot go into one
-    Node inches = group();
-    std::get<SVGNode>(inches).transform_attr.transform = Scale{2.0F, 2.0F};
-    CHECK(!moved_transform(inches, Length{1.0F, Length::Unit::In}, mm(0)));
-    CHECK(problem && std::holds_alternative<fault::MatrixNeedsUserUnitsForMove>(*problem));
-
     // Character data has no position; a text element does, and its absent coordinates are
     // the SVG default of zero.
     Node words = plain_text();
@@ -211,10 +157,6 @@ int main() {
         CHECK(to_text(*moved_label.common.x) == "3");
         CHECK(to_text(*moved_label.common.y) == "5");
     }
-
-    Node moved_label_transform = text_element();
-    CHECK(moved_transform(moved_label_transform, user_units(2), user_units(3)));
-    CHECK(transform_of(moved_label_transform).has_value());
 
     // A span with no x or y inherits where the text before it ended; a move must not
     // invent an origin for it.
@@ -258,61 +200,6 @@ int main() {
     CHECK(resized(grown_percent, 2.0F));
     CHECK(to_text(std::get<Shape::Rect>(shape_of(grown_percent).specific).x) == "100%");
 
-    // A container's transform is scaled by the transform mode; a scale stays a scale.
-    Node grown_group = group();
-    CHECK(resized_transform(grown_group, 2.0F));
-    CHECK(transform_of(grown_group).has_value());
-    CHECK(std::holds_alternative<Scale>(*transform_of(grown_group)));
-    CHECK(std::get<Scale>(*transform_of(grown_group)).x == 2.0F);
-    CHECK(std::get<Scale>(*transform_of(grown_group)).y == 2.0F);
-    CHECK(resized_transform(grown_group, 3.0F));
-    CHECK(std::get<Scale>(*transform_of(grown_group)).y == 6.0F);
-
-    // A matrix takes the scale in its four linear entries and keeps its translation:
-    // this is a scale about the node's own origin, so the node stays where it was
-    // put.
-    Node stretched = group();
-    std::get<SVGNode>(stretched).transform_attr.transform = Matrix{1.0F, 2.0F, 3.0F, 4.0F, 5.0F, 6.0F};
-    CHECK(resized_transform(stretched, 2.0F));
-    {
-        const Matrix& matrix = std::get<Matrix>(*transform_of(stretched));
-        CHECK(matrix.a == 2.0F && matrix.b == 4.0F && matrix.c == 6.0F && matrix.d == 8.0F);
-        CHECK(matrix.e == 5.0F && matrix.f == 6.0F);
-    }
-
-    // A translation goes in front of the scale, which is the matrix form of
-    // translate(...) scale(...): the node keeps the place a move gave it and what is
-    // drawn under it grows from the node's own origin.
-    Node shifted = group();
-    std::get<SVGNode>(shifted).transform_attr.transform = Translate{user_units(5), user_units(7)};
-    CHECK(resized_transform(shifted, 2.0F));
-    {
-        const Matrix& matrix = std::get<Matrix>(*transform_of(shifted));
-        CHECK(matrix.a == 2.0F && matrix.d == 2.0F);
-        CHECK(matrix.e == 5.0F && matrix.f == 7.0F);
-        CHECK(matrix.b == 0.0F && matrix.c == 0.0F);
-    }
-
-    // a rotation needs its cosine and sine to take a scale, which is where a matrix
-    // stops being exact
-    Node turned_scaled = group();
-    std::get<SVGNode>(turned_scaled).transform_attr.transform = Rotate{90.0F};
-    CHECK(resized_transform(turned_scaled, 2.0F));
-    {
-        const Matrix& matrix = std::get<Matrix>(*transform_of(turned_scaled));
-        CHECK(std::fabs(matrix.a) < 1e-6F);
-        CHECK(std::fabs(matrix.b - 2.0F) < 1e-6F);
-        CHECK(std::fabs(matrix.c + 2.0F) < 1e-6F);
-        CHECK(std::fabs(matrix.d) < 1e-6F);
-    }
-
-    // and a translation in a unit cannot go into a matrix at all, so it is refused
-    // rather than approximated
-    Node metric_shift = group();
-    std::get<SVGNode>(metric_shift).transform_attr.transform = Translate{mm(5), mm(7)};
-    CHECK(!resized_transform(metric_shift, 2.0F));
-    CHECK(problem && std::holds_alternative<fault::MatrixNeedsUserUnitsForScale>(*problem));
-
     // A text element's position and font size are values to multiply; character data has
     // no values of its own.
     Node characters = plain_text();
@@ -327,10 +214,6 @@ int main() {
         CHECK(to_text(*text.common.y) == "4");
         CHECK(to_text(*text.common.font_size) == "20");
     }
-
-    Node grown_text_transform = text_element();
-    CHECK(resized_transform(grown_text_transform, 2.0F));
-    CHECK(transform_of(grown_text_transform).has_value());
 
     // a factor of nothing, or a negative one, is not written yet: SVG can mirror and
     // collapse, and this cannot

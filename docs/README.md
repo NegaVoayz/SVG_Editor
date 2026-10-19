@@ -120,7 +120,7 @@ Quotes group words that contain spaces, which is how text content and file paths
 written. They do not make an SVG id valid: an id is an XML name, so `create g "a b"` is
 refused.
 
-`transform` stays in the node's transform matrix and is refused for a container.
+`transform` adds one step to the node's transform list and is refused for a container.
 `params` changes values directly; `restrict` limits it to the node itself and is refused
 for a container, while `cascade` changes every descendant's params and is refused for a
 leaf. With no selector, a leaf is restricted and a container cascades. A cascade leaves

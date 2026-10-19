@@ -128,15 +128,6 @@ struct IncompatibleLengths {
     LengthPercentage value;
 };
 
-struct MatrixNeedsUserUnitsForMove {
-    LengthPercentage offset;
-};
-
-struct MatrixNeedsUserUnitsForScale {
-    LengthPercentage x;
-    LengthPercentage y;
-};
-
 struct TextCannotMove {};
 
 struct TextCannotScale {};
@@ -161,5 +152,4 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::RootIsNotContainer, fault::RootIsNotSvg, fault::MissingSourcePath,
                              fault::CannotReadFile, fault::CannotWriteFile, fault::InvalidSvg,
                              fault::IncompatibleLengths,
-                             fault::MatrixNeedsUserUnitsForMove, fault::MatrixNeedsUserUnitsForScale,
                              fault::TextCannotMove, fault::TextCannotScale, fault::InternalError>;

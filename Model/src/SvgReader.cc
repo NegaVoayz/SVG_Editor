@@ -151,7 +151,7 @@ private:
         return found ? found->get().value : std::string{};
     }
 
-    void read_common(const XmlNode& xml_node, SVGNode& element) const {
+    std::vector<Transform> read_common(const XmlNode& xml_node, SVGNode& element) const {
         element.identity_attr.id = string_or_empty(xml_node, "id");
         element.identity_attr.class_ = string_or_empty(xml_node, "class");
         element.paint_attr.fill = optional_paint(xml_node, "fill");
@@ -165,16 +165,18 @@ private:
             element.paint_attr.stroke_width = *parsed;
         }
 
+        std::vector<Transform> transforms;
         if (const auto transform = exact_attribute(xml_node, "transform")) {
             if (transform->get().value != "none") {
-                const std::optional<Transform> parsed = SvgValueReader::transform(transform->get().value);
+                std::optional<std::vector<Transform>> parsed = SvgValueReader::transform(transform->get().value);
                 if (!parsed) {
                     fail(SvgProblem::InvalidAttributeValue, xml_node, "transform", transform->get().value,
                          "transform");
                 }
-                element.transform_attr.transform = *parsed;
+                transforms = std::move(*parsed);
             }
         }
+        return transforms;
     }
 
     Shape read_shape(const XmlNode& node, std::string_view element) const {
@@ -275,7 +277,7 @@ private:
         }
 
         SVGNode payload;
-        read_common(xml_node, payload);
+        std::vector<Transform> transforms = read_common(xml_node, payload);
         remember_id(xml_node, payload.identity_attr.id);
 
         if (element == "rect" || element == "circle" || element == "ellipse" || element == "line") {
@@ -287,7 +289,8 @@ private:
         }
 
         const std::size_t index = parsed_.nodes.size();
-        parsed_.nodes.push_back(ParsedNode{Node{std::move(payload)}, std::string{element}, {}});
+        parsed_.nodes.push_back(
+            ParsedNode{Node{std::move(payload)}, std::string{element}, {}, std::move(transforms)});
 
         const Content content = content_of(element);
         for (const std::size_t child : xml_node.children) {
@@ -296,7 +299,7 @@ private:
                 if (content == Content::TextAndElements) {
                     if (!child_node.text.empty()) {
                         const std::size_t text_index = parsed_.nodes.size();
-                        parsed_.nodes.push_back(ParsedNode{Node{PlainText{child_node.text}}, "#text", {}});
+                        parsed_.nodes.push_back(ParsedNode{Node{PlainText{child_node.text}}, "#text", {}, {}});
                         parsed_.nodes[index].children.push_back(text_index);
                     }
                 } else if (!whitespace_only(child_node.text)) {

@@ -479,13 +479,19 @@ Outcome apply(Document& document, Id node, const SetStroke& intent) {
 }
 
 Outcome apply(Document& document, Id node, const SetTransform& intent) {
-    if (intent.value && !is_finite(*intent.value)) {
-        return refused(Kind::Change, fault::NonFiniteValue{"transform"});
+    for (const Transform& transform : intent.value) {
+        if (!is_finite(transform)) return refused(Kind::Change, fault::NonFiniteValue{"transform"});
     }
-    return set_element<SetTransform>(document, node, [value = intent.value](SVGNode& element) {
-        element.transform_attr.transform = value;
-        return true;
-    });
+
+    const std::optional<Node> payload = document.node(node);
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) {
+        return refused(Kind::Change, fault::UnknownAttribute{std::string{SetTransform::name}});
+    }
+
+    Transaction edit = document.transaction();
+    edit.set_transforms(node, intent.value);
+    edit.commit();
+    return happened(Kind::Change, event::AttributeSet{name_of(document, node), std::string{SetTransform::name}});
 }
 
 Outcome apply(Document& document, Id node, const SetHref& intent) {

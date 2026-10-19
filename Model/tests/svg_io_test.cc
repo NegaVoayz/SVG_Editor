@@ -186,13 +186,11 @@ int main() {
                     CHECK(server.fallback.has_value());
                 }
             }
-            CHECK(payload->transform_attr.transform.has_value());
-            if (payload->transform_attr.transform) {
-                CHECK(std::holds_alternative<Matrix>(*payload->transform_attr.transform));
-                const Matrix& matrix = std::get<Matrix>(*payload->transform_attr.transform);
-                CHECK(matrix.a == 2.0F);
-                CHECK(matrix.e == 1.0F);
-                CHECK(matrix.f == 2.0F);
+            const std::vector<Transform> transforms = document.transforms(*layer);
+            CHECK(transforms.size() == 2);
+            if (transforms.size() == 2) {
+                CHECK(std::holds_alternative<Translate>(transforms[0]));
+                CHECK(std::holds_alternative<Scale>(transforms[1]));
             }
             CHECK(document.children(*layer).size() == 4);
         }
@@ -342,6 +340,12 @@ int main() {
             const Color& fill = std::get<Color>(*payload->paint_attr.fill);
             CHECK(std::holds_alternative<Color::Named>(fill.specific));
             CHECK(std::get<Color::Named>(fill.specific).id == Color::NamedColorId::Red);
+        }
+        const std::vector<Transform> transforms = reread.transforms(*saved_layer);
+        CHECK(transforms.size() == 2);
+        if (transforms.size() == 2) {
+            CHECK(std::holds_alternative<Translate>(transforms[0]));
+            CHECK(std::holds_alternative<Scale>(transforms[1]));
         }
     }
     const std::optional<Id> saved_small = named(reread, "small");

@@ -156,22 +156,6 @@ struct DataAttributes {
     std::string operator()(const Text& text) const { return TextAttributes{}(text); }
 };
 
-struct TransformText {
-    std::string operator()(const Translate& translate) const {
-        return "translate(" + to_text(translate.x) + " " + to_text(translate.y) + ")";
-    }
-    std::string operator()(const Scale& scale) const {
-        return "scale(" + number_text(scale.x) + " " + number_text(scale.y) + ")";
-    }
-    std::string operator()(const Rotate& rotate) const {
-        return "rotate(" + number_text(rotate.degrees) + ")";
-    }
-    std::string operator()(const Matrix& matrix) const {
-        return "matrix(" + number_text(matrix.a) + " " + number_text(matrix.b) + " " + number_text(matrix.c) + " " +
-               number_text(matrix.d) + " " + number_text(matrix.e) + " " + number_text(matrix.f) + ")";
-    }
-};
-
 void indent(std::string& out, std::size_t depth) { out.append(depth * 2, ' '); }
 
 bool has_text_child(const TreeStore& store, Id node) {
@@ -207,9 +191,8 @@ void write_element(const TreeStore& store, Id id, const SVGNode& element, std::s
     if (element.paint_attr.stroke_width) {
         append_attribute(out, "stroke-width", to_text(*element.paint_attr.stroke_width));
     }
-    if (element.transform_attr.transform) {
-        append_attribute(out, "transform", std::visit(TransformText{}, *element.transform_attr.transform));
-    }
+    const std::vector<Transform> transforms = store.transforms(element.transform_attr.head);
+    if (!transforms.empty()) append_attribute(out, "transform", transform_list_text(transforms));
 
     const std::vector<Id> children = store.children(id);
     if (children.empty()) {

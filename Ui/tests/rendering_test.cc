@@ -140,6 +140,9 @@ int main() {
           "rect#red\n  x=0 y=0 w=1 h=1\n  fill=rebeccapurple");
     CHECK(render(NodeView{3, rect("float", 1.234567F, 0, 1, 1, std::nullopt), {}}) ==
           "rect#float x=1.23457 y=0 w=1 h=1");
+    CHECK(render(NodeView{3, rect("turned", 0, 0, 1, 1, std::nullopt), {}, std::nullopt,
+                          {Scale{2.0F, 2.0F}, Rotate{30.0F}, Scale{3.0F, 1.0F}, Rotate{45.0F}}}) ==
+          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=scale(2 2) rotate(30) scale(3 1) rotate(45)");
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {},
                            NodeParent{1, group("markers")}}) ==
           "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");

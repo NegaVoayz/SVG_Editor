@@ -112,22 +112,6 @@ struct AttrsText {
     std::string operator()(const Text& text) const { return text_details(text); }
 };
 
-struct TransformText {
-    std::string operator()(const Translate& translate) const {
-        return "translate(" + to_text(translate.x) + " " + to_text(translate.y) + ")";
-    }
-    std::string operator()(const Scale& scale) const {
-        return "scale(" + number_text(scale.x) + " " + number_text(scale.y) + ")";
-    }
-    std::string operator()(const Rotate& rotate) const {
-        return "rotate(" + number_text(rotate.degrees) + ")";
-    }
-    std::string operator()(const Matrix& matrix) const {
-        return "matrix(" + number_text(matrix.a) + " " + number_text(matrix.b) + " " + number_text(matrix.c) + " " +
-               number_text(matrix.d) + " " + number_text(matrix.e) + " " + number_text(matrix.f) + ")";
-    }
-};
-
 // --- one line's worth of a node ---
 
 // The two halves of a line, kept apart because the tree lines the second one up in a
@@ -152,7 +136,7 @@ std::string joined_details(const Words& words) {
     return out;
 }
 
-Words element_words(const SVGNode& element, const std::string& text) {
+Words element_words(const SVGNode& element, const std::vector<Transform>& transforms, const std::string& text) {
     Words words;
     const std::string_view kind = element_name(element);
     // The kind and the id the user wrote: the handle is not part of the drawing, because
@@ -177,9 +161,7 @@ Words element_words(const SVGNode& element, const std::string& text) {
         append_detail(words, std::visit(AttrsText{}, element.data));
     }
 
-    if (element.transform_attr.transform) {
-        append_detail(words, "transform=" + std::visit(TransformText{}, *element.transform_attr.transform));
-    }
+    if (!transforms.empty()) append_detail(words, "transform=" + transform_list_text(transforms));
     if (element.paint_attr.fill) {
         const std::string paint = to_text(*element.paint_attr.fill);
         if (!paint.empty()) append_detail(words, "fill=" + paint);
@@ -195,8 +177,10 @@ Words element_words(const SVGNode& element, const std::string& text) {
     return words;
 }
 
-Words words_of(const Node& payload, const std::string& text) {
-    if (std::holds_alternative<SVGNode>(payload)) return element_words(std::get<SVGNode>(payload), text);
+Words words_of(const Node& payload, const std::vector<Transform>& transforms, const std::string& text) {
+    if (std::holds_alternative<SVGNode>(payload)) {
+        return element_words(std::get<SVGNode>(payload), transforms, text);
+    }
 
     // Character data reaches a view on its own only when something asked for it by
     // handle: it has no id to be named by.
@@ -235,7 +219,7 @@ std::string render(const TreeView& view) {
     std::vector<bool> followed(1, false);
     for (std::size_t index = 0; index < view.rows.size(); ++index) {
         const TreeRow& row = view.rows[index];
-        const Words words = words_of(row.payload, row.text);
+        const Words words = words_of(row.payload, row.transforms, row.text);
 
         std::string prefix;
         if (index > 0) {  // the first row is what the view is rooted at, and it hangs from nothing
@@ -273,10 +257,10 @@ std::string render(const TreeView& view) {
 }
 
 std::string render(const NodeView& view) {
-    const Words words = words_of(view.payload, view.text);
+    const Words words = words_of(view.payload, view.transforms, view.text);
     std::string out = words.name;
     if (view.parent) {
-        const Words parent = words_of(view.parent->payload, {});
+        const Words parent = words_of(view.parent->payload, {}, {});
         out += "  parent=" + parent.name;
     }
 
@@ -567,15 +551,6 @@ struct RefusalText {
         }
         return message +
                " - mm and cm are metric, in, pt and px are defined against the inch, and the two systems are not mixed";
-    }
-    std::string operator()(const fault::MatrixNeedsUserUnitsForMove&) const {
-        return "error: this node carries a scale, a rotation or a matrix, which has to become a matrix to take a "
-               "translation, and a matrix counts in user units: write the offset as a plain number";
-    }
-    std::string operator()(const fault::MatrixNeedsUserUnitsForScale& moved) const {
-        return "error: this node was moved by " + to_text(moved.x) + " " + to_text(moved.y) +
-               ", which has to become a matrix to take a scale behind it, and a matrix counts in user units: "
-               "write the offset as a plain number";
     }
     std::string operator()(const fault::TextCannotMove&) const {
         return "error: a text node has no coordinates and no transform to move";

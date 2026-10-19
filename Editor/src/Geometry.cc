@@ -1,7 +1,6 @@
-// What a move and a scale do to one node. A node that owns the values they change has them
-// changed where they stand; a node that does not takes them in its transform, which is the
-// arithmetic in Transform.cc. What a length is worth is Units.cc's business, and this file
-// only asks it.
+// What a move and a scale do to one node's own params. A node that does not own the values
+// takes them in its transform instead; that is a Model chain edit, not arithmetic here.
+// What a length is worth is Units.cc's business, and this file only asks it.
 #include "Geometry.hh"
 
 #include <cmath>

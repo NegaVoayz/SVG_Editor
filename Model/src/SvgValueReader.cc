@@ -5,7 +5,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <numbers>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -194,75 +193,6 @@ std::optional<Transform> one_transform(const TransformFunction& function) {
     return std::nullopt;
 }
 
-std::optional<float> user_unit_value(LengthPercentage value) {
-    if (std::holds_alternative<Percentage>(value)) {
-        const float number = std::get<Percentage>(value).value;
-        if (number == 0.0F) return 0.0F;
-        return std::nullopt;
-    }
-    const Length length = std::get<Length>(value);
-    if (length.unit == Length::Unit::UserUnit) return length.value;
-    if (length.value == 0.0F) return 0.0F;
-    return std::nullopt;
-}
-
-std::optional<Matrix> matrix_of(const TransformFunction& function) {
-    if (function.name == "translate" && (function.values.size() == 1 || function.values.size() == 2)) {
-        const std::optional<LengthPercentage> x = SvgValueReader::length(function.values[0]);
-        if (!x) return std::nullopt;
-        const std::optional<LengthPercentage> y =
-            function.values.size() == 1 ? std::optional<LengthPercentage>{Length{0.0F, Length::Unit::UserUnit}}
-                                        : SvgValueReader::length(function.values[1]);
-        if (!y) return std::nullopt;
-        const std::optional<float> tx = user_unit_value(*x);
-        const std::optional<float> ty = user_unit_value(*y);
-        if (!tx || !ty) return std::nullopt;
-        return Matrix{1.0F, 0.0F, 0.0F, 1.0F, *tx, *ty};
-    }
-
-    if (function.name == "scale" && (function.values.size() == 1 || function.values.size() == 2)) {
-        const std::optional<float> x = number(function.values[0]);
-        if (!x) return std::nullopt;
-        const std::optional<float> y =
-            function.values.size() == 1 ? x : number(function.values[1]);
-        if (!y) return std::nullopt;
-        return Matrix{*x, 0.0F, 0.0F, *y, 0.0F, 0.0F};
-    }
-
-    if (function.name == "rotate" && function.values.size() == 1) {
-        const std::optional<float> degrees = number(function.values[0]);
-        if (!degrees) return std::nullopt;
-        const float radians = *degrees * std::numbers::pi_v<float> / 180.0F;
-        const float cosine = std::cos(radians);
-        const float sine = std::sin(radians);
-        return Matrix{cosine, sine, -sine, cosine, 0.0F, 0.0F};
-    }
-
-    if (function.name == "matrix" && function.values.size() == 6) {
-        Matrix matrix{};
-        float* members[] = {&matrix.a, &matrix.b, &matrix.c, &matrix.d, &matrix.e, &matrix.f};
-        for (std::size_t index = 0; index < 6; ++index) {
-            const std::optional<float> value = number(function.values[index]);
-            if (!value) return std::nullopt;
-            *members[index] = *value;
-        }
-        return matrix;
-    }
-
-    return std::nullopt;
-}
-
-Matrix multiplied(const Matrix& left, const Matrix& right) {
-    return Matrix{
-        left.a * right.a + left.c * right.b,
-        left.b * right.a + left.d * right.b,
-        left.a * right.c + left.c * right.d,
-        left.b * right.c + left.d * right.d,
-        left.a * right.e + left.c * right.f + left.e,
-        left.b * right.e + left.d * right.f + left.f,
-    };
-}
-
 }  // namespace
 
 std::optional<LengthPercentage> length(std::string_view text) {
@@ -342,21 +272,21 @@ std::optional<Paint> paint(std::string_view text) {
     return Paint{std::move(server)};
 }
 
-std::optional<Transform> transform(std::string_view text) {
+std::optional<std::vector<Transform>> transform(std::string_view text) {
     text = trimmed(text);
     if (text.empty() || text == "none") return std::nullopt;
 
     const std::optional<std::vector<TransformFunction>> functions = transform_functions(text);
     if (!functions) return std::nullopt;
-    if (functions->size() == 1) return one_transform(functions->front());
 
-    Matrix result{1.0F, 0.0F, 0.0F, 1.0F, 0.0F, 0.0F};
+    std::vector<Transform> result;
+    result.reserve(functions->size());
     for (const TransformFunction& function : *functions) {
-        const std::optional<Matrix> next = matrix_of(function);
-        if (!next) return std::nullopt;
-        result = multiplied(result, *next);
+        const std::optional<Transform> step = one_transform(function);
+        if (!step) return std::nullopt;
+        result.push_back(*step);
     }
-    return Transform{result};
+    return result;
 }
 
 std::optional<Container::ViewBox> view_box(std::string_view text) {

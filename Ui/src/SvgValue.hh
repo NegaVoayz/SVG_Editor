@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "SVGNode.hh"
 
@@ -21,10 +22,11 @@ std::optional<Color> parse_color(std::string_view text);
 // A plain number, with no unit and no percentage: what a scale factor is written as.
 std::optional<float> parse_number(std::string_view text);
 
-// "translate(x [y])", "scale(x [y])", "rotate(deg)" or "matrix(a b c d e f)". The
-// translate form takes lengths, the others plain numbers; commas or spaces separate the
-// values. `none` is not read here: clearing an optional transform is the caller's decision.
-std::optional<Transform> parse_transform(std::string_view text);
+// One or more of "translate(x [y])", "scale(x [y])", "rotate(deg)" and
+// "matrix(a b c d e f)", in the order SVG applies them. The translate form takes lengths,
+// the others plain numbers; commas or spaces separate values and functions. `none` is not
+// read here: clearing a transform is the caller's decision.
+std::optional<std::vector<Transform>> parse_transform(std::string_view text);
 
 // "min-x min-y width height", four plain numbers. A viewBox has no units and cannot
 // have a negative width or height.

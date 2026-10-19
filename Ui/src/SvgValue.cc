@@ -153,24 +153,7 @@ std::optional<Color> parse_color(std::string_view text) {
 
 std::optional<float> parse_number(std::string_view text) { return number_of(text); }
 
-std::optional<Transform> parse_transform(std::string_view text) {
-    const std::size_t open = text.find('(');
-    if (open == std::string_view::npos || !text.ends_with(')')) return std::nullopt;
-
-    const std::string_view name = text.substr(0, open);
-    std::string_view body = text.substr(open + 1, text.size() - open - 2);
-
-    // One value per comma or run of spaces. An empty part is not a value, so the trailing
-    // comma SVG tolerates is not one either.
-    std::vector<std::string_view> words;
-    std::size_t index = 0;
-    while (index < body.size()) {
-        while (index < body.size() && (body[index] == ' ' || body[index] == ',')) ++index;
-        const std::size_t start = index;
-        while (index < body.size() && body[index] != ' ' && body[index] != ',') ++index;
-        if (start != index) words.push_back(body.substr(start, index - start));
-    }
-
+std::optional<Transform> parse_transform_step(std::string_view name, const std::vector<std::string_view>& words) {
     if (name == "translate" && (words.size() == 1 || words.size() == 2)) {
         const std::optional<LengthPercentage> x = parse_length(words[0]);
         if (!x) return std::nullopt;
@@ -205,6 +188,46 @@ std::optional<Transform> parse_transform(std::string_view text) {
     }
 
     return std::nullopt;
+}
+
+std::optional<std::vector<Transform>> parse_transform(std::string_view text) {
+    std::vector<Transform> transforms;
+    std::size_t index = 0;
+    while (index < text.size()) {
+        while (index < text.size() && (text[index] == ' ' || text[index] == '\t' || text[index] == ',')) ++index;
+        if (index == text.size()) break;
+
+        std::size_t name_start = index;
+        while (index < text.size() && text[index] != '(') ++index;
+        if (index == text.size()) return std::nullopt;
+        while (name_start < index && (text[name_start] == ' ' || text[name_start] == '\t')) ++name_start;
+        std::size_t name_end = index;
+        while (name_end > name_start && (text[name_end - 1] == ' ' || text[name_end - 1] == '\t')) --name_end;
+        const std::string_view name = text.substr(name_start, name_end - name_start);
+
+        const std::size_t body_start = ++index;
+        while (index < text.size() && text[index] != ')') ++index;
+        if (index == text.size()) return std::nullopt;
+        const std::string_view body = text.substr(body_start, index - body_start);
+        ++index;
+
+        // One value per comma or run of spaces. An empty part is not a value, so the
+        // trailing comma SVG tolerates is not one either.
+        std::vector<std::string_view> words;
+        std::size_t at = 0;
+        while (at < body.size()) {
+            while (at < body.size() && (body[at] == ' ' || body[at] == ',')) ++at;
+            const std::size_t start = at;
+            while (at < body.size() && body[at] != ' ' && body[at] != ',') ++at;
+            if (start != at) words.push_back(body.substr(start, at - start));
+        }
+
+        std::optional<Transform> step = parse_transform_step(name, words);
+        if (!step) return std::nullopt;
+        transforms.push_back(std::move(*step));
+    }
+    if (transforms.empty()) return std::nullopt;
+    return transforms;
 }
 
 std::optional<Container::ViewBox> parse_view_box(std::string_view text) {

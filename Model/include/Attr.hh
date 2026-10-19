@@ -1,5 +1,8 @@
 #pragma once
+#include <cmath>
 #include <limits>
+#include <span>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -21,11 +24,67 @@ struct Rotate { float degrees; };
 struct Matrix { float a, b, c, d, e, f; };
 using Transform = std::variant<Translate, Scale, Rotate, Matrix>;
 
+// One step of a transform list and the step before it. A list is stored as immutable
+// links: an edit adds a record that points at the previous head, so the node only swaps
+// one index and every older version of the node still names the chain it was written
+// with. A chain is read from the head towards no_id, which is the order SVG writes its
+// transform functions in.
+struct TransformLink {
+    Transform transform;
+    Id previous = no_id;
+};
+
+struct TransformText {
+    std::string operator()(const Translate& translate) const {
+        return "translate(" + to_text(translate.x) + " " + to_text(translate.y) + ")";
+    }
+    std::string operator()(const Scale& scale) const {
+        return "scale(" + number_text(scale.x) + " " + number_text(scale.y) + ")";
+    }
+    std::string operator()(const Rotate& rotate) const {
+        return "rotate(" + number_text(rotate.degrees) + ")";
+    }
+    std::string operator()(const Matrix& matrix) const {
+        return "matrix(" + number_text(matrix.a) + " " + number_text(matrix.b) + " " + number_text(matrix.c) + " " +
+               number_text(matrix.d) + " " + number_text(matrix.e) + " " + number_text(matrix.f) + ")";
+    }
+};
+
+inline std::string to_text(const Transform& transform) { return std::visit(TransformText{}, transform); }
+
+// The attribute the user reads and the serializer writes. The steps are already in
+// document order, separated by the space SVG writes between transform functions.
+inline std::string transform_list_text(std::span<const Transform> transforms) {
+    std::string text;
+    for (const Transform& transform : transforms) {
+        if (!text.empty()) text += ' ';
+        text += to_text(transform);
+    }
+    return text;
+}
+
+struct FiniteTransform {
+    bool operator()(const Translate& translate) const {
+        return is_finite(translate.x) && is_finite(translate.y);
+    }
+    bool operator()(const Scale& scale) const { return std::isfinite(scale.x) && std::isfinite(scale.y); }
+    bool operator()(const Rotate& rotate) const { return std::isfinite(rotate.degrees); }
+    bool operator()(const Matrix& matrix) const {
+        return std::isfinite(matrix.a) && std::isfinite(matrix.b) && std::isfinite(matrix.c) &&
+               std::isfinite(matrix.d) && std::isfinite(matrix.e) && std::isfinite(matrix.f);
+    }
+};
+
+inline bool is_finite(const Transform& transform) { return std::visit(FiniteTransform{}, transform); }
+
 // What an element is called. Where it sits in the tree is not part of this: a parent is a
 // link stored beside the node in the hive, not an SVG attribute.
 struct IdentityAttr { std::string id, class_; };
 struct PaintAttr { std::optional<Paint> fill, stroke; std::optional<LengthPercentage> stroke_width; };
-struct TransformAttr { std::optional<Transform> transform; };
+// The head of this element's transform chain, or no_id when it has none. The link
+// records live beside the tree, in the same storage that owns the tree, because the
+// transform is part of the element and has to follow its undo history.
+struct TransformAttr { Id head = no_id; };
 
 // SVG ids are XML names: they have no whitespace, start with a name-start character and
 // continue with name characters. Non-ASCII bytes are accepted as name characters here;

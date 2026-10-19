@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -68,6 +69,10 @@ public:
 
     // The node whose SVG id attribute is this string. An empty id names nothing.
     std::optional<Id> find(std::string_view svg_id) const;
+
+    // The transform steps an element carries, in SVG order. A node with no transform
+    // has none; a node that does not exist has none as well.
+    std::vector<Transform> transforms(Id node) const;
 
     // How many SVG elements the document holds below its root. Character data is not an
     // element, and the root <svg> is the document itself rather than one of its elements.
@@ -171,6 +176,13 @@ public:
     // as absent; older snapshots still hold their payloads, so undo brings the same
     // handles back instead of allocating new ones.
     void erase(Id node);
+
+    // Add one step to the front of a node's transform chain. A move and a scale use
+    // this: the new step is written after the transform the node already carried.
+    void prepend_transform(Id node, Transform transform);
+
+    // Replace a node's transform list. An empty span clears the attribute.
+    void set_transforms(Id node, std::span<const Transform> transforms);
 
     void commit();    // keep the edit as one block of the history
     void rollback();  // drop it: nothing of it is left to redo

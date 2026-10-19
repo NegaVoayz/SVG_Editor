@@ -129,11 +129,12 @@ template<> Outcome handle<Create>(const Create& intent) {
   declaration is load-bearing: a specialization the compiler has not met before the point
   where `std::visit` instantiates `handle<T>` is not a specialization at all, and the
   primary template's build error is what comes out instead.
-- The arithmetic underneath those is three sources, one question each: `Units.cc` is what a
-  length is worth and what it may be added to, `Transform.cc` is what a transform does with
-  a value it has to carry, and `Geometry.cc` is what a move or a scale does to one node.
-  The unit table is the one part of it that is about values rather than about nodes, which
-  is why it is the one part with no model type in its interface beyond `LengthPercentage`.
+- The arithmetic underneath those is two sources, one question each: `Units.cc` is what a
+  length is worth and what it may be added to, and `Geometry.cc` is what a move or a scale
+  does to one node's params. A transform edit needs no promotion arithmetic: Model
+  prepends one immutable link to the node's list. The unit table is the one part of it
+  that is about values rather than about nodes, which is why it is the one part with no
+  model type in its interface beyond `LengthPercentage`.
 - the visitors that name things - a node kind, a shape, a colour - are overload
   sets, so a new kind in the model is a build error until it is named too.
 
@@ -214,9 +215,9 @@ and `font-size` belong to text nodes, including `tspan` and `textPath`.
 the front, and the first child is the back. The tree prints children in that same chain
 order, so a later line is nearer the front.
 
-`move` and `scale` take two optional selectors. `transform` changes the node's transform
-matrix and leaves its params alone; it is accepted only for a non-container, because a
-container's transform would also move everything below it. `params` changes values
+`move` and `scale` take two optional selectors. `transform` prepends a step to the node's
+transform list and leaves its params alone; it is accepted only for a non-container,
+because a container's transform would also move everything below it. `params` changes values
 directly: `restrict` edits only the node's own values and is refused for a container,
 which has none, while `cascade` edits every non-container descendant and is refused for
 a leaf. With neither selector, a leaf is `restrict` and a container is `cascade`.

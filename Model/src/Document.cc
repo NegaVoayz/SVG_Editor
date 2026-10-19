@@ -67,6 +67,13 @@ std::size_t Document::element_count() const {
     return count;
 }
 
+std::vector<Transform> Document::transforms(Id node) const {
+    if (!store_.has_node(node)) return {};
+    const Node& payload = store_.record(node);
+    if (!std::holds_alternative<SVGNode>(payload)) return {};
+    return store_.transforms(std::get<SVGNode>(payload).transform_attr.head);
+}
+
 Transaction Document::transaction() { return Transaction{*this}; }
 
 bool Document::can_undo() const { return store_.can_undo(); }
@@ -171,6 +178,16 @@ void Transaction::update(Id node, Node payload) {
 void Transaction::erase(Id node) {
     require_open();
     document_.store_.erase_subtree(edit_, node);
+}
+
+void Transaction::prepend_transform(Id node, Transform transform) {
+    require_open();
+    document_.store_.prepend_transform(edit_, node, std::move(transform));
+}
+
+void Transaction::set_transforms(Id node, std::span<const Transform> transforms) {
+    require_open();
+    document_.store_.set_transforms(edit_, node, transforms);
 }
 
 void Transaction::commit() {

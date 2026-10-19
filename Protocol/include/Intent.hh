@@ -238,7 +238,8 @@ struct SetStroke {
 struct SetTransform {
     static constexpr std::string_view name = "transform";
     NodeRef node;
-    std::optional<Transform> value;
+    // The whole list, in SVG order. Empty clears the attribute.
+    std::vector<Transform> value;
 };
 struct SetHref {
     static constexpr std::string_view name = "href";
