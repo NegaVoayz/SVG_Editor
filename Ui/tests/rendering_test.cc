@@ -150,8 +150,8 @@ int main() {
                           composed_transform(
                               {scaled(2.0F, 2.0F), *rotation_about(30.0F, units(10), units(20)),
                                skewed_x(15.0F), skewed_y(-5.0F)})}) ==
-          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=translate(22.6795 -4.64101) rotate(24.8806) "
-          "scale(1.96094 2.03984) skewX(10.2699)");
+          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=translate(22.6795 -4.64101) rotate(15) "
+          "scale(1.93185 2.07055) skewY(9.23052)");
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {},
                            NodeParent{1, group("markers")}}) ==
           "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");

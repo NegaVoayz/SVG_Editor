@@ -146,20 +146,25 @@ inline std::optional<Transform> rotation_about(float degrees_value, LengthPercen
     return compose(translated(x, y), *centered);
 }
 
-// The canonical read-side form: translate, rotate, scale, then skewX. It is exact for every
-// finite matrix, including a mirror (a negative y scale) and a singular one (a zero scale).
+enum class SkewAxis { X, Y };
+
+// The canonical read-side form: translate, rotate, scale, then one skew. Both a skewX and
+// a skewY decomposition are exact; the smaller absolute angle is the one a reader has to
+// reason about, so that is the one written.
 struct TransformParts {
     LengthPercentage x, y;
     float rotation = 0.0F;
     float scale_x = 1.0F;
     float scale_y = 1.0F;
-    float skew_x = 0.0F;
+    float skew = 0.0F;
+    SkewAxis skew_axis = SkewAxis::X;
 };
 
-inline TransformParts decomposed(const Transform& transform) {
+inline TransformParts decomposed_with_x(const Transform& transform) {
     TransformParts parts;
     parts.x = transform.e;
     parts.y = transform.f;
+    parts.skew_axis = SkewAxis::X;
 
     const float scale_x = std::hypot(transform.a, transform.b);
     parts.scale_x = scale_x;
@@ -174,7 +179,7 @@ inline TransformParts decomposed(const Transform& transform) {
         const float skew = std::fabs(transform.a) >= std::fabs(transform.b)
                                ? (transform.c + sine * parts.scale_y) / transform.a
                                : (transform.d - cosine * parts.scale_y) / transform.b;
-        parts.skew_x = degrees_of(std::atan(skew));
+        parts.skew = degrees_of(std::atan(skew));
         return parts;
     }
 
@@ -183,6 +188,37 @@ inline TransformParts decomposed(const Transform& transform) {
     parts.scale_y = std::hypot(transform.c, transform.d);
     parts.rotation = parts.scale_y > 0.0F ? degrees_of(std::atan2(-transform.c, transform.d)) : 0.0F;
     return parts;
+}
+
+inline TransformParts decomposed_with_y(const Transform& transform) {
+    TransformParts parts;
+    parts.x = transform.e;
+    parts.y = transform.f;
+    parts.skew_axis = SkewAxis::Y;
+
+    const float scale_y = std::hypot(transform.c, transform.d);
+    parts.scale_y = scale_y;
+    if (scale_y > 0.0F) {
+        const float cosine = transform.d / scale_y;
+        const float sine = -transform.c / scale_y;
+        parts.rotation = degrees_of(std::atan2(-transform.c, transform.d));
+        parts.scale_x = transform.a * cosine + transform.b * sine;
+        const float skew = (transform.b * cosine - transform.a * sine) / scale_y;
+        parts.skew = degrees_of(std::atan(skew));
+        return parts;
+    }
+
+    // The second column is zero. The first column still names a rotation and an x scale,
+    // and the skew is irrelevant because it multiplies that zero column.
+    parts.scale_x = std::hypot(transform.a, transform.b);
+    parts.rotation = parts.scale_x > 0.0F ? degrees_of(std::atan2(transform.b, transform.a)) : 0.0F;
+    return parts;
+}
+
+inline TransformParts decomposed(const Transform& transform) {
+    const TransformParts x = decomposed_with_x(transform);
+    const TransformParts y = decomposed_with_y(transform);
+    return std::fabs(y.skew) < std::fabs(x.skew) ? y : x;
 }
 
 inline std::string transform_text(const Transform& transform) {
@@ -209,8 +245,8 @@ inline std::string transform_text(const Transform& transform) {
         !transform_number_is(parts.scale_y, 1.0F, value_tolerance)) {
         append("scale(" + number_text(parts.scale_x) + " " + number_text(parts.scale_y) + ")");
     }
-    if (std::fabs(parts.skew_x) > angle_tolerance) {
-        append("skewX(" + number_text(parts.skew_x) + ")");
+    if (std::fabs(parts.skew) > angle_tolerance) {
+        append(std::string{parts.skew_axis == SkewAxis::Y ? "skewY(" : "skewX("} + number_text(parts.skew) + ")");
     }
     return text;
 }

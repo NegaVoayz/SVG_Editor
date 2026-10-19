@@ -140,9 +140,11 @@ new matrix already covers it.
 A transform list is one or more of `translate(x [y])`, `scale(x [y])`,
 `rotate(deg [cx cy])`, `skewX(deg)`, `skewY(deg)` and `matrix(a b c d e f)`.
 The list is composed into one matrix when it is read. `show` and a saved file print that
-matrix in TRS+skew form - `translate(...) rotate(...) scale(...) skewX(...)` - leaving
-out identity steps, so `rotate(30 10 20)` reads back as its equivalent
-`translate(11.3397 -2.32051) rotate(30)`.
+matrix in TRS+skew form - `translate(...) rotate(...) scale(...) skewX(...)` or
+`skewY(...)` - leaving out identity steps. Both skew decompositions are exact, so the one
+with the smaller absolute angle is printed: `skewX(15)` reads back as its equivalent
+`rotate(-15) scale(0.965926 1.03528) skewY(14.0362)`, while `rotate(30 10 20)` reads
+back as `translate(11.3397 -2.32051) rotate(30)`.
 
 Moving or scaling an empty container is refused with
 `error: cannot move or scale an empty container: g#node2`. Such an edit would be

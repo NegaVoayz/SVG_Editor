@@ -278,13 +278,15 @@ the node is already rotated.
 The user and the serializer read the matrix in a TRS+skew form:
 
 ```text
-translate(tx ty) rotate(degrees) scale(sx sy) skewX(degrees)
+translate(tx ty) rotate(degrees) scale(sx sy) skewX(degrees) | skewY(degrees)
 ```
 
-Identity components are omitted. The decomposition is exact for every finite matrix; a
-mirror appears as a negative y scale, and a singular matrix as a zero scale. `matrix(...)`
-is still accepted as input, but the output is the decomposition so a reader can see what
-the transform does rather than multiplying six numbers in their head.
+Both skew axes are calculated. Either decomposition is exact, so the writer emits the one
+whose absolute skew angle is smaller; a skewX input can therefore read back as a
+rotate/scale/skewY form. Identity components are omitted. The decomposition is exact for
+every finite matrix; a mirror appears as a negative scale, and a singular matrix as a zero
+scale. `matrix(...)` is still accepted as input, but the output is the decomposition so a
+reader can see what the transform does rather than multiplying six numbers in their head.
 
 A shape without a transform moves its own coordinates instead, since it has them:
 `move r 1 2` changes `x` and `y` and leaves the transform alone. That keeps a shape's

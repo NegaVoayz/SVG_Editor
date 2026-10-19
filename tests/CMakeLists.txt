@@ -141,7 +141,8 @@ set_tests_properties(cli_set_transform_rotate_center PROPERTIES PASS_REGULAR_EXP
 
 add_test(NAME cli_set_transform_skew
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"skewX(15)\"; show box")
-set_tests_properties(cli_set_transform_skew PROPERTIES PASS_REGULAR_EXPRESSION "transform=skewX\\(15\\)")
+set_tests_properties(cli_set_transform_skew PROPERTIES PASS_REGULAR_EXPRESSION
+    "transform=rotate\\(-15\\) scale\\(0.965926 1.03528\\) skewY\\(14.0362\\)")
 
 add_test(NAME cli_set_transform_matrix
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"matrix(1 0 0 1 5 6)\"; show box")
