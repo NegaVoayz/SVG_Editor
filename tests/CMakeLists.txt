@@ -90,6 +90,12 @@ add_test(NAME cli_root_by_element_name
     COMMAND $<TARGET_FILE:Cli> "init; create rect a 0 0 1 1 in svg; tree")
 set_tests_properties(cli_root_by_element_name PROPERTIES PASS_REGULAR_EXPRESSION "rect#a")
 
+# The root alias is reserved: an element id called svg cannot take it over.
+add_test(NAME cli_root_alias_not_shadowed
+    COMMAND $<TARGET_FILE:Cli> "init; create g svg; create rect a 0 0 1 1 in svg; tree")
+set_tests_properties(cli_root_alias_not_shadowed PROPERTIES
+    PASS_REGULAR_EXPRESSION "├── g#svg\n└── rect#a")
+
 # Grouping the same node twice would make the reported member count a lie.
 add_test(NAME cli_group_duplicate
     COMMAND $<TARGET_FILE:Cli> "init; create rect a 0 0 1 1; group g a a")

@@ -33,13 +33,12 @@ inline std::optional<Id> look_up(const Document& document, const NodeRef& refere
         return id;
     }
     const std::string& name = std::get<SvgIdRef>(reference).name;
-    if (const std::optional<Id> found = document.find(name)) return found;
-    // The root element is an <svg>, so its element name is a natural alias for the root.
-    // An exact id still wins: a child is allowed to be named "svg" in a document whose
-    // root has no id, and naming it must not silently mean the root instead.
+    // The root element is an <svg>, so its element name is a reserved alias for the root.
+    // It is checked before the id table; an element whose own id is "svg" is shadowed by
+    // the alias rather than silently changing what "svg" means.
     if (name == "svg") {
         const Id root = document.root();
         if (root != no_id) return root;
     }
-    return std::nullopt;
+    return document.find(name);
 }
