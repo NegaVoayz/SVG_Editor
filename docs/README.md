@@ -59,7 +59,9 @@ The prompt is `svg>`, `help` lists the commands, and one line may hold several
 instructions separated by `;`. A view is printed as what it describes; a change comes
 back as a structured event, and a refusal as a typed reason, both rendered here by the
 ui layer. A line whose first non-space character is `#` is a comment and runs to the end
-of the line. Quoted text accepts `\"` and `\\`. A session starts without a document:
+of the line. Quoted text accepts `\"` and `\\`. `transform=""`, a whitespace-only
+transform value and `transform="none"` all mean an empty transform list. A session starts
+without a document:
 
 A create reports the element as `kind#id`. It reports the parent only when the command
 named one: a default root insertion is `g#markers created`, while an explicit position is
@@ -121,12 +123,18 @@ written. They do not make an SVG id valid: an id is an XML name, so `create g "a
 refused.
 
 `transform` adds one step to the node's transform list and is refused for a container.
-`params` changes values directly; `restrict` limits it to the node itself and is refused
-for a container, while `cascade` changes every descendant's params and is refused for a
-leaf. With no selector, a leaf is restricted and a container cascades. A cascade stops
-at a descendant that already has a transform: it prepends the move or scale to that
-transform and leaves the subtree below alone, because editing those params would apply
-the operation in the child's local units instead of the parent's.
+`params` changes values directly. `restrict` limits the edit to the node itself: on a
+leaf that is its params, and on a container it is the container's own transform, so the
+message is `g#node2 moved by (0,100)`. `cascade` changes every descendant's params and is
+refused for a leaf. With no selector, a leaf is restricted and a container cascades. A
+cascade stops at a descendant that already has a transform: it prepends the move or scale
+to that transform and leaves the subtree below alone, because editing those params would
+apply the operation in the child's local units instead of the parent's.
+
+Moving or scaling an empty container is refused with
+`error: cannot move or scale an empty container: g#node2`. Such an edit would be
+invisible, but a shape inserted into that container later would inherit the displaced
+coordinate system.
 
 `init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
 says `error: undo not allowed after io command`; once an edit has been made, undo works

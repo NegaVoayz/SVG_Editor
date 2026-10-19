@@ -192,12 +192,16 @@ int main() {
           "moved rect#r1 by 5 7 in its transform");
     CHECK(render(event::Moved{{"g", "g1"}, units(5), units(7), EditMode::Cascade, 3}) ==
           "moved 3 node(s) under g#g1 by 5 7");
+    CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::ContainerTransform}) ==
+          "g#node2 moved by (0,100)");
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F}) ==
           "scaled rect#r1 by 2, so everything drawn with it grew by that much");
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F, EditMode::Transform}) ==
           "scaled rect#r1 by 2 in its transform");
     CHECK(render(event::Scaled{{"g", "g1"}, 2.0F, EditMode::Cascade, 2}) ==
           "scaled 2 node(s) under g#g1 by 2");
+    CHECK(render(event::Scaled{{"g", "node2"}, 3.0F, EditMode::ContainerTransform}) ==
+          "g#node2 scaled by 3");
     CHECK(render(event::AddedTo{{"rect", "r1"}, {"g", "g1"}}) == "moved rect#r1 to the end of g#g1");
     CHECK(render(event::MovedToFront{{"rect", "r1"}, {"g", "g1"}}) ==
           "moved rect#r1 to the front of g#g1");
@@ -228,7 +232,8 @@ int main() {
     CHECK(render(fault::TransformOnContainer{}) == "error: transform mode is only for non-containers");
     CHECK(render(fault::TransformHasNoScope{}) == "error: transform does not take cascade or restrict");
     CHECK(render(fault::CascadeRequiresContainer{}) == "error: cascade is only for containers");
-    CHECK(render(fault::RestrictOnContainer{}) == "error: restrict is only for non-containers");
+    CHECK(render(fault::EmptyContainer{"g", "node2"}) ==
+          "error: cannot move or scale an empty group: g#node2");
     CHECK(render(fault::NoDirectParams{}) == "error: this node has no direct params");
     CHECK(render(fault::UndoAfterIo{}) == "error: undo not allowed after io command");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==

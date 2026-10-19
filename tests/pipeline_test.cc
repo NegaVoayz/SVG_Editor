@@ -472,12 +472,40 @@ int main() {
 
     CHECK(refused_with<fault::CascadeRequiresContainer>(
         planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Params, EditScope::Cascade})));
-    CHECK(refused_with<fault::RestrictOnContainer>(
-        planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Params, EditScope::Restrict})));
+    const Outcome restricted_group =
+        planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Params, EditScope::Restrict});
+    CHECK(restricted_group.ok());
+    if (happened_with<event::Moved>(restricted_group)) {
+        CHECK(std::get<event::Moved>(restricted_group.event()).mode == EditMode::ContainerTransform);
+    }
+    {
+        const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
+        if (std::holds_alternative<NodeView>(layer.view())) {
+            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "translate(1 1)");
+        }
+        const Outcome box = planner.dispatch(Show{SvgIdRef{"box"}});
+        if (std::holds_alternative<NodeView>(box.view())) {
+            const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(box.view()).payload);
+            CHECK(geometry.has_value());
+            if (geometry) CHECK(to_text(geometry->x) == "0");
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
     CHECK(refused_with<fault::TransformOnContainer>(
         planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Transform})));
     CHECK(refused_with<fault::TransformHasNoScope>(planner.dispatch(
         Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Transform, EditScope::Cascade})));
+
+    // An empty container has no visible content to move, and changing its transform would
+    // silently place whatever is inserted into it later. Both cascade and restrict refuse.
+    CHECK(planner.dispatch(Create{CreateGroup{"empty-group"}}).ok());
+    CHECK(refused_with<fault::EmptyContainer>(
+        planner.dispatch(Move{SvgIdRef{"empty-group"}, units(1), units(0)})));
+    CHECK(refused_with<fault::EmptyContainer>(planner.dispatch(
+        Move{SvgIdRef{"empty-group"}, units(1), units(0), EditTarget::Params, EditScope::Restrict})));
+    CHECK(refused_with<fault::EmptyContainer>(
+        planner.dispatch(ScaleBy{SvgIdRef{"empty-group"}, 2.0F})));
+    CHECK(planner.dispatch(Undo{}).ok());
 
     // Units: mm and cm are one system and convert, in the unit the value was written
     // in; inches are the other system and are not mixed into it.
@@ -629,8 +657,19 @@ int main() {
 
     CHECK(refused_with<fault::CascadeRequiresContainer>(
         planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F, EditTarget::Params, EditScope::Cascade})));
-    CHECK(refused_with<fault::RestrictOnContainer>(
-        planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Params, EditScope::Restrict})));
+    const Outcome restricted_scale =
+        planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Params, EditScope::Restrict});
+    CHECK(restricted_scale.ok());
+    if (happened_with<event::Scaled>(restricted_scale)) {
+        CHECK(std::get<event::Scaled>(restricted_scale.event()).mode == EditMode::ContainerTransform);
+    }
+    {
+        const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
+        if (std::holds_alternative<NodeView>(layer.view())) {
+            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "scale(2 2)");
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
     CHECK(refused_with<fault::TransformOnContainer>(
         planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Transform})));
 

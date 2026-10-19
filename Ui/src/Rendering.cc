@@ -330,6 +330,9 @@ struct EventText {
         return message;
     }
     std::string operator()(const event::Moved& moved) const {
+        if (moved.mode == EditMode::ContainerTransform) {
+            return element_label(moved.node) + " moved by (" + to_text(moved.dx) + "," + to_text(moved.dy) + ")";
+        }
         std::string message;
         if (moved.mode == EditMode::Cascade) {
             message = "moved " + std::to_string(moved.nodes) + " node(s) under " + element_label(moved.node);
@@ -341,6 +344,9 @@ struct EventText {
         return message;
     }
     std::string operator()(const event::Scaled& scaled) const {
+        if (scaled.mode == EditMode::ContainerTransform) {
+            return element_label(scaled.node) + " scaled by " + number_text(scaled.factor);
+        }
         if (scaled.mode == EditMode::Cascade) {
             return "scaled " + std::to_string(scaled.nodes) + " node(s) under " + element_label(scaled.node) +
                    " by " + number_text(scaled.factor);
@@ -475,8 +481,10 @@ struct RefusalText {
     std::string operator()(const fault::CascadeRequiresContainer&) const {
         return "error: cascade is only for containers";
     }
-    std::string operator()(const fault::RestrictOnContainer&) const {
-        return "error: restrict is only for non-containers";
+    std::string operator()(const fault::EmptyContainer& empty) const {
+        const std::string_view kind = empty.element == "g" ? "group" : "container";
+        return "error: cannot move or scale an empty " + std::string{kind} + ": " +
+               element_label(empty.element, empty.svg_id);
     }
     std::string operator()(const fault::NoDirectParams&) const {
         return "error: this node has no direct params";

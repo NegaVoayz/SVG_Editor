@@ -20,4 +20,7 @@ enum class EditMode {
     Params,
     Transform,
     Cascade,
+    // `restrict` on a container changes the container itself. A container has no params,
+    // so the one value it owns is its transform; the descendants keep theirs.
+    ContainerTransform,
 };

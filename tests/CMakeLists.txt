@@ -68,9 +68,15 @@ set_tests_properties(cli_move_cascade_leaf PROPERTIES PASS_REGULAR_EXPRESSION
     "error: cascade is only for containers")
 
 add_test(NAME cli_move_restrict_container
-    COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 restrict")
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g g1; create rect r 0 0 1 1 in g1; move g1 0 100 restrict")
 set_tests_properties(cli_move_restrict_container PROPERTIES PASS_REGULAR_EXPRESSION
-    "error: restrict is only for non-containers")
+    "g#g1 moved by \\(0,100\\)")
+
+add_test(NAME cli_move_empty_container
+    COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 restrict")
+set_tests_properties(cli_move_empty_container PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: cannot move or scale an empty group: g#g1")
 
 add_test(NAME cli_move_transform_container
     COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 transform")

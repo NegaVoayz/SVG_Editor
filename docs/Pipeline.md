@@ -218,9 +218,9 @@ order, so a later line is nearer the front.
 `move` and `scale` take two optional selectors. `transform` prepends a step to the node's
 transform list and leaves its params alone; it is accepted only for a non-container,
 because a container's transform would also move everything below it. `params` changes values
-directly: `restrict` edits only the node's own values and is refused for a container,
-which has none, while `cascade` edits every non-container descendant and is refused for
-a leaf. With neither selector, a leaf is `restrict` and a container is `cascade`.
+directly. `restrict` edits only the node itself: a leaf's params, or a container's own
+transform. `cascade` edits descendants and is refused for a leaf. With neither selector,
+a leaf is `restrict` and a container is `cascade`.
 `Editor/src/Payload.cc` resolves the node kind, collects a cascade's changed payloads
 before opening a transaction, and commits them as one undo step. A cascade stops at any
 descendant that already carries a transform: writing a parent-space delta into that
@@ -229,6 +229,12 @@ amount. The operation is prepended to the transformed node's transform instead, 
 subtree is left alone because the new step already covers it. `event::Moved`/
 `event::Scaled` carry the resolved mode and the number of nodes whose params or transform
 the edit changed.
+
+A container with no descendants is refused for both `restrict` and `cascade`:
+`fault::EmptyContainer` becomes
+`error: cannot move or scale an empty container: g#node2`. The edit would change nothing
+visible now but would move future children, which is exactly the confusing state the
+refusal prevents.
 
 A length is a number with an optional `px`, `pt`, `cm`, `mm`, `in`, `em`, `ex`, or a
 percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a CSS named or system colour,

@@ -35,7 +35,9 @@ std::expected<EditMode, Refusal> resolve_mode(const Node& payload, EditTarget ta
         if (!container) return std::unexpected(Refusal{fault::CascadeRequiresContainer{}});
         return EditMode::Cascade;
     }
-    if (container) return std::unexpected(Refusal{fault::RestrictOnContainer{}});
+    // A container has no params of its own, so restricting the edit to the node means
+    // changing the one value it does own: its transform.
+    if (container) return EditMode::ContainerTransform;
     return EditMode::Params;
 }
 
@@ -110,7 +112,13 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
     if (zero_offset) return happened(Kind::Change, event::NothingMoved{});
 
     const event::NodeName named = name_of(document_, *node);
-    if (*mode == EditMode::Transform) {
+    const fault::EmptyContainer empty{named.element, named.svg_id};
+
+    if (*mode == EditMode::ContainerTransform && document_.children(*node).empty()) {
+        return refused(Kind::Change, empty);
+    }
+
+    if (*mode == EditMode::Transform || *mode == EditMode::ContainerTransform) {
         if (!std::holds_alternative<SVGNode>(*payload)) {
             return refused(Kind::Change, fault::TextCannotMove{});
         }
@@ -120,7 +128,7 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
         Transaction edit = document_.transaction();
         edit.prepend_transform(*node, Translate{intent.dx, intent.dy});
         edit.commit();
-        return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy, EditMode::Transform, 1});
+        return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy, *mode, 1});
     }
 
     if (*mode == EditMode::Params) {
@@ -138,6 +146,9 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
         document_, *node,
         [&intent](Node& child) { return Geometry::translate_params(child, intent.dx, intent.dy); }, plan);
     if (problem) return refused(Kind::Change, std::move(*problem));
+    if (plan.params.empty() && plan.transformed.empty()) {
+        return refused(Kind::Change, empty);
+    }
     commit_cascade(document_, plan, Translate{intent.dx, intent.dy});
     return happened(Kind::Change,
                     event::Moved{named, intent.dx, intent.dy, EditMode::Cascade,
@@ -159,7 +170,13 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
     if (!mode) return refused(Kind::Change, mode.error());
 
     const event::NodeName named = name_of(document_, *node);
-    if (*mode == EditMode::Transform) {
+    const fault::EmptyContainer empty{named.element, named.svg_id};
+
+    if (*mode == EditMode::ContainerTransform && document_.children(*node).empty()) {
+        return refused(Kind::Change, empty);
+    }
+
+    if (*mode == EditMode::Transform || *mode == EditMode::ContainerTransform) {
         if (!std::holds_alternative<SVGNode>(*payload)) {
             return refused(Kind::Change, fault::TextCannotScale{});
         }
@@ -167,7 +184,7 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
         Transaction edit = document_.transaction();
         edit.prepend_transform(*node, Scale{intent.factor, intent.factor});
         edit.commit();
-        return happened(Kind::Change, event::Scaled{named, intent.factor, EditMode::Transform, 1});
+        return happened(Kind::Change, event::Scaled{named, intent.factor, *mode, 1});
     }
 
     if (*mode == EditMode::Params) {
@@ -184,6 +201,9 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
     std::optional<Refusal> problem = plan_descendants(
         document_, *node, [&intent](Node& child) { return Geometry::scale_params(child, intent.factor); }, plan);
     if (problem) return refused(Kind::Change, std::move(*problem));
+    if (plan.params.empty() && plan.transformed.empty()) {
+        return refused(Kind::Change, empty);
+    }
     commit_cascade(document_, plan, Scale{intent.factor, intent.factor});
     return happened(Kind::Change,
                     event::Scaled{named, intent.factor, EditMode::Cascade,

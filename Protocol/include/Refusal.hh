@@ -85,7 +85,12 @@ struct TransformHasNoScope {};
 
 struct CascadeRequiresContainer {};
 
-struct RestrictOnContainer {};
+// A container with no descendants has nothing for a move or a scale to change. Editing
+// its transform anyway would silently move whatever is inserted into it later.
+struct EmptyContainer {
+    std::string element;
+    std::string svg_id;
+};
 
 struct NoDirectParams {};
 
@@ -146,7 +151,7 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
                              fault::TransformOnContainer, fault::TransformHasNoScope,
-                             fault::CascadeRequiresContainer, fault::RestrictOnContainer, fault::NoDirectParams,
+                             fault::CascadeRequiresContainer, fault::EmptyContainer, fault::NoDirectParams,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,
                              fault::NothingToUndo, fault::UndoAfterIo, fault::NothingToRedo, fault::NoRootElement,
                              fault::RootIsNotContainer, fault::RootIsNotSvg, fault::MissingSourcePath,
