@@ -195,6 +195,25 @@ set_tests_properties(cli_quoted_attribute_error PROPERTIES PASS_REGULAR_EXPRESSI
 add_test(NAME cli_quoted_path COMMAND $<TARGET_FILE:Cli> "read \"no such file.svg\"")
 set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: cannot read file: \"no such file.svg\"")
 
+# A viewBox and the attributes of a text are editable and survive a save/read round trip.
+add_test(NAME cli_set_view_box COMMAND $<TARGET_FILE:Cli>
+    "init; set svg viewBox \"0 0 1024 768\"; show svg")
+set_tests_properties(cli_set_view_box PROPERTIES PASS_REGULAR_EXPRESSION "viewBox=\"0 0 1024 768\"")
+
+add_test(NAME cli_invalid_view_box COMMAND $<TARGET_FILE:Cli>
+    "init; set svg viewBox \"0 0 -1 10\"")
+set_tests_properties(cli_invalid_view_box PROPERTIES PASS_REGULAR_EXPRESSION "cannot read .* as a viewBox")
+
+add_test(NAME cli_set_text_style COMMAND $<TARGET_FILE:Cli>
+    "init; create text t 20 40 \"hello\"; set t text-anchor middle; set t font-size 12pt; show t")
+set_tests_properties(cli_set_text_style PROPERTIES PASS_REGULAR_EXPRESSION
+    "text-anchor=middle font-size=12pt")
+
+add_test(NAME cli_save_svg_attributes COMMAND $<TARGET_FILE:Cli>
+    "init; set svg xmlns \"urn:example:svg\"; set svg viewBox \"0 0 100 50\"; create text t 1 2 \"hi\"; set t text-anchor end; set t font-size 8px; save ${CMAKE_CURRENT_BINARY_DIR}/cli_svg_attributes.svg; read ${CMAKE_CURRENT_BINARY_DIR}/cli_svg_attributes.svg; show svg")
+set_tests_properties(cli_save_svg_attributes PROPERTIES PASS_REGULAR_EXPRESSION
+    "viewBox=\"0 0 100 50\" xmlns=\"urn:example:svg\"")
+
 # File input reports the ids it had to invent, and the tree is the loaded document.
 add_test(NAME cli_read
     COMMAND $<TARGET_FILE:Cli> "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg; tree")

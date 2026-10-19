@@ -296,11 +296,12 @@ tree. Parse failure therefore leaves the old tree, history and source path untou
 The accepted element set is `svg`, `g`, `defs`, `symbol`, `switch`, `rect`, `circle`,
 `ellipse`, `line`, `text`, `tspan` and `textPath`. Common attributes are `id`, `class`,
 `fill`, `stroke`, `stroke-width` and `transform`; the geometry, text, canvas size,
-`startOffset` and `href` attributes follow the element. Namespace declarations are
-ignored. Everything else is refused: there is no silent drop that a later `save` could
-turn into data loss. Colours cover hex, `rgb()`, `none`, `currentColor`, all 148 CSS
-Color 4 named colours and the system-colour set; alpha, `transparent`, `style`,
-`viewBox` and element kinds such as `path` remain outside the model.
+`startOffset` and `href` attributes follow the element. The root stores its default
+`xmlns` and an optional `viewBox`; text elements store `text-anchor` and `font-size`.
+Prefixed namespace declarations are ignored. Everything else is refused: there is no
+silent drop that a later `save` could turn into data loss. Colours cover hex, `rgb()`,
+`none`, `currentColor`, all 148 CSS Color 4 named colours and the system-colour set;
+alpha, `transparent`, `style` and element kinds such as `path` remain outside the model.
 
 Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,
 in document order. The root may stay unnamed. Explicit ids are reserved first, so a
@@ -310,7 +311,7 @@ front end prints `warning: assigned id rect1 to unnamed <rect>`.
 
 The loader commits at most 1024 nodes per transaction and then clears history, making
 the loaded tree the baseline. `SvgWriter` walks the current checkout in document order
-and writes deterministic UTF-8 SVG: declaration, default namespace, fixed attribute
+and writes deterministic UTF-8 SVG: declaration, the root namespace, fixed attribute
 order, escaped attributes and text, structural indentation, and inline mixed text. A
 save clears history only after the file write succeeds.
 
@@ -319,7 +320,7 @@ save clears history only after the file write succeeds.
 - the element kinds the Editor can create are the four shapes, a text and a group. The
   model has no `path` at all; a `defs`, `symbol` or `switch` can arrive from a file.
 - the strict SVG subset has no path data, gradients or other paint-server definitions,
-  style sheets, alpha channels, `viewBox`, masks or filters. A file using them is refused
+  style sheets, alpha channels, masks or filters. A file using them is refused
   until the corresponding model value and exhaustive visitors exist.
 - a `find()` index: the view walks the tree on every call, which cannot go stale
   and is cheap enough while the tree is small.

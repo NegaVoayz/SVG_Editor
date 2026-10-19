@@ -6,6 +6,7 @@
 // which is why a circle has no `x` and a rect has no `cx` without either being listed as a
 // special case.
 #include <cstddef>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -52,6 +53,15 @@ std::optional<Refusal> stroke_width_problem(const Document& document, Id node, L
     const std::optional<Node> payload = document.node(node);
     if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
     return nonnegative(SetStrokeWidth::name, value);
+}
+
+std::optional<Refusal> view_box_problem(const Container::ViewBox& box) {
+    if (!std::isfinite(box.min_x) || !std::isfinite(box.min_y) || !std::isfinite(box.width) ||
+        !std::isfinite(box.height)) {
+        return fault::NonFiniteValue{"viewBox"};
+    }
+    if (box.width < 0.0F || box.height < 0.0F) return fault::NegativeDimension{"viewBox"};
+    return std::nullopt;
 }
 
 // `width` and `height` mean either a canvas side or a rect side. The canvas is the
@@ -401,6 +411,48 @@ Outcome apply(Document& document, Id node, const SetStartOffset& intent) {
         Text& text = std::get<Text>(element.data);
         if (!std::holds_alternative<Text::Path>(text.specific)) return false;
         std::get<Text::Path>(text.specific).startOffset = value;
+        return true;
+    });
+}
+
+Outcome apply(Document& document, Id node, const SetXmlns& intent) {
+    return set_element<SetXmlns>(document, node, [value = intent.value](SVGNode& element) {
+        if (!std::holds_alternative<Container>(element.data)) return false;
+        Container& container = std::get<Container>(element.data);
+        if (!std::holds_alternative<Container::SVG>(container.specific)) return false;
+        std::get<Container::SVG>(container.specific).xmlns = value;
+        return true;
+    });
+}
+
+Outcome apply(Document& document, Id node, const SetViewBox& intent) {
+    if (std::optional<Refusal> problem = view_box_problem(intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
+    return set_element<SetViewBox>(document, node, [value = intent.value](SVGNode& element) {
+        if (!std::holds_alternative<Container>(element.data)) return false;
+        Container& container = std::get<Container>(element.data);
+        if (!std::holds_alternative<Container::SVG>(container.specific)) return false;
+        std::get<Container::SVG>(container.specific).view_box = value;
+        return true;
+    });
+}
+
+Outcome apply(Document& document, Id node, const SetTextAnchor& intent) {
+    return set_element<SetTextAnchor>(document, node, [value = intent.value](SVGNode& element) {
+        if (!std::holds_alternative<Text>(element.data)) return false;
+        std::get<Text>(element.data).common.text_anchor = value;
+        return true;
+    });
+}
+
+Outcome apply(Document& document, Id node, const SetFontSize& intent) {
+    if (std::optional<Refusal> problem = nonnegative(SetFontSize::name, intent.value)) {
+        return refused(Kind::Change, std::move(*problem));
+    }
+    return set_element<SetFontSize>(document, node, [value = intent.value](SVGNode& element) {
+        if (!std::holds_alternative<Text>(element.data)) return false;
+        std::get<Text>(element.data).common.font_size = value;
         return true;
     });
 }

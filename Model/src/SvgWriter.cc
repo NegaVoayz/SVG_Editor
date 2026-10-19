@@ -115,6 +115,9 @@ struct ContainerAttributes {
         std::string attributes;
         append_data(attributes, optional_length_attribute("width", canvas.width));
         append_data(attributes, optional_length_attribute("height", canvas.height));
+        if (canvas.view_box) {
+            append_data(attributes, "viewBox=\"" + escaped_attribute(to_text(*canvas.view_box)) + "\"");
+        }
         return attributes;
     }
     std::string operator()(const Container::Group&) const { return {}; }
@@ -130,6 +133,11 @@ struct TextAttributes {
         append_data(attributes, optional_length_attribute("y", text.common.y));
         append_data(attributes, optional_length_attribute("dx", text.common.dx));
         append_data(attributes, optional_length_attribute("dy", text.common.dy));
+        if (text.common.text_anchor) {
+            append_data(attributes,
+                        "text-anchor=\"" + escaped_attribute(text_anchor_text(*text.common.text_anchor)) + "\"");
+        }
+        append_data(attributes, optional_length_attribute("font-size", text.common.font_size));
         if (const Text::Path* path = std::get_if<Text::Path>(&text.specific)) {
             append_data(attributes, optional_length_attribute("startOffset", path->startOffset));
             if (!path->href.empty()) {
@@ -181,7 +189,11 @@ void write_element(const TreeStore& store, Id id, const SVGNode& element, std::s
     if (!inline_node) indent(out, depth);
     out += '<';
     out += name;
-    if (name == "svg" && depth == 0) out += " xmlns=\"http://www.w3.org/2000/svg\"";
+    if (name == "svg" && depth == 0) {
+        const Container& container = std::get<Container>(element.data);
+        const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
+        append_attribute(out, "xmlns", canvas.xmlns.empty() ? Container::SVG::default_xmlns : canvas.xmlns);
+    }
     if (!element.identity_attr.id.empty()) append_attribute(out, "id", element.identity_attr.id);
     if (!element.identity_attr.class_.empty()) append_attribute(out, "class", element.identity_attr.class_);
 

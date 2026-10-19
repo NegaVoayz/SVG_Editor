@@ -56,7 +56,7 @@ std::optional<SvgDiagnostic> diagnostic_of(const Status& status) {
 
 constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"?>
 <!-- declaration and comments are syntax, not tree nodes -->
-<svg xmlns="http://www.w3.org/2000/svg" width="320mm" height="200mm">
+<svg xmlns="http://www.w3.org/2000/svg" width="320mm" height="200mm" viewBox="0 0 320 200">
   <g id="layer" fill="RED" stroke="url(#paint) red" transform="translate(1 2) scale(2)">
     <rect x="1" y="2" width="30" height="40" fill="#3366ff"/>
     <circle cx="50" cy="60" r="10" stroke="darkslategrey" stroke-width="2"/>
@@ -65,7 +65,7 @@ constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"
   </g>
   <defs><symbol id="mark"/></defs>
   <switch><g id="fallback"/></switch>
-  <text x="20" y="40">Hello &amp; &lt;SVG&gt;<tspan id="small" fill="rebeccapurple"> again</tspan><textPath id="along" href="#mark" startOffset="10%">path</textPath></text>
+  <text x="20" y="40" text-anchor="middle" font-size="12pt">Hello &amp; &lt;SVG&gt;<tspan id="small" fill="rebeccapurple"> again</tspan><textPath id="along" href="#mark" startOffset="10%">path</textPath></text>
 </svg>)SVG";
 
 }  // namespace
@@ -154,6 +154,14 @@ int main() {
         const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
         CHECK(canvas.width && to_text(*canvas.width) == "320mm");
         CHECK(canvas.height && to_text(*canvas.height) == "200mm");
+        CHECK(canvas.xmlns == "http://www.w3.org/2000/svg");
+        CHECK(canvas.view_box.has_value());
+        if (canvas.view_box) {
+            CHECK(canvas.view_box->min_x == 0.0F);
+            CHECK(canvas.view_box->min_y == 0.0F);
+            CHECK(canvas.view_box->width == 320.0F);
+            CHECK(canvas.view_box->height == 200.0F);
+        }
     }
 
     const std::optional<Id> layer = named(document, "layer");
@@ -211,6 +219,14 @@ int main() {
             }
         }
         CHECK(content == "Hello & <SVG>");
+        const std::optional<SVGNode> payload = element_at(document, *text);
+        CHECK(payload.has_value());
+        if (payload && std::holds_alternative<Text>(payload->data)) {
+            const Text& value = std::get<Text>(payload->data);
+            CHECK(value.common.text_anchor == Text::Anchor::Middle);
+            CHECK(value.common.font_size.has_value());
+            if (value.common.font_size) CHECK(to_text(*value.common.font_size) == "12pt");
+        }
     }
 
     // An unnamed node must not take an id a later explicit node already has.
@@ -235,7 +251,7 @@ int main() {
     const std::size_t preserved_children = collision.children(collision.root()).size();
     const std::vector<std::string> rejected{
         R"(<svg><path/></svg>)",
-        R"(<svg viewBox="0 0 10 10"/>)",
+        R"(<svg viewBox="0 0 -10 10"/>)",
         R"(<svg><rect style="fill:red"/></svg>)",
         R"(<svg><rect width="wide" height="2"/></svg>)",
         R"(<svg><g>words</g></svg>)",
@@ -273,6 +289,25 @@ int main() {
     CHECK(ok(reread.open(saved_path.string())));
     CHECK(named(reread, "rect1").has_value());
     CHECK(named(reread, "small").has_value());
+    if (const std::optional<SVGNode> root = element_at(reread, reread.root())) {
+        const Container& container = std::get<Container>(root->data);
+        const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
+        CHECK(canvas.xmlns == "http://www.w3.org/2000/svg");
+        CHECK(canvas.view_box.has_value());
+        if (canvas.view_box) CHECK(to_text(*canvas.view_box) == "0 0 320 200");
+    }
+    const std::optional<Id> saved_text = named(reread, "text1");
+    CHECK(saved_text.has_value());
+    if (saved_text) {
+        const std::optional<SVGNode> payload = element_at(reread, *saved_text);
+        CHECK(payload.has_value());
+        if (payload && std::holds_alternative<Text>(payload->data)) {
+            const Text& value = std::get<Text>(payload->data);
+            CHECK(value.common.text_anchor == Text::Anchor::Middle);
+            CHECK(value.common.font_size.has_value());
+            if (value.common.font_size) CHECK(to_text(*value.common.font_size) == "12pt");
+        }
+    }
     const std::optional<Id> saved_layer = named(reread, "layer");
     CHECK(saved_layer.has_value());
     if (saved_layer) {

@@ -28,8 +28,12 @@ struct PlainText {
 };
 
 struct Text { 
+    enum class Anchor { Start, Middle, End };
+
     struct Common {
         std::optional<LengthPercentage> x, y, dx, dy;
+        std::optional<Anchor> text_anchor;
+        std::optional<LengthPercentage> font_size;
     } common;
 
     ChildAttr child_attr;
@@ -44,10 +48,24 @@ struct Container {
 
     struct Group {};
     struct Defs {};
+    // The four numbers of a viewBox, in the order SVG writes them. They are plain
+    // numbers: a viewBox has no units of its own, because it maps user units onto the
+    // viewport rather than measuring in them.
+    struct ViewBox {
+        float min_x, min_y, width, height;
+    };
     // The root element's own size, which is the canvas of the document: it belongs
     // to the <svg> element and not to the document beside it, because that is where
     // SVG writes it and what the serializer will write it back out of.
-    struct SVG { std::optional<LengthPercentage> width, height; };
+    struct SVG {
+        // A new canvas belongs to the SVG namespace. A file may declare another one,
+        // and an empty value means the file declared none; the writer supplies the
+        // standard declaration rather than producing a root that is not SVG.
+        static constexpr std::string_view default_xmlns = "http://www.w3.org/2000/svg";
+        std::optional<LengthPercentage> width, height;
+        std::string xmlns = std::string{default_xmlns};
+        std::optional<ViewBox> view_box = std::nullopt;
+    };
     struct Symbol {};
     struct Switch {};
     std::variant<Group, Defs, SVG, Symbol, Switch> specific;
@@ -97,6 +115,20 @@ struct ElementName {
 // own, so it has no answer here; asking about one is not a question a caller has.
 inline std::string_view element_name(const SVGNode& element) {
     return std::visit(ElementName{}, element.data);
+}
+
+inline std::string_view text_anchor_text(Text::Anchor anchor) {
+    switch (anchor) {
+        case Text::Anchor::Start: return "start";
+        case Text::Anchor::Middle: return "middle";
+        case Text::Anchor::End: return "end";
+    }
+    return "start";
+}
+
+inline std::string to_text(const Container::ViewBox& box) {
+    return number_text(box.min_x) + " " + number_text(box.min_y) + " " + number_text(box.width) + " " +
+           number_text(box.height);
 }
 
 struct FiniteTransform {

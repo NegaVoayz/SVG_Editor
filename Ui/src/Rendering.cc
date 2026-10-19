@@ -70,7 +70,14 @@ std::string canvas_size_text(const std::optional<LengthPercentage>& width_value,
 
 // A container carries nothing of its own, except the root, whose size is the canvas.
 struct ContainerText {
-    std::string operator()(const Container::SVG& canvas) const { return canvas_text(canvas); }
+    std::string operator()(const Container::SVG& canvas) const {
+        std::string out = canvas_text(canvas);
+        if (canvas.view_box) out += " viewBox=\"" + to_text(*canvas.view_box) + "\"";
+        if (!canvas.xmlns.empty() && canvas.xmlns != Container::SVG::default_xmlns) {
+            out += " xmlns=\"" + canvas.xmlns + "\"";
+        }
+        return out;
+    }
     std::string operator()(const Container::Group&) const { return {}; }
     std::string operator()(const Container::Defs&) const { return {}; }
     std::string operator()(const Container::Symbol&) const { return {}; }
@@ -85,10 +92,24 @@ std::string position_text(const Text& text) {
     return "(" + to_text(*text.common.x) + "," + to_text(*text.common.y) + ")";
 }
 
+std::string text_details(const Text& text) {
+    std::string out = position_text(text);
+    if (text.common.text_anchor) {
+        if (!out.empty()) out += ' ';
+        out += "text-anchor=";
+        out += text_anchor_text(*text.common.text_anchor);
+    }
+    if (text.common.font_size) {
+        if (!out.empty()) out += ' ';
+        out += "font-size=" + to_text(*text.common.font_size);
+    }
+    return out;
+}
+
 struct AttrsText {
     std::string operator()(const Shape& shape) const { return std::visit(GeometryText{}, shape.specific); }
     std::string operator()(const Container& container) const { return std::visit(ContainerText{}, container.specific); }
-    std::string operator()(const Text& text) const { return position_text(text); }
+    std::string operator()(const Text& text) const { return text_details(text); }
 };
 
 struct TransformText {
@@ -144,7 +165,7 @@ Words element_words(const SVGNode& element, const std::string& text) {
     // is not a line of the drawing: printing it inside the element is what makes a text
     // read as a text.
     if (std::holds_alternative<Text>(element.data)) {
-        std::string line = position_text(std::get<Text>(element.data));
+        std::string line = text_details(std::get<Text>(element.data));
         if (!text.empty()) {
             if (!line.empty()) line += " ";
             line += "\"" + text + "\"";

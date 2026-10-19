@@ -207,4 +207,43 @@ std::optional<Transform> parse_transform(std::string_view text) {
     return std::nullopt;
 }
 
+std::optional<Container::ViewBox> parse_view_box(std::string_view text) {
+    float values[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    std::size_t index = 0;
+    for (int part = 0; part < 4; ++part) {
+        while (index < text.size() &&
+               (text[index] == ' ' || text[index] == '\t' || text[index] == ',' || text[index] == '\r' ||
+                text[index] == '\n')) {
+            ++index;
+        }
+        if (index == text.size()) return std::nullopt;
+
+        double value = 0;
+        const char* begin = text.data() + index;
+        const char* end = text.data() + text.size();
+        const std::from_chars_result parsed = std::from_chars(begin, end, value);
+        if (parsed.ec != std::errc{} || parsed.ptr == begin) return std::nullopt;
+        const std::optional<float> narrowed = finite_float(value);
+        if (!narrowed) return std::nullopt;
+        values[part] = *narrowed;
+        index = static_cast<std::size_t>(parsed.ptr - text.data());
+    }
+
+    while (index < text.size() &&
+           (text[index] == ' ' || text[index] == '\t' || text[index] == ',' || text[index] == '\r' ||
+            text[index] == '\n')) {
+        ++index;
+    }
+    if (index != text.size() || values[2] < 0.0F || values[3] < 0.0F) return std::nullopt;
+    return Container::ViewBox{values[0], values[1], values[2], values[3]};
+}
+
+std::optional<Text::Anchor> parse_text_anchor(std::string_view text) {
+    const std::string lowered = ascii_lower(text);
+    if (lowered == "start") return Text::Anchor::Start;
+    if (lowered == "middle") return Text::Anchor::Middle;
+    if (lowered == "end") return Text::Anchor::End;
+    return std::nullopt;
+}
+
 }  // namespace SvgValue

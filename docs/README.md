@@ -146,7 +146,8 @@ negative. Printed floats use at most six significant figures.
 non-root elements, printing one `warning:` line for each generated id. `save` writes
 that model tree back as deterministic UTF-8 SVG. Elements or attributes outside the
 subset are refused rather than silently dropped; [Model.md](Model.md#svg-file-io) lists
-the accepted syntax. Both commands report the number of non-root SVG elements:
+the accepted syntax. The root keeps its `xmlns` and `viewBox`; text elements keep
+`text-anchor` and `font-size`. Both commands report the number of non-root SVG elements:
 `read diagram.svg (12 elements)` and `saved to diagram.svg (12 elements)`.
 
 ## Modules and dependency rules

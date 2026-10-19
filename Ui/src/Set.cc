@@ -49,11 +49,28 @@ Request transform_attribute(const NodeRef& node, const std::string& word) {
     return Intent{Set{SetTransform{node, *value}}};
 }
 
+Request view_box_attribute(const NodeRef& node, const std::string& word) {
+    const std::optional<Container::ViewBox> value = SvgValue::parse_view_box(word);
+    if (!value) {
+        throw ParseFailed{"cannot read '" + word +
+                          "' as a viewBox: four finite numbers, with a non-negative width and height"};
+    }
+    return Intent{Set{SetViewBox{node, *value}}};
+}
+
+Request text_anchor_attribute(const NodeRef& node, const std::string& word) {
+    const std::optional<Text::Anchor> value = SvgValue::parse_text_anchor(word);
+    if (!value) {
+        throw ParseFailed{"cannot read '" + word + "' as a text-anchor: start, middle or end"};
+    }
+    return Intent{Set{SetTextAnchor{node, *value}}};
+}
+
 // Every attribute a node can carry, in the order the help groups them: geometry, paint and
 // the transform any element has, the root's canvas, and the parts of a text. The names come
 // from the attribute types, so the word this table looks up and the word the Editor refuses
 // are one spelling.
-constexpr std::array<AttributeReader, 26> attributes{{
+constexpr std::array<AttributeReader, 30> attributes{{
     {SetX::name, length_attribute<SetX>},
     {SetY::name, length_attribute<SetY>},
     {SetW::name, length_attribute<SetW>},
@@ -73,6 +90,10 @@ constexpr std::array<AttributeReader, 26> attributes{{
     {SetWidth::name, length_attribute<SetWidth>},
     {SetHeight::name, length_attribute<SetHeight>},
     {SetStartOffset::name, length_attribute<SetStartOffset>},
+    {SetXmlns::name, text_attribute<SetXmlns>},
+    {SetViewBox::name, view_box_attribute},
+    {SetTextAnchor::name, text_anchor_attribute},
+    {SetFontSize::name, length_attribute<SetFontSize>},
     {SetClass::name, text_attribute<SetClass>},
     {SetFill::name, paint_attribute<SetFill>},
     {SetStroke::name, paint_attribute<SetStroke>},

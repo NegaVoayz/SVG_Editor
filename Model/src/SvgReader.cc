@@ -37,13 +37,16 @@ bool common_attribute(std::string_view name) {
 
 bool element_attribute(std::string_view element, std::string_view name) {
     if (common_attribute(name)) return true;
-    if (element == "svg") return name == "width" || name == "height";
+    if (element == "svg") return name == "width" || name == "height" || name == "viewBox";
     if (element == "rect") return name == "x" || name == "y" || name == "width" || name == "height";
     if (element == "circle") return name == "cx" || name == "cy" || name == "r";
     if (element == "ellipse") return name == "cx" || name == "cy" || name == "rx" || name == "ry";
     if (element == "line") return name == "x1" || name == "y1" || name == "x2" || name == "y2";
     if (element == "text" || element == "tspan" || element == "textPath") {
-        if (name == "x" || name == "y" || name == "dx" || name == "dy") return true;
+        if (name == "x" || name == "y" || name == "dx" || name == "dy" || name == "text-anchor" ||
+            name == "font-size") {
+            return true;
+        }
     }
     if (element == "textPath") return name == "startOffset" || name == "href" || name == "xlink:href";
     return false;
@@ -125,6 +128,24 @@ private:
         return value;
     }
 
+    std::optional<Container::ViewBox> optional_view_box(const XmlNode& node) const {
+        const auto found = exact_attribute(node, "viewBox");
+        if (!found) return std::nullopt;
+        const XmlAttribute& attribute = found->get();
+        const std::optional<Container::ViewBox> value = SvgValueReader::view_box(attribute.value);
+        if (!value) fail(SvgProblem::InvalidAttributeValue, node, "viewBox", attribute.value, "viewBox");
+        return value;
+    }
+
+    std::optional<Text::Anchor> optional_text_anchor(const XmlNode& node) const {
+        const auto found = exact_attribute(node, "text-anchor");
+        if (!found) return std::nullopt;
+        const XmlAttribute& attribute = found->get();
+        const std::optional<Text::Anchor> value = SvgValueReader::text_anchor(attribute.value);
+        if (!value) fail(SvgProblem::InvalidAttributeValue, node, "text-anchor", attribute.value, "text-anchor");
+        return value;
+    }
+
     std::string string_or_empty(const XmlNode& node, std::string_view name) const {
         const auto found = exact_attribute(node, name);
         return found ? found->get().value : std::string{};
@@ -188,6 +209,9 @@ private:
         text.common.y = optional_length(node, "y");
         text.common.dx = optional_length(node, "dx");
         text.common.dy = optional_length(node, "dy");
+        text.common.text_anchor = optional_text_anchor(node);
+        text.common.font_size = optional_length(node, "font-size");
+        if (text.common.font_size) require_nonnegative(node, "font-size", *text.common.font_size);
 
         if (element == "text") {
             text.specific = Text::Wrapper{};
@@ -217,7 +241,10 @@ private:
             const std::optional<LengthPercentage> height = optional_length(node, "height");
             if (width) require_nonnegative(node, "width", *width);
             if (height) require_nonnegative(node, "height", *height);
-            container.specific = Container::SVG{width, height};
+            Container::SVG canvas{width, height};
+            canvas.xmlns = string_or_empty(node, "xmlns");
+            canvas.view_box = optional_view_box(node);
+            container.specific = std::move(canvas);
         }
         return container;
     }

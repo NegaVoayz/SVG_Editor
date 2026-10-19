@@ -207,6 +207,8 @@ accepted as the earlier spelling of that same edit.
 `id`, parent and child links are left out on purpose: a handle belongs to the hive, and where
 a node sits is the structural vocabulary (`addto`, `front`, `back`, ...). `width`/`height`
 mean the root's canvas or a rect's side, and `w`/`h` are the short spellings the tree prints.
+`xmlns` and `viewBox` belong to the root `<svg>`; `text-anchor` (`start`, `middle`, `end`)
+and `font-size` belong to text nodes, including `tspan` and `textPath`.
 
 `front` and `back` follow SVG's paint order: the last child is painted last, so it is
 the front, and the first child is the back. The tree prints children in that same chain

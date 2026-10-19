@@ -26,4 +26,11 @@ std::optional<float> parse_number(std::string_view text);
 // values. `none` is not read here: clearing an optional transform is the caller's decision.
 std::optional<Transform> parse_transform(std::string_view text);
 
+// "min-x min-y width height", four plain numbers. A viewBox has no units and cannot
+// have a negative width or height.
+std::optional<Container::ViewBox> parse_view_box(std::string_view text);
+
+// "start", "middle" or "end".
+std::optional<Text::Anchor> parse_text_anchor(std::string_view text);
+
 }  // namespace SvgValue

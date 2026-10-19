@@ -359,4 +359,25 @@ std::optional<Transform> transform(std::string_view text) {
     return Transform{result};
 }
 
+std::optional<Container::ViewBox> view_box(std::string_view text) {
+    const std::vector<std::string_view> values = values_of(text);
+    if (values.size() != 4) return std::nullopt;
+
+    std::optional<float> numbers[4];
+    for (std::size_t index = 0; index < 4; ++index) {
+        numbers[index] = number(values[index]);
+        if (!numbers[index]) return std::nullopt;
+    }
+    if (*numbers[2] < 0.0F || *numbers[3] < 0.0F) return std::nullopt;
+    return Container::ViewBox{*numbers[0], *numbers[1], *numbers[2], *numbers[3]};
+}
+
+std::optional<Text::Anchor> text_anchor(std::string_view text) {
+    const std::string lowered = ascii_lower(trimmed(text));
+    if (lowered == "start") return Text::Anchor::Start;
+    if (lowered == "middle") return Text::Anchor::Middle;
+    if (lowered == "end") return Text::Anchor::End;
+    return std::nullopt;
+}
+
 }  // namespace SvgValueReader

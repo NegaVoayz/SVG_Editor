@@ -181,6 +181,29 @@ struct SetStartOffset {
     NodeRef node;
     LengthPercentage value;
 };
+// The namespace a root <svg> declares, and the viewBox that maps its user units onto
+// the viewport. Both belong to the SVG container rather than to the document.
+struct SetXmlns {
+    static constexpr std::string_view name = "xmlns";
+    NodeRef node;
+    std::string value;
+};
+struct SetViewBox {
+    static constexpr std::string_view name = "viewBox";
+    NodeRef node;
+    Container::ViewBox value;
+};
+// Text alignment and size are attributes of a text and of the spans inside it.
+struct SetTextAnchor {
+    static constexpr std::string_view name = "text-anchor";
+    NodeRef node;
+    Text::Anchor value;
+};
+struct SetFontSize {
+    static constexpr std::string_view name = "font-size";
+    NodeRef node;
+    LengthPercentage value;
+};
 struct SetClass {
     static constexpr std::string_view name = "class";
     NodeRef node;
@@ -226,8 +249,9 @@ struct SetContent {
 // attribute it names is the second question - asked where the node that has to carry it is
 // known.
 using Set = std::variant<SetX, SetY, SetW, SetH, SetCx, SetCy, SetR, SetRx, SetRy, SetX1, SetY1, SetX2, SetY2, SetDx,
-                         SetDy, SetStrokeWidth, SetWidth, SetHeight, SetStartOffset, SetClass, SetFill, SetStroke,
-                         SetTransform, SetHref, SetText, SetContent>;
+                         SetDy, SetStrokeWidth, SetWidth, SetHeight, SetStartOffset, SetXmlns, SetViewBox,
+                         SetTextAnchor, SetFontSize, SetClass, SetFill, SetStroke, SetTransform, SetHref, SetText,
+                         SetContent>;
 
 struct Undo {};
 struct Redo {};
