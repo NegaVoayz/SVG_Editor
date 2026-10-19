@@ -324,6 +324,8 @@ Prefixed namespace declarations are ignored. Everything else is refused: there i
 silent drop that a later `save` could turn into data loss. Colours cover hex, `rgb()`,
 `none`, `currentColor`, all 148 CSS Color 4 named colours and the system-colour set;
 alpha, `transparent`, `style` and element kinds such as `path` remain outside the model.
+An empty or whitespace-only `transform` attribute is accepted as an empty list, just
+like `transform="none"`.
 
 Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,
 in document order. The root may stay unnamed. A non-root element whose id is `svg` is

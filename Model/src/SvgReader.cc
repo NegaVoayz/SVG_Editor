@@ -167,14 +167,12 @@ private:
 
         std::vector<Transform> transforms;
         if (const auto transform = exact_attribute(xml_node, "transform")) {
-            if (transform->get().value != "none") {
-                std::optional<std::vector<Transform>> parsed = SvgValueReader::transform(transform->get().value);
-                if (!parsed) {
-                    fail(SvgProblem::InvalidAttributeValue, xml_node, "transform", transform->get().value,
-                         "transform");
-                }
-                transforms = std::move(*parsed);
+            std::optional<std::vector<Transform>> parsed = SvgValueReader::transform(transform->get().value);
+            if (!parsed) {
+                fail(SvgProblem::InvalidAttributeValue, xml_node, "transform", transform->get().value,
+                     "transform");
             }
+            transforms = std::move(*parsed);
         }
         return transforms;
     }

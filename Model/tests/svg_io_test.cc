@@ -146,6 +146,19 @@ int main() {
     CHECK(document.source_path() == full_path.string());
     CHECK(document.depth() == 0);
 
+    // An empty transform attribute is the same as no transform, not a malformed value.
+    const std::filesystem::path empty_transform_path = file_named("svg_io_empty_transform.svg");
+    CHECK(write_text(empty_transform_path,
+                     R"(<svg><g id="plain" transform=""/><g id="spaced" transform="   "/></svg>)"));
+    Document empty_transform_document;
+    CHECK(ok(empty_transform_document.open(empty_transform_path.string())));
+    const std::optional<Id> plain_group = named(empty_transform_document, "plain");
+    const std::optional<Id> spaced_group = named(empty_transform_document, "spaced");
+    CHECK(plain_group.has_value());
+    CHECK(spaced_group.has_value());
+    if (plain_group) CHECK(empty_transform_document.transforms(*plain_group).empty());
+    if (spaced_group) CHECK(empty_transform_document.transforms(*spaced_group).empty());
+
     const std::optional<Id> root = named(document, "");
     CHECK(!root.has_value());
     if (const std::optional<SVGNode> svg = element_at(document, document.root())) {

@@ -274,7 +274,7 @@ std::optional<Paint> paint(std::string_view text) {
 
 std::optional<std::vector<Transform>> transform(std::string_view text) {
     text = trimmed(text);
-    if (text.empty() || text == "none") return std::nullopt;
+    if (text.empty() || text == "none") return std::vector<Transform>{};
 
     const std::optional<std::vector<TransformFunction>> functions = transform_functions(text);
     if (!functions) return std::nullopt;

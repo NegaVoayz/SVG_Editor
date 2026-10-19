@@ -191,6 +191,8 @@ std::optional<Transform> parse_transform_step(std::string_view name, const std::
 }
 
 std::optional<std::vector<Transform>> parse_transform(std::string_view text) {
+    if (text.find_first_not_of(" \t") == std::string_view::npos) return std::vector<Transform>{};
+
     std::vector<Transform> transforms;
     std::size_t index = 0;
     while (index < text.size()) {

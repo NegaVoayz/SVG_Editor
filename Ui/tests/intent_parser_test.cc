@@ -268,6 +268,10 @@ int main() {
     CHECK(holds<SetTransform>(clear_transform));
     if (holds<SetTransform>(clear_transform)) CHECK(as<SetTransform>(clear_transform).value.empty());
 
+    const Request empty_transform = parse("set layer transform \"\"");
+    CHECK(holds<SetTransform>(empty_transform));
+    if (holds<SetTransform>(empty_transform)) CHECK(as<SetTransform>(empty_transform).value.empty());
+
     const Request unknown_attribute = parse("set box colour red");
     CHECK(refuses(unknown_attribute));
     if (refuses(unknown_attribute)) {
