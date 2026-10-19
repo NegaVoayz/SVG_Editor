@@ -1,6 +1,7 @@
 #pragma once
 #include <concepts>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <optional>
 
@@ -68,6 +69,35 @@ struct SVGNode {
 };
 
 using Node = std::variant<SVGNode, PlainText>;
+
+struct ShapeElementName {
+    std::string_view operator()(const Shape::Rect&) const { return "rect"; }
+    std::string_view operator()(const Shape::Circle&) const { return "circle"; }
+    std::string_view operator()(const Shape::Ellipse&) const { return "ellipse"; }
+    std::string_view operator()(const Shape::Line&) const { return "line"; }
+};
+
+struct ContainerElementName {
+    std::string_view operator()(const Container::SVG&) const { return "svg"; }
+    std::string_view operator()(const Container::Group&) const { return "g"; }
+    std::string_view operator()(const Container::Defs&) const { return "defs"; }
+    std::string_view operator()(const Container::Symbol&) const { return "symbol"; }
+    std::string_view operator()(const Container::Switch&) const { return "switch"; }
+};
+
+struct ElementName {
+    std::string_view operator()(const Shape& shape) const { return std::visit(ShapeElementName{}, shape.specific); }
+    std::string_view operator()(const Container& container) const {
+        return std::visit(ContainerElementName{}, container.specific);
+    }
+    std::string_view operator()(const Text&) const { return "text"; }
+};
+
+// The SVG element name a payload is written with. Character data has no element of its
+// own, so it has no answer here; asking about one is not a question a caller has.
+inline std::string_view element_name(const SVGNode& element) {
+    return std::visit(ElementName{}, element.data);
+}
 
 // The SVG element that can be a parent of shapes and other containers. A text also has
 // child storage, for its character data, but it is not a container a user can put an

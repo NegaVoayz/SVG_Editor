@@ -13,6 +13,7 @@
 #include <variant>
 #include <vector>
 
+#include "Naming.hh"
 #include "NodeRef.hh"
 #include "Outcome.hh"
 #include "Translations.hh"
@@ -83,7 +84,7 @@ Outcome set_element(Document& document, Id node, Mutation mutation) {
     Transaction edit = document.transaction();
     edit.update(node, std::move(*payload));
     edit.commit();
-    return happened(Kind::Change, event::AttributeSet{node, std::string{Attribute::name}});
+    return happened(Kind::Change, event::AttributeSet{name_of(document, node), std::string{Attribute::name}});
 }
 
 // A shape member exists on some alternatives of Shape and not on others. The visitor asks
@@ -416,7 +417,7 @@ Outcome set_text(Document& document, Id node, const std::string& value, std::str
         Transaction edit = document.transaction();
         edit.update(node, Node{std::move(text)});
         edit.commit();
-        return happened(Kind::Change, event::ContentSet{node});
+        return happened(Kind::Change, event::ContentSet{name_of(document, node)});
     }
 
     if (!std::holds_alternative<SVGNode>(*payload) ||
@@ -444,7 +445,7 @@ Outcome set_text(Document& document, Id node, const std::string& value, std::str
         for (std::size_t index = 1; index < text_children.size(); ++index) edit.erase(text_children[index]);
     }
     edit.commit();
-    return happened(Kind::Change, event::ContentSet{node});
+    return happened(Kind::Change, event::ContentSet{name_of(document, node)});
 }
 
 Outcome apply(Document& document, Id node, const SetText& intent) {

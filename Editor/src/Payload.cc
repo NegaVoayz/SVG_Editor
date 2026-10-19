@@ -10,6 +10,7 @@
 #include <variant>
 
 #include "Geometry.hh"
+#include "Naming.hh"
 #include "NodeRef.hh"
 #include "Outcome.hh"
 #include "Translations.hh"
@@ -30,10 +31,11 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
     std::optional<Refusal> problem = Geometry::translate(*payload, intent.dx, intent.dy);
     if (problem) return refused(Kind::Change, std::move(*problem));
 
+    const event::NodeName named = name_of(document_, *node);
     Transaction edit = document_.transaction();
     edit.update(*node, std::move(*payload));
     edit.commit();
-    return happened(Kind::Change, event::Moved{*node, intent.dx, intent.dy});
+    return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy});
 }
 
 template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
@@ -46,10 +48,11 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
     std::optional<Refusal> problem = Geometry::scale(*payload, intent.factor);
     if (problem) return refused(Kind::Change, std::move(*problem));
 
+    const event::NodeName named = name_of(document_, *node);
     Transaction edit = document_.transaction();
     edit.update(*node, std::move(*payload));
     edit.commit();
-    return happened(Kind::Change, event::Scaled{*node, intent.factor});
+    return happened(Kind::Change, event::Scaled{named, intent.factor});
 }
 
 template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {

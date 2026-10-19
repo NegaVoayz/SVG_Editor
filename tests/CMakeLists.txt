@@ -59,7 +59,7 @@ set_tests_properties(cli_set_text PROPERTIES PASS_REGULAR_EXPRESSION "\"My Diagr
 add_test(NAME cli_delete_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 1 1; delete box")
 set_tests_properties(cli_delete_leaf PROPERTIES
-    PASS_REGULAR_EXPRESSION "deleted box \\(#1\\)"
+    PASS_REGULAR_EXPRESSION "deleted rect#box"
     FAIL_REGULAR_EXPRESSION "under it|\\[change\\]")
 
 # Character data is not a user-visible node: deleting a text element that holds only
@@ -67,7 +67,7 @@ set_tests_properties(cli_delete_leaf PROPERTIES
 add_test(NAME cli_delete_text_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create text title 0 0 \"hello\"; delete title")
 set_tests_properties(cli_delete_text_leaf PROPERTIES
-    PASS_REGULAR_EXPRESSION "deleted title \\(#1\\)"
+    PASS_REGULAR_EXPRESSION "deleted text#title"
     FAIL_REGULAR_EXPRESSION "under it")
 
 # In mixed content only the element child counts; the words on either side of it are
@@ -95,6 +95,16 @@ add_test(NAME cli_group_duplicate
     COMMAND $<TARGET_FILE:Cli> "init; create rect a 0 0 1 1; group g a a")
 set_tests_properties(cli_group_duplicate PROPERTIES
     PASS_REGULAR_EXPRESSION "error: duplicate node in group: a")
+
+# Event answers name elements the way the tree does; the hive's numeric handle never
+# appears in one.
+add_test(NAME cli_no_internal_handles
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g g1; create rect r1 0 0 1 1 in g1; create circle c1 0 0 1 in g1; move r1 5 5; set r1 fill red; front r1; back r1; addto g1 r1")
+set_tests_properties(cli_no_internal_handles PROPERTIES
+    PASS_REGULAR_EXPRESSION
+        "moved rect#r1 by 5 5\nset fill on rect#r1\nmoved rect#r1 to the front of g#g1\nmoved rect#r1 to the back of g#g1\nmoved rect#r1 to the end of g#g1"
+    FAIL_REGULAR_EXPRESSION "#0|#[1-9][0-9]*")
 
 add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>
     "init; create g layer; create rect box 0 0 10 10 in layer; create circle dot 1 1 1 in layer; tree")

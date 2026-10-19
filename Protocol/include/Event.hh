@@ -7,82 +7,82 @@
 #include <vector>
 
 #include "History.hh"
-#include "NodeRef.hh"
 #include "SVGNode.hh"
 #include "SvgDiagnostic.hh"
 
-// What a successful instruction did, as data. An event names handles and values rather
-// than a sentence: the text front end prints it, a graphical front end can use the same
-// event to refresh the part of its display the edit touched, and neither has to read a
-// message written by a lower layer.
+// What a successful instruction did, as data. An event names the elements and values the
+// edit changed rather than a sentence: the text front end prints it, a graphical front end
+// can use the same event to refresh the part of its display the edit touched, and neither
+// has to read a message written by a lower layer.
 //
 // The event is deliberately a report of the edit, not a replayable patch. The document is
 // still the source of truth; an event says which part of it moved.
 namespace event {
 
-struct Created {
-    Id node;
+// The name a node is shown by: its element and the SVG id its document gives it. The
+// hive's virtual id is deliberately absent; it is an implementation detail of storage,
+// not a name a front end can print or a user can type.
+struct NodeName {
     std::string element;
     std::string svg_id;
-    Id parent;
-    std::string parent_element;
-    std::string parent_svg_id;
+};
+
+struct Created {
+    NodeName node;
+    NodeName parent;
     bool parent_named;
 };
 
 struct Deleted {
-    Id node;
-    NodeRef named;
+    NodeName node;
     std::size_t descendants;
 };
 
 struct Moved {
-    Id node;
+    NodeName node;
     LengthPercentage dx;
     LengthPercentage dy;
 };
 
 struct Scaled {
-    Id node;
+    NodeName node;
     float factor;
 };
 
 struct AddedTo {
-    Id node;
-    Id parent;
+    NodeName node;
+    NodeName parent;
 };
 
 struct MovedToFront {
-    Id node;
-    Id parent;
+    NodeName node;
+    NodeName parent;
 };
 
 struct MovedToBack {
-    Id node;
-    Id parent;
+    NodeName node;
+    NodeName parent;
 };
 
 struct Grouped {
-    Id node;
-    std::string svg_id;
-    Id parent;
+    NodeName node;
+    NodeName parent;
     std::size_t members;
 };
 
 struct Ungrouped {
-    Id node;
-    NodeRef named;
-    Id parent;
+    NodeName erased;
+    NodeName parent;
     std::size_t members;
 };
 
 struct AttributeSet {
-    Id node;
+    NodeName node;
     std::string attribute;
 };
 
 struct ContentSet {
-    Id node;
+    NodeName node;
 };
 
 struct CanvasSet {
@@ -105,11 +105,11 @@ struct Redone {
 struct NothingMoved {};
 
 struct AlreadyFront {
-    NodeRef node;
+    NodeName node;
 };
 
 struct AlreadyBack {
-    NodeRef node;
+    NodeName node;
 };
 
 struct Initialized {

@@ -19,6 +19,7 @@ add_library(Editor
     src/Payload.cc
     src/Set.cc
     src/History.cc
+    src/Naming.cc
     src/Units.cc
     src/Transform.cc
     src/Geometry.cc)

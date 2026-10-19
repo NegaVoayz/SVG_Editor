@@ -164,18 +164,27 @@ int main() {
     // The other half of the boundary: an event and a refusal are data until this file
     // turns them into words. Editor results have no route prefix; the special branches
     // keep theirs.
-    CHECK(render(event::Created{2, "rect", "box", 1, "g", "markers", false}) == "rect#box created");
-    CHECK(render(event::Created{3, "text", "start label", 1, "g", "node 1", true}) ==
+    CHECK(render(event::Created{{"rect", "box"}, {"g", "markers"}, false}) == "rect#box created");
+    CHECK(render(event::Created{{"text", "start label"}, {"g", "node 1"}, true}) ==
           "text#\"start label\" created in g#\"node 1\"");
-    CHECK(render(event::Grouped{6, "markers", 0, 2}) == "g#markers created holding 2 node(s)");
-    CHECK(render(event::Ungrouped{6, SvgIdRef{"pair"}, 0, 2}) ==
-          "released 2 node(s) into #0 and erased g#pair");
-    CHECK(render(event::Moved{2, units(5), units(7)}) == "moved #2 by 5 7");
-    CHECK(render(event::ContentSet{2}) == "set text on #2");
-    CHECK(render(event::Deleted{5, SvgIdRef{"box"}, 0}) == "deleted box (#5)");
-    CHECK(render(event::Deleted{6, SvgIdRef{"markers"}, 2}) == "deleted markers (#6) and 2 node(s) under it");
-    CHECK(render(event::AlreadyFront{SvgIdRef{"box"}}) == "box is already in front");
-    CHECK(render(event::AlreadyBack{SvgIdRef{"box"}}) == "box is already at the back");
+    CHECK(render(event::Grouped{{"g", "markers"}, {"svg", ""}, 2}) ==
+          "g#markers created holding 2 node(s)");
+    CHECK(render(event::Ungrouped{{"g", "pair"}, {"svg", ""}, 2}) ==
+          "released 2 node(s) into svg and erased g#pair");
+    CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7)}) == "moved rect#r1 by 5 7");
+    CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F}) ==
+          "scaled rect#r1 by 2, so everything drawn with it grew by that much");
+    CHECK(render(event::AddedTo{{"rect", "r1"}, {"g", "g1"}}) == "moved rect#r1 to the end of g#g1");
+    CHECK(render(event::MovedToFront{{"rect", "r1"}, {"g", "g1"}}) ==
+          "moved rect#r1 to the front of g#g1");
+    CHECK(render(event::MovedToBack{{"rect", "r1"}, {"g", "g1"}}) ==
+          "moved rect#r1 to the back of g#g1");
+    CHECK(render(event::AttributeSet{{"rect", "r1"}, "fill"}) == "set fill on rect#r1");
+    CHECK(render(event::ContentSet{{"text", "title"}}) == "set text on text#title");
+    CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "deleted rect#box");
+    CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "deleted g#markers and 2 node(s) under it");
+    CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
+    CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");
     CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}, 3}) ==
           "read a.svg (3 elements)\nwarning: assigned id rect1 to unnamed <rect>");

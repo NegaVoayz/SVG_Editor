@@ -8,6 +8,7 @@
 #include <variant>
 #include <vector>
 
+#include "Naming.hh"
 #include "NodeRef.hh"
 #include "Outcome.hh"
 #include "Translations.hh"
@@ -70,10 +71,11 @@ template<> Outcome Editor::handle<Delete>(const Delete& intent) {
     if (*node == document_.root()) return refused(Kind::Change, fault::RootCannotBeErased{});
 
     const std::size_t removed_below = descendant_count(document_, *node);
+    const event::NodeName named = name_of(document_, *node);
     Transaction edit = document_.transaction();
     edit.erase(*node);
     edit.commit();
-    return happened(Kind::Change, event::Deleted{*node, intent.node, removed_below});
+    return happened(Kind::Change, event::Deleted{named, removed_below});
 }
 
 template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {
@@ -89,7 +91,7 @@ template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {
     Transaction edit = document_.transaction();
     edit.attach_last(*parent, *node);
     edit.commit();
-    return happened(Kind::Change, event::AddedTo{*node, *parent});
+    return happened(Kind::Change, event::AddedTo{name_of(document_, *node), name_of(document_, *parent)});
 }
 
 // SVG paints children in document order, so the last child is the front. `front` and
@@ -104,13 +106,13 @@ template<> Outcome Editor::handle<Front>(const Front& intent) {
 
     const std::vector<Id> siblings = document_.children(*parent);
     if (!siblings.empty() && siblings.back() == *node) {
-        return happened(Kind::Change, event::AlreadyFront{intent.node});
+        return happened(Kind::Change, event::AlreadyFront{name_of(document_, *node)});
     }
 
     Transaction edit = document_.transaction();
     edit.attach_last(*parent, *node);
     edit.commit();
-    return happened(Kind::Change, event::MovedToFront{*node, *parent});
+    return happened(Kind::Change, event::MovedToFront{name_of(document_, *node), name_of(document_, *parent)});
 }
 
 template<> Outcome Editor::handle<Back>(const Back& intent) {
@@ -123,13 +125,13 @@ template<> Outcome Editor::handle<Back>(const Back& intent) {
 
     const std::vector<Id> siblings = document_.children(*parent);
     if (!siblings.empty() && siblings.front() == *node) {
-        return happened(Kind::Change, event::AlreadyBack{intent.node});
+        return happened(Kind::Change, event::AlreadyBack{name_of(document_, *node)});
     }
 
     Transaction edit = document_.transaction();
     edit.attach_at(*parent, siblings.front(), *node);
     edit.commit();
-    return happened(Kind::Change, event::MovedToBack{*node, *parent});
+    return happened(Kind::Change, event::MovedToBack{name_of(document_, *node), name_of(document_, *parent)});
 }
 
 template<> Outcome Editor::handle<Group>(const Group& intent) {
@@ -186,7 +188,8 @@ template<> Outcome Editor::handle<Group>(const Group& intent) {
     // In the order they were written, so the group reads the way the command did.
     for (const Id member : members) edit.attach_last(made, member);
     edit.commit();
-    return happened(Kind::Change, event::Grouped{made, intent.id, *parent, members.size()});
+    return happened(Kind::Change,
+                    event::Grouped{name_of(document_, made), name_of(document_, *parent), members.size()});
 }
 
 template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
@@ -220,9 +223,11 @@ template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
     const auto at = std::find(siblings.begin(), siblings.end(), node);
     const Id anchor = (at != siblings.end() && at + 1 != siblings.end()) ? *(at + 1) : no_id;
 
+    const event::NodeName erased = name_of(document_, node);
+    const event::NodeName parent_name = name_of(document_, *parent);
     Transaction edit = document_.transaction();
     for (const Id member : members) edit.attach_at(*parent, anchor, member);
     edit.erase(node);
     edit.commit();
-    return happened(Kind::Change, event::Ungrouped{node, intent.node, *parent, members.size()});
+    return happened(Kind::Change, event::Ungrouped{erased, parent_name, members.size()});
 }

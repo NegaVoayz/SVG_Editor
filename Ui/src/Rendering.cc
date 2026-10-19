@@ -12,33 +12,6 @@
 
 namespace {
 
-// --- what an element is called ---
-
-struct ShapeName {
-    std::string_view operator()(const Shape::Rect&) const { return "rect"; }
-    std::string_view operator()(const Shape::Circle&) const { return "circle"; }
-    std::string_view operator()(const Shape::Ellipse&) const { return "ellipse"; }
-    std::string_view operator()(const Shape::Line&) const { return "line"; }
-};
-
-struct ContainerName {
-    std::string_view operator()(const Container::SVG&) const { return "svg"; }
-    std::string_view operator()(const Container::Group&) const { return "g"; }
-    std::string_view operator()(const Container::Defs&) const { return "defs"; }
-    std::string_view operator()(const Container::Symbol&) const { return "symbol"; }
-    std::string_view operator()(const Container::Switch&) const { return "switch"; }
-};
-
-// Every kind of node, container, shape and text has an overload here, so a kind added to
-// the model is a build error in this file until it is named too.
-struct ElementName {
-    std::string_view operator()(const Shape& shape) const { return std::visit(ShapeName{}, shape.specific); }
-    std::string_view operator()(const Container& container) const {
-        return std::visit(ContainerName{}, container.specific);
-    }
-    std::string_view operator()(const Text&) const { return "text"; }
-};
-
 // --- what an element carries ---
 
 // A shape's own values, in the same words `create` takes them in, so a line of the tree
@@ -159,7 +132,7 @@ std::string joined_details(const Words& words) {
 
 Words element_words(const SVGNode& element, const std::string& text) {
     Words words;
-    const std::string_view kind = std::visit(ElementName{}, element.data);
+    const std::string_view kind = element_name(element);
     // The kind and the id the user wrote: the handle is not part of the drawing, because
     // it is the hive's virtual id, which is never reused for another node.
     words.name =
@@ -315,19 +288,13 @@ std::string label(const NodeRef& reference) {
     return quote_if_needed(std::get<SvgIdRef>(reference).name);
 }
 
-std::string describe(const NodeRef& reference) {
-    if (std::holds_alternative<RootRef>(reference)) return "the root";
-    if (std::holds_alternative<HandleRef>(reference)) {
-        return "#" + std::to_string(std::get<HandleRef>(reference).id);
-    }
-    return quote_if_needed(std::get<SvgIdRef>(reference).name);
-}
-
 std::string element_label(std::string_view element, std::string_view svg_id) {
     std::string label{element};
     if (!svg_id.empty()) label += "#" + quote_if_needed(svg_id);
     return label;
 }
+
+std::string element_label(const event::NodeName& name) { return element_label(name.element, name.svg_id); }
 
 std::string element_count_text(std::size_t count) {
     return std::to_string(count) + (count == 1 ? " element" : " elements");
@@ -349,52 +316,47 @@ std::string_view system_name(Length::Unit unit) {
 
 struct EventText {
     std::string operator()(const event::Created& made) const {
-        std::string message = element_label(made.element, made.svg_id) + " created";
+        std::string message = element_label(made.node) + " created";
         if (made.parent_named) {
-            message += " in " + element_label(made.parent_element, made.parent_svg_id);
+            message += " in " + element_label(made.parent);
         }
         return message;
     }
     std::string operator()(const event::Deleted& gone) const {
-        std::string message = "deleted " + describe(gone.named) + " (#" + std::to_string(gone.node) + ")";
+        std::string message = "deleted " + element_label(gone.node);
         if (gone.descendants != 0) {
             message += " and " + std::to_string(gone.descendants) + " node(s) under it";
         }
         return message;
     }
     std::string operator()(const event::Moved& moved) const {
-        return "moved #" + std::to_string(moved.node) + " by " + to_text(moved.dx) + " " + to_text(moved.dy);
+        return "moved " + element_label(moved.node) + " by " + to_text(moved.dx) + " " + to_text(moved.dy);
     }
     std::string operator()(const event::Scaled& scaled) const {
-        return "scaled #" + std::to_string(scaled.node) + " by " + number_text(scaled.factor) +
+        return "scaled " + element_label(scaled.node) + " by " + number_text(scaled.factor) +
                ", so everything drawn with it grew by that much";
     }
     std::string operator()(const event::AddedTo& moved) const {
-        return "moved #" + std::to_string(moved.node) + " to the end of #" + std::to_string(moved.parent);
+        return "moved " + element_label(moved.node) + " to the end of " + element_label(moved.parent);
     }
     std::string operator()(const event::MovedToFront& moved) const {
-        return "moved #" + std::to_string(moved.node) + " to the front of #" + std::to_string(moved.parent);
+        return "moved " + element_label(moved.node) + " to the front of " + element_label(moved.parent);
     }
     std::string operator()(const event::MovedToBack& moved) const {
-        return "moved #" + std::to_string(moved.node) + " to the back of #" + std::to_string(moved.parent);
+        return "moved " + element_label(moved.node) + " to the back of " + element_label(moved.parent);
     }
     std::string operator()(const event::Grouped& grouped) const {
-        return element_label("g", grouped.svg_id) + " created holding " + std::to_string(grouped.members) +
+        return element_label(grouped.node) + " created holding " + std::to_string(grouped.members) +
                " node(s)";
     }
     std::string operator()(const event::Ungrouped& released) const {
-        const std::string erased = std::holds_alternative<SvgIdRef>(released.named)
-                                       ? "g#" + quote_if_needed(std::get<SvgIdRef>(released.named).name)
-                                       : describe(released.named);
-        return "released " + std::to_string(released.members) + " node(s) into #" + std::to_string(released.parent) +
-               " and erased " + erased;
+        return "released " + std::to_string(released.members) + " node(s) into " + element_label(released.parent) +
+               " and erased " + element_label(released.erased);
     }
     std::string operator()(const event::AttributeSet& set) const {
-        return "set " + quote_if_needed(set.attribute) + " on #" + std::to_string(set.node);
+        return "set " + quote_if_needed(set.attribute) + " on " + element_label(set.node);
     }
-    std::string operator()(const event::ContentSet& set) const {
-        return "set text on #" + std::to_string(set.node);
-    }
+    std::string operator()(const event::ContentSet& set) const { return "set text on " + element_label(set.node); }
     std::string operator()(const event::CanvasSet& canvas) const {
         const std::string width = canvas.width ? to_text(*canvas.width) : "?";
         const std::string height = canvas.height ? to_text(*canvas.height) : "?";
@@ -408,10 +370,10 @@ struct EventText {
     }
     std::string operator()(const event::NothingMoved&) const { return "the offset is zero, nothing moved"; }
     std::string operator()(const event::AlreadyFront& front) const {
-        return describe(front.node) + " is already in front";
+        return element_label(front.node) + " is already in front";
     }
     std::string operator()(const event::AlreadyBack& back) const {
-        return describe(back.node) + " is already at the back";
+        return element_label(back.node) + " is already at the back";
     }
     std::string operator()(const event::Initialized& initialized) const {
         return "canvas " + canvas_size_text(initialized.width, initialized.height) + " created";

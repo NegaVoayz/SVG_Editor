@@ -67,11 +67,10 @@ private:
     // other containers. A text holds character data but is not this kind of container.
     std::expected<Id, Refusal> resolve_container(const NodeRef& reference) const;
 
-    // What one create brings: the tag an event names it by, the element itself, and the
-    // words to put inside it when the element is a text. A text holds character data in
-    // a child node rather than in an attribute, which is why that is a second node.
+    // What one create brings: the element itself, and the words to put inside it when the
+    // element is a text. A text holds character data in a child node rather than in an
+    // attribute, which is why that is a second node.
     struct NewElement {
-        std::string_view kind;
         Node payload;
         std::optional<std::string> content;
     };

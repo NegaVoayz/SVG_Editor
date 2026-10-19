@@ -15,7 +15,7 @@ The vocabulary is one thing to the layers that speak it, and six things to a rea
 | `NodeRef.hh` | how an instruction names a node - a handle, the root, an SVG id - and what that name turns out to be |
 | `Intent.hh`  | the instructions and the nested variants they form (`Create`, `Set`, `Intent`, `ChangeIntent`) |
 | `View.hh`    | what a read hands back: the rows of a tree, or one node                                     |
-| `Event.hh`   | what a successful change did: handles, values and the kind of edit                         |
+| `Event.hh`   | what a successful change did: user-facing element names, values and the kind of edit       |
 | `Refusal.hh` | why an instruction could not be carried out: a closed set of typed reasons                 |
 | `Outcome.hh` | `Kind`, and the `View` / `Event` / `Refusal` result                                        |
 
@@ -33,10 +33,11 @@ struct Outcome {
 };
 ```
 
-An `Event` names the handle that moved, the parent it moved under, the attribute that was
-set, or the history position reached. A `Refusal` names the missing node, the duplicate id,
-the two lengths that cannot be added, or the file that could not be read. A graphical front
-end can react to those fields directly; it does not have to recover them from a sentence.
+An `Event` names the element that moved, the parent it moved under, the attribute that was
+set, or the history position reached. An element's name is its SVG tag and id, not the
+hive's virtual handle. A `Refusal` names the missing node, the duplicate id, the two lengths
+that cannot be added, or the file that could not be read. A graphical front end can react
+to those fields directly; it does not have to recover them from a sentence.
 `Ui/src/Rendering.cc` is the only place that turns either one into English.
 
 ## How an intent is dispatched
