@@ -11,6 +11,8 @@
 #include <variant>
 #include <vector>
 
+#include "Quoting.hh"
+
 namespace {
 
 // One kind: the word that names it, and what it makes of the id, the values and the place
@@ -106,7 +108,5 @@ Request parse_create(const Words& words) {
             return Intent{std::move(made)};
         }
     }
-    std::string kind = words[1];
-    if (kind.find_first_of(" \t\r\n") != std::string::npos) kind = "\"" + kind + "\"";
-    throw ParseFailed{"error: unknown shape type: " + kind + " (is the plugin loaded?)"};
+    throw ParseFailed{"error: unknown shape type: " + quote_if_needed(words[1]) + " (is the plugin loaded?)"};
 }

@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "Quoting.hh"
 #include "SvgValue.hh"
 
 namespace {
@@ -90,5 +91,5 @@ Request parse_set(const Words& words) {
     for (const AttributeReader& attribute : attributes) {
         if (attribute.name == words[2]) return attribute.read(node, words[3]);
     }
-    throw ParseFailed{"error: unknown attribute: " + words[2]};
+    throw ParseFailed{"error: unknown attribute: " + quote_if_needed(words[2])};
 }

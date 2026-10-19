@@ -188,6 +188,10 @@ set_tests_properties(cli_invalid_quoted_id PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME cli_quoted_id_error COMMAND $<TARGET_FILE:Cli> "init; delete \"id with space\"")
 set_tests_properties(cli_quoted_id_error PROPERTIES PASS_REGULAR_EXPRESSION "error: no such shape: \"id with space\"")
 
+add_test(NAME cli_quoted_attribute_error COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; set r \"bad attr\" 1")
+set_tests_properties(cli_quoted_attribute_error PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: unknown attribute: \"bad attr\"")
+
 add_test(NAME cli_quoted_path COMMAND $<TARGET_FILE:Cli> "read \"no such file.svg\"")
 set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: cannot read file: \"no such file.svg\"")
 
