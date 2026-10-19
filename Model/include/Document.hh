@@ -99,21 +99,13 @@ public:
     std::size_t depth() const;
     std::size_t position() const;
 
-    // The hive commit the checkout stands on. It moves with undo and redo, stays put
-    // across an empty transaction, is reused by an edit that replaces a redo tail, and
-    // survives clear_history() so the new baseline keeps its identity.
+    // The hive commit the checkout stands on. An explicit commit id makes this the
+    // shared checkout id every participating hive reports.
     CommitId commit_id() const;
 
-    // The document-wide commit id of the checkout, and the id of the edit at a
-    // zero-based history position. The sequence never reuses an id, unlike the local
-    // hive commit after a branch.
-    GlobalCommitId global_commit_id() const;
-    std::optional<GlobalCommitId> global_commit_at(std::size_t position) const;
-
-    // The local commit this hive used for a document-wide edit, when the edit is on
-    // the current branch. A coordinator uses it to check every hive out at the same
-    // global commit.
-    std::optional<CommitId> hive_commit(GlobalCommitId commit) const;
+    // The commit at a zero-based history position. A coordinator uses the same value
+    // for every hive that took part in that edit.
+    std::optional<CommitId> commit_at(std::size_t position) const;
 
     // --- the file the document came from (Model/FileSystem) ---
 
@@ -193,9 +185,9 @@ public:
     // handles back instead of allocating new ones.
     void erase(Id node);
 
-    // Keep the edit as one block of the history. Zero allocates the next global id; a
-    // coordinator editing several hives passes one id to each transaction.commit().
-    void commit(GlobalCommitId commit = 0);
+    // Keep the edit as one block of the history. Zero uses MVCCHive's automatic id; a
+    // coordinator editing several hives passes one explicit id to each commit().
+    void commit(CommitId commit = 0);
     void rollback();  // drop it: nothing of it is left to redo
 
 private:

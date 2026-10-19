@@ -1163,16 +1163,15 @@ int main() {
         Editor replay_editor(replay_document);
         Planner replay_planner(replay_document, replay_editor);
         CHECK(replay_planner.dispatch(Init{}).ok());
-        const GlobalCommitId baseline = replay_document.global_commit_id();
+        const CommitId baseline = replay_document.commit_id();
         CHECK(baseline != 0);
         CHECK(replay_planner.dispatch(Create{CreateRect{"r", units(0), units(0), units(1), units(1), std::nullopt}})
                   .ok());
-        const GlobalCommitId created_commit = replay_document.global_commit_id();
+        const CommitId created_commit = replay_document.commit_id();
         CHECK(replay_planner.dispatch(Move{SvgIdRef{"r"}, units(5), units(7)}).ok());
-        const GlobalCommitId moved_commit = replay_document.global_commit_id();
+        const CommitId moved_commit = replay_document.commit_id();
         CHECK(replay_planner.dispatch(Set{SetClass{SvgIdRef{"r"}, "moved"}}).ok());
-        const GlobalCommitId class_commit = replay_document.global_commit_id();
-        const CommitId class_hive_commit = replay_document.commit_id();
+        const CommitId class_commit = replay_document.commit_id();
         CHECK(baseline < created_commit);
         CHECK(created_commit < moved_commit);
         CHECK(moved_commit < class_commit);
@@ -1231,11 +1230,9 @@ int main() {
 
         CHECK(replay_planner.dispatch(Undo{}).ok());
         CHECK(replay_planner.dispatch(Create{CreateCircle{"c", units(1), units(1), units(1), std::nullopt}}).ok());
-        const GlobalCommitId branch_commit = replay_document.global_commit_id();
+        const CommitId branch_commit = replay_document.commit_id();
         CHECK(branch_commit > class_commit);
-        CHECK(replay_document.commit_id() == class_hive_commit);
-        CHECK(replay_document.global_commit_at(2) == branch_commit);
-        CHECK(replay_document.hive_commit(branch_commit) == class_hive_commit);
+        CHECK(replay_document.commit_at(2) == branch_commit);
         const Outcome undo_branch = replay_planner.dispatch(Undo{});
         CHECK(happened_with<event::Undone>(undo_branch));
         if (happened_with<event::Undone>(undo_branch)) {

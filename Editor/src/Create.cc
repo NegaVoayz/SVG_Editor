@@ -151,7 +151,7 @@ Outcome Editor::create(const T& intent) {
     Transaction edit = document_.transaction();
     const Id node = edit.append_child(*parent, std::move(built.payload));
     if (built.content) edit.append_child(node, characters(std::move(*built.content)));
-    edit.commit();
+    commit_edit(edit);
     const bool parent_named = intent.parent_named || !std::holds_alternative<RootRef>(intent.parent);
     return happened(Kind::Change,
                     event::Created{name_of(document_, node), name_of(document_, *parent), parent_named});

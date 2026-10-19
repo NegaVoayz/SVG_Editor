@@ -54,7 +54,7 @@ void load_parsed(TreeStore& store, const ParsedSvg& parsed) {
             }
         }
 
-        store.commit(edit);
+        store.commit(edit, next_commit_id());
     }
 
     store.clear_history();

@@ -46,3 +46,8 @@ template<> Outcome Editor::handle<Redo>(const Redo& intent);
 // to have somewhere to put what they take, so it is declared here and defined next to the
 // other builders in Create.cc.
 Node make_group(std::string svg_id);
+
+// Every user edit takes the next id from the process coordinator and hands it to
+// MVCCHive explicitly. The hive's native commit id is then the shared checkout id,
+// including for an empty commit a second hive needs in order to stay aligned.
+inline void commit_edit(Transaction& edit) { edit.commit(next_commit_id()); }

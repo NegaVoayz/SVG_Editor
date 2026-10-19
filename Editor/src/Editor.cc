@@ -39,13 +39,13 @@ void Editor::sync_history_events() {
     if (document_.depth() == 0) history_events_.clear();
 }
 
-std::shared_ptr<const event::EditEvent> Editor::history_event(std::size_t position, GlobalCommitId commit) const {
+std::shared_ptr<const event::EditEvent> Editor::history_event(std::size_t position, CommitId commit) const {
     if (position >= history_events_.size()) return nullptr;
     const event::HistoryEntry& entry = history_events_[position];
     return entry.commit == commit ? entry.outcome : nullptr;
 }
 
-void Editor::record_history_event(std::size_t position, GlobalCommitId commit, event::EditEvent outcome) {
+void Editor::record_history_event(std::size_t position, CommitId commit, event::EditEvent outcome) {
     // A new edit after undo replaces the redo tail and the entries that described it.
     history_events_.resize(position);
     history_events_.push_back(
@@ -57,7 +57,7 @@ void Editor::record_history_event(std::size_t position, GlobalCommitId commit, e
 // element to build reaches the primary template, which fails the build naming the type.
 Outcome Editor::translate(const ChangeIntent& intent) {
     sync_history_events();
-    const GlobalCommitId before_commit = document_.global_commit_id();
+    const CommitId before_commit = document_.commit_id();
     Outcome outcome = refused(Kind::Change, fault::InternalError{});
     try {
         outcome = std::visit([this](const auto& value) { return handle(value); }, intent);
@@ -71,7 +71,7 @@ Outcome Editor::translate(const ChangeIntent& intent) {
     }
 
     const std::size_t after_position = document_.position();
-    const GlobalCommitId after_commit = document_.global_commit_id();
+    const CommitId after_commit = document_.commit_id();
     if (document_.depth() == 0) {
         history_events_.clear();
     } else if (outcome.ok() && std::holds_alternative<Event>(outcome.result) &&

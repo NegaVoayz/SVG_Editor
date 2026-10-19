@@ -84,13 +84,7 @@ TouchedNodes Document::redo() { return store_.redo(); }
 std::size_t Document::depth() const { return store_.depth(); }
 std::size_t Document::position() const { return store_.position(); }
 CommitId Document::commit_id() const { return store_.commit_id(); }
-GlobalCommitId Document::global_commit_id() const { return store_.global_commit_id(); }
-std::optional<GlobalCommitId> Document::global_commit_at(std::size_t position) const {
-    return store_.global_commit_at(position);
-}
-std::optional<CommitId> Document::hive_commit(GlobalCommitId commit) const {
-    return store_.hive_commit(commit);
-}
+std::optional<CommitId> Document::commit_at(std::size_t position) const { return store_.commit_at(position); }
 
 Status Document::open(std::string_view path) {
     const FileResult file = FileSystem::read(path);
@@ -188,10 +182,10 @@ void Transaction::erase(Id node) {
     document_.store_.erase_subtree(edit_, node);
 }
 
-void Transaction::commit(GlobalCommitId commit) {
+void Transaction::commit(CommitId commit) {
     if (closed_) return;
-    closed_ = true;
     document_.store_.commit(edit_, commit);
+    closed_ = true;
 }
 
 void Transaction::rollback() {

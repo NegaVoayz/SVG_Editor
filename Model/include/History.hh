@@ -5,21 +5,17 @@
 
 #include "BasicType.hh"
 
-// The sequence number of one commit in a document's hive. Model keeps the value
-// meaningful on its own: commits on one branch are consecutive, an edit after undo
-// reuses the id of the discarded tail, and clear_history() keeps the checkout's id
-// even though the commits below it are gone. Zero means no commit, as before the
-// first document exists.
+// The id of one commit in an MVCCHive. An automatic commit takes the parent's id
+// plus one; an explicit commit may skip values, and an explicit empty commit still
+// advances the checkout. Zero means no commit, as before the first document exists.
 using CommitId = std::uint64_t;
 
-// The id a document-wide edit is filed under. It comes from one process-wide,
-// strictly increasing sequence, so it is never reused by a branch, a checkpoint or
-// another hive. A hive keeps the local CommitId it used for the same edit; the pair
-// is what lets a checkout be resolved across every hive that took part in the edit.
-using GlobalCommitId = std::uint64_t;
+// The coordinator's sequence for one process. It hands one id to every hive taking
+// part in an edit, so their native MVCCHive commit ids are the same checkout id.
+[[nodiscard]] CommitId next_commit_id();
 
-// The next id in the global sequence. Zero is reserved for "no commit".
-[[nodiscard]] GlobalCommitId next_global_commit_id();
+// Keep the coordinator ahead of an id a hive issued without asking the coordinator.
+void observe_commit_id(CommitId commit);
 
 // What an undo or redo did to one stored node. The kind is the effect of the operation
 // being reported, not the kind of the original forward commit: undoing a create removes

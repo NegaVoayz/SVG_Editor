@@ -441,8 +441,7 @@ int main() {
     document.reset(Length{1024.0F, Length::Unit::Px}, std::nullopt);
     CHECK(document.children(document.root()).empty());
     CHECK(document.find("after-failure") == std::nullopt);
-    CHECK(document.commit_id() == 1);  // the root is the first baseline commit
-    CHECK(document.global_commit_id() != 0);
+    CHECK(document.commit_id() != 0);
     CHECK(document.depth() == 0);
     CHECK(document.position() == 0);
     CHECK(!document.can_undo());
@@ -490,12 +489,9 @@ int main() {
     CHECK(document.depth() == 2);
 
     const CommitId before_clear = document.commit_id();
-    const GlobalCommitId global_before_clear = document.global_commit_id();
     document.clear_history();
     CHECK(document.commit_id() == before_clear);
-    CHECK(document.global_commit_id() == global_before_clear);
-    CHECK(document.hive_commit(global_before_clear) == before_clear);
-    CHECK(!document.global_commit_at(0));  // the baseline has no editable history
+    CHECK(!document.commit_at(0));  // the baseline has no editable history
     CHECK(document.depth() == 0);
     CHECK(document.position() == 0);
     CHECK(!document.can_undo());
@@ -523,29 +519,22 @@ int main() {
         branch.reset(std::nullopt, std::nullopt);
         const Id branch_root = branch.root();
         const CommitId baseline = branch.commit_id();
-        const GlobalCommitId global_baseline = branch.global_commit_id();
         CHECK(baseline != 0);
-        CHECK(global_baseline != 0);
-        CHECK(branch.hive_commit(global_baseline) == baseline);
 
         Id a = no_id;
         {
             Transaction edit = branch.transaction();
             a = edit.append_child(branch_root, group("a"));
-            edit.commit();
+            edit.commit(next_commit_id());
         }
         const CommitId after_a = branch.commit_id();
-        const GlobalCommitId global_a = branch.global_commit_id();
-        CHECK(after_a == baseline + 1);
-        CHECK(global_a > global_baseline);
-        CHECK(branch.global_commit_at(0) == global_a);
-        CHECK(branch.hive_commit(global_a) == after_a);
+        CHECK(after_a > baseline);
+        CHECK(branch.commit_at(0) == after_a);
 
         const TouchedNodes undone_a = branch.undo();
         CHECK(branch.find("a") == std::nullopt);
         CHECK(kind_of(undone_a, a) == TouchedKind::Remove);
         CHECK(branch.commit_id() == baseline);
-        CHECK(branch.global_commit_id() == global_baseline);
         CHECK(branch.can_redo());
 
         // Nothing was written, so the hive keeps the redo tail.
@@ -554,12 +543,10 @@ int main() {
             empty.commit();
         }
         CHECK(branch.commit_id() == baseline);
-        CHECK(branch.global_commit_id() == global_baseline);
         CHECK(branch.can_redo());
         const TouchedNodes redone_a = branch.redo();
         CHECK(kind_of(redone_a, a) == TouchedKind::Insert);
         CHECK(branch.commit_id() == after_a);
-        CHECK(branch.global_commit_id() == global_a);
         CHECK(branch.find("a") == a);
 
         CHECK(branch.undo().size() != 0);
@@ -567,32 +554,29 @@ int main() {
         {
             Transaction edit = branch.transaction();
             b = edit.append_child(branch_root, group("b"));
-            edit.commit();
+            edit.commit(next_commit_id());
         }
         CHECK(b != no_id);
         CHECK(b != a);  // ids stay monotonic; the abandoned id is not reused
-        // The new branch takes the id of the redo tail it replaced.
-        CHECK(branch.commit_id() == after_a);
-        const GlobalCommitId global_b = branch.global_commit_id();
-        CHECK(global_b > global_a);  // the global id was never reused
-        CHECK(branch.global_commit_at(0) == global_b);
-        CHECK(!branch.global_commit_at(1));
-        CHECK(!branch.hive_commit(global_a));  // the replaced tail left the branch
-        CHECK(branch.hive_commit(global_b) == after_a);
+        // An explicit id is not the discarded tail's id: a branch gets a fresh commit.
+        const CommitId branch_commit = branch.commit_id();
+        CHECK(branch_commit > after_a);
+        CHECK(branch.commit_at(0) == branch_commit);
+        CHECK(!branch.commit_at(1));
         CHECK(branch.find("b") == b);
         CHECK(branch.find("a") == std::nullopt);
         CHECK(!branch.can_redo());
     }
 
-    // One edit can span hives. The coordinator allocates one global id and passes it to
-    // every transaction, so each hive resolves the same checkout to its own local commit.
+    // One edit can span hives. The coordinator allocates one id and passes it to every
+    // transaction, so MVCCHive's native commit id is the same checkout in each hive.
     {
         Document left;
         Document right;
         left.reset(std::nullopt, std::nullopt);
         right.reset(std::nullopt, std::nullopt);
 
-        const GlobalCommitId shared = next_global_commit_id();
+        const CommitId shared = next_commit_id();
         {
             Transaction edit = left.transaction();
             edit.append_child(left.root(), group("left"));
@@ -604,19 +588,41 @@ int main() {
             edit.commit(shared);
         }
 
-        CHECK(left.global_commit_id() == shared);
-        CHECK(right.global_commit_id() == shared);
-        CHECK(left.hive_commit(shared) == left.commit_id());
-        CHECK(right.hive_commit(shared) == right.commit_id());
+        CHECK(left.commit_id() == shared);
+        CHECK(right.commit_id() == shared);
 
         left.undo();
         right.undo();
-        CHECK(left.global_commit_id() != shared);
-        CHECK(right.global_commit_id() != shared);
+        CHECK(left.commit_id() != shared);
+        CHECK(right.commit_id() != shared);
         left.redo();
         right.redo();
-        CHECK(left.global_commit_id() == shared);
-        CHECK(right.global_commit_id() == shared);
+        CHECK(left.commit_id() == shared);
+        CHECK(right.commit_id() == shared);
+
+        // A hive with nothing to write still advances on an explicit empty commit, so
+        // both checkouts can land on the same id.
+        const CommitId aligned = next_commit_id();
+        {
+            Transaction edit = left.transaction();
+            edit.commit(aligned);
+        }
+        {
+            Transaction edit = right.transaction();
+            edit.commit(aligned);
+        }
+        CHECK(left.commit_id() == aligned);
+        CHECK(right.commit_id() == aligned);
+        const std::size_t left_depth = left.depth();
+        left.undo();
+        right.undo();
+        CHECK(left.commit_id() == shared);
+        CHECK(right.commit_id() == shared);
+        left.redo();
+        right.redo();
+        CHECK(left.commit_id() == aligned);
+        CHECK(right.commit_id() == aligned);
+        CHECK(left.depth() == left_depth);
     }
 
     if (failures != 0) {

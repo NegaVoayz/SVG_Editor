@@ -110,7 +110,7 @@ void commit_cascade(Document& document, CascadePlan& plan) {
     Transaction edit = document.transaction();
     for (auto& [id, payload] : plan.params) edit.update(id, std::move(payload));
     for (auto& [id, payload] : plan.transformed) edit.update(id, std::move(payload));
-    edit.commit();
+    commit_edit(edit);
 }
 
 }  // namespace
@@ -159,7 +159,7 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
 
         Transaction edit = document_.transaction();
         edit.update(*node, std::move(*payload));
-        edit.commit();
+        commit_edit(edit);
         return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy, *mode, 1});
     }
 
@@ -169,7 +169,7 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
 
         Transaction edit = document_.transaction();
         edit.update(*node, std::move(*payload));
-        edit.commit();
+        commit_edit(edit);
         return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy, EditMode::Params, 1});
     }
 
@@ -222,7 +222,7 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
 
         Transaction edit = document_.transaction();
         edit.update(*node, std::move(*payload));
-        edit.commit();
+        commit_edit(edit);
         return happened(Kind::Change, event::Scaled{named, intent.factor, *mode, 1});
     }
 
@@ -232,7 +232,7 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
 
         Transaction edit = document_.transaction();
         edit.update(*node, std::move(*payload));
-        edit.commit();
+        commit_edit(edit);
         return happened(Kind::Change, event::Scaled{named, intent.factor, EditMode::Params, 1});
     }
 
@@ -285,7 +285,7 @@ template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {
 
     Transaction edit = document_.transaction();
     edit.update(root, std::move(*payload));
-    edit.commit();
+    commit_edit(edit);
     // The canvas is what the frame behind the drawing is from here on, so the way back to
     // the canvas before it goes with the history that remembered it. Like `init`, `read`
     // and `save`, this is a point outside the editable history rather than an edit in it.

@@ -74,7 +74,7 @@ template<> Outcome Editor::handle<Delete>(const Delete& intent) {
     const event::NodeName named = name_of(document_, *node);
     Transaction edit = document_.transaction();
     edit.erase(*node);
-    edit.commit();
+    commit_edit(edit);
     return happened(Kind::Change, event::Deleted{named, removed_below});
 }
 
@@ -90,7 +90,7 @@ template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {
     // The child chain is SVG's paint order: the last child is painted on top.
     Transaction edit = document_.transaction();
     edit.attach_last(*parent, *node);
-    edit.commit();
+    commit_edit(edit);
     return happened(Kind::Change, event::AddedTo{name_of(document_, *node), name_of(document_, *parent)});
 }
 
@@ -111,7 +111,7 @@ template<> Outcome Editor::handle<Front>(const Front& intent) {
 
     Transaction edit = document_.transaction();
     edit.attach_last(*parent, *node);
-    edit.commit();
+    commit_edit(edit);
     return happened(Kind::Change, event::MovedToFront{name_of(document_, *node), name_of(document_, *parent)});
 }
 
@@ -130,7 +130,7 @@ template<> Outcome Editor::handle<Back>(const Back& intent) {
 
     Transaction edit = document_.transaction();
     edit.attach_at(*parent, siblings.front(), *node);
-    edit.commit();
+    commit_edit(edit);
     return happened(Kind::Change, event::MovedToBack{name_of(document_, *node), name_of(document_, *parent)});
 }
 
@@ -189,7 +189,7 @@ template<> Outcome Editor::handle<Group>(const Group& intent) {
     const Id made = edit.insert_at(*parent, anchor, make_group(intent.id));
     // In the order they were written, so the group reads the way the command did.
     for (const Id member : members) edit.attach_last(made, member);
-    edit.commit();
+    commit_edit(edit);
     return happened(Kind::Change,
                     event::Grouped{name_of(document_, made), name_of(document_, *parent), members.size()});
 }
@@ -230,6 +230,6 @@ template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
     Transaction edit = document_.transaction();
     for (const Id member : members) edit.attach_at(*parent, anchor, member);
     edit.erase(node);
-    edit.commit();
+    commit_edit(edit);
     return happened(Kind::Change, event::Ungrouped{erased, parent_name, members.size()});
 }

@@ -45,9 +45,11 @@ public:
     // it alive for the whole edit. Direct initialization from the returned prvalue is
     // what lets a transaction hold the hive's non-movable transaction by value.
     Edit begin();
-    // Zero allocates the next global id. A coordinator that edits several hives passes
-    // one id to each of them, so the same edit has the same checkout everywhere.
-    void commit(Edit& edit, GlobalCommitId commit = 0);
+    // Zero publishes with MVCCHive's automatic id; an empty commit is then no block.
+    // A nonzero id is MVCCHive's explicit commit: it must exceed the hive's high-water
+    // mark, and even an empty commit advances the checkout. A coordinator passes one
+    // explicit id to every hive taking part in the edit.
+    void commit(Edit& edit, CommitId commit = 0);
     void rollback(Edit& edit) noexcept;
 
     // --- history ---
@@ -66,15 +68,9 @@ public:
     // under. Zero before a reset or a successful open has made a document.
     CommitId commit_id() const;
 
-    // The document-wide id of the checkout, and the id of the edit at a zero-based
-    // history position. The global sequence never goes backwards, even when a branch
-    // replaces a redo tail, so an outcome stays filed under the edit that made it.
-    GlobalCommitId global_commit_id() const;
-    std::optional<GlobalCommitId> global_commit_at(std::size_t position) const;
-
-    // The local hive commit that holds `commit` on the current branch, when this hive
-    // took part in that edit. This is the lookup a checkout across several hives uses.
-    std::optional<CommitId> hive_commit(GlobalCommitId commit) const;
+    // The commit at a zero-based history position. A coordinator uses the same value
+    // for every hive that took part in that edit.
+    std::optional<CommitId> commit_at(std::size_t position) const;
 
     // Forget the way back: the current tree stays and becomes the baseline.
     void clear_history();
@@ -122,13 +118,6 @@ private:
     using NodeRef = std::reference_wrapper<const Node>;
     enum class Direction { Undo, Redo };
 
-    // One edit's position in this hive: the id every hive shares, and the id this hive
-    // used. The baseline is entry zero, so a history position is its index less one.
-    struct Checkout {
-        GlobalCommitId global = 0;
-        CommitId hive = 0;
-    };
-
     // The node as the current checkout sees it.
     std::optional<NodeRef> live_node(Id node) const;
 
@@ -162,8 +151,8 @@ private:
     void detach(Edit& edit, Id node);
 
     // The checkout the hive reports and the id recorded beside it are the same state.
-    // This is the invariant that keeps a history position, a global id and a hive
-    // commit from drifting apart after a commit, undo, redo or checkpoint.
+    // This is the invariant that keeps a history position and the hive commit from
+    // drifting apart after a commit, undo, redo or checkpoint.
     void require_checkout_matches_view() const;
 
     // The hive, the current checkout snapshot, and the position/depth the front end
@@ -172,6 +161,7 @@ private:
     Hive nodes_;
     std::optional<Snapshot> view_;
     Id root_ = no_id;
-    std::deque<Checkout> checkouts_;
+    // The commit at each position on the current branch; entry zero is the baseline.
+    std::deque<CommitId> checkouts_;
     std::size_t position_ = 0;
 };

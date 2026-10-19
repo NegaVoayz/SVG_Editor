@@ -42,7 +42,7 @@ dependency instead of taking it from next door:
 ```sh
 cmake --preset default \
   -DSVG_EDITOR_MVCCHIVE_REPOSITORY=https://host/mirror/MVCCHive.git \
-  -DSVG_EDITOR_MVCCHIVE_TAG=b46a08f8b2a9becd5515b30d177c099508a78a70 \
+  -DSVG_EDITOR_MVCCHIVE_TAG=9b7501802f087c419fcb8f8b42430547fe4d5087 \
   -DSVG_EDITOR_TINYXML2_REPOSITORY=https://host/mirror/tinyxml2.git \
   -DSVG_EDITOR_TINYXML2_TAG=11.0.0
 ```

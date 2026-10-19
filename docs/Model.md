@@ -26,14 +26,13 @@ Id insert_at(Id parent, Id before, Node payload);   // before a sibling; no_id i
 void attach_at(Id parent, Id before, Id node);
 void update(Id node, Node payload);
 void erase(Id node);
-void commit(GlobalCommitId = 0);  void rollback();
+void commit(CommitId = 0);  void rollback();
 
 // history: the Model owns it, so the Planner never sees a commit id
 TouchedNodes undo();  TouchedNodes redo();
 bool can_undo() const;  bool can_redo() const;
 bool undo_barred_by_io() const;
-GlobalCommitId global_commit_id() const;             // the checkout across all hives
-std::optional<CommitId> hive_commit(GlobalCommitId) const;  // its local commit
+std::optional<CommitId> commit_at(std::size_t position) const;  // one edit's checkout
 
 // the context: which document this is, rather than what is in it
 const std::string& source_path() const;
@@ -168,7 +167,7 @@ improvement. Resolving a handle uses `Document::has_node()`, so it does not copy
 record merely to learn that the record exists; only a read that returns the payload pays
 for the copy.
 
-History is the other axis. MVCCHive 2.1.0 keeps commit records and diffs in fixed-size
+History is the other axis. MVCCHive 2.2.0 keeps commit records and diffs in fixed-size
 blocked vectors, so appending a commit no longer copies the retained commit log. The
 remaining history cost is block reclamation: `VersionStore::drain_retirements()` calls `release_empty_blocks()`,
 which scans every owned version block on every commit. With a 416-byte `Node` that is one
@@ -185,7 +184,7 @@ insertion, so building 16k nodes in one transaction takes about 0.7 s rather tha
 scaling linearly. The loader commits a large file in chunks and clears the history
 when the load is finished.
 
-The public history `Diff` in 2.1.0 is a target-free record of
+The public history `Diff` in 2.2.0 is a target-free record of
 `commit_id`, `virtual_id`, and a `DiffKind` of `insert`, `update`, or
 `remove`. `TreeStore` uses `virtual_id` for the touched node and `kind` for
 the `TouchedKind`; no storage target or payload copy is needed to classify it.
@@ -224,7 +223,9 @@ redo states: a future snapshot pins that commit, and a new edit after undo must
 be free to truncate the abandoned tail.
 
 `commit()` from an older checkout writes a new commit on top of it and discards
-the redo tail. An empty transaction makes no commit and leaves the tail intact.
+the redo tail. An argument-free empty transaction makes no commit and leaves the
+tail intact. An explicit `commit(id)` with no changes still publishes an empty
+commit and advances the checkout, which is what lets a second hive stay aligned.
 Undo does not rewrite the tree: the checkout already holds the immutable
 versions that were visible at that point, and an edit after undo starts directly
 from that checkout.
@@ -247,17 +248,15 @@ public 24-byte `Diff` entries, then the document keeps an id and a kind for each
 The checkout switch itself stays O(1); the touched list is the price of telling
 a front end what to refresh.
 
-Every real commit also takes an id from one process-wide increasing sequence. The
-id is never reused: a branch after undo gets a new value even though its local hive
-commit id is the one the discarded tail held, and a checkpoint keeps the id of the
-checkout it preserves. A document records the pair for each commit on its current
-branch, which gives `global_commit_id()` and `hive_commit(global)` their answers;
-those are the values a coordinator uses to check every hive out at the same edit.
-`commit()` allocates the next id when it is called with no argument. An edit that
-spans hives allocates one id and passes it to every hive's `commit(id)`, so each
-local commit resolves from the same global id. The id is allocated after the hives
-have their baselines, because `reset`, `read` and the loader also take ids from the
-same sequence.
+MVCCHive can publish a caller-supplied commit id, and the editor uses one
+process-wide sequence to hand that id to every hive taking part in an edit. The
+native commit id is therefore the shared checkout id; there is no second mapping
+to keep in step. A branch after undo gets a fresh id (explicit ids are never
+reused), and a checkpoint keeps the id of the checkout it preserves. The editor
+allocates after the hives have their baselines, because `reset`, `read` and the
+loader also take ids from the same sequence. An automatic `commit()` still exists
+for internal no-op checks, and the coordinator observes any automatic id so a
+later explicit commit cannot collide with it.
 
 ## The transform
 

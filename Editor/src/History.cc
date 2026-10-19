@@ -16,13 +16,13 @@ template<> Outcome Editor::handle<Undo>(const Undo&) {
     }
 
     const std::size_t original_position = document_.position() - 1;
-    const std::optional<GlobalCommitId> original_commit = document_.global_commit_at(original_position);
+    const std::optional<CommitId> original_commit = document_.commit_at(original_position);
     TouchedNodes touched = document_.undo();
     std::shared_ptr<const event::EditEvent> original =
         original_commit ? history_event(original_position, *original_commit) : nullptr;
     return happened(Kind::Change,
                     event::Undone{document_.position(), document_.depth(), std::move(touched), std::move(original),
-                                  document_.global_commit_id()});
+                                  document_.commit_id()});
 }
 
 template<> Outcome Editor::handle<Redo>(const Redo&) {
@@ -31,10 +31,10 @@ template<> Outcome Editor::handle<Redo>(const Redo&) {
 
     TouchedNodes touched = document_.redo();
     const std::size_t entered_position = document_.position() - 1;
-    const std::optional<GlobalCommitId> entered_commit = document_.global_commit_at(entered_position);
+    const std::optional<CommitId> entered_commit = document_.commit_at(entered_position);
     std::shared_ptr<const event::EditEvent> original =
         entered_commit ? history_event(entered_position, *entered_commit) : nullptr;
     return happened(Kind::Change,
                     event::Redone{document_.position(), document_.depth(), std::move(touched), std::move(original),
-                                  document_.global_commit_id()});
+                                  document_.commit_id()});
 }

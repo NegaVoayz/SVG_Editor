@@ -19,8 +19,8 @@
 //
 // The event is deliberately a report of the edit, not a replayable patch. The document is
 // still the source of truth; an event says which part of it moved. History keeps the edit
-// event under the document-wide commit id so undo and redo can report the original
-// structured operation and every hive can resolve the same checkout.
+// event under its commit id so undo and redo can report the original structured
+// operation and every hive can resolve the same checkout.
 namespace event {
 
 // The name a node is shown by: its element and the SVG id its document gives it. The
@@ -131,11 +131,10 @@ using EditEvent = std::variant<Created, Deleted, Moved, Scaled, AddedTo, MovedTo
                                Ungrouped, AttributeSet, ContentSet, CanvasSet, NothingMoved, AlreadyFront,
                                AlreadyBack, Initialized, Opened, Saved>;
 
-// One committed edit in the replay log. The id is the document-wide id from Model,
-// not the hive's local commit id, so a branch or a second hive cannot make an outcome
-// point at the wrong state. The log is indexed by this id.
+// One committed edit in the replay log. The id is the hive's own commit id; when the
+// editor commits explicitly it is also the id every participating hive uses.
 struct HistoryEntry {
-    GlobalCommitId commit = 0;
+    CommitId commit = 0;
     std::shared_ptr<const EditEvent> outcome;
 };
 
@@ -144,9 +143,9 @@ struct Undone {
     std::size_t depth;
     TouchedNodes touched;
     std::shared_ptr<const EditEvent> original;
-    // The global commit the checkout landed on. A front end with more than one hive
-    // resolves the same value through each hive to undo them together.
-    GlobalCommitId checkout = 0;
+    // The commit the checkout landed on. A front end with more than one hive compares
+    // the same value on each hive to undo them together.
+    CommitId checkout = 0;
 };
 
 struct Redone {
@@ -154,7 +153,7 @@ struct Redone {
     std::size_t depth;
     TouchedNodes touched;
     std::shared_ptr<const EditEvent> original;
-    GlobalCommitId checkout = 0;
+    CommitId checkout = 0;
 };
 
 }  // namespace event

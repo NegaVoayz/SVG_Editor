@@ -92,14 +92,14 @@ private:
     template<typename T>
     Outcome create(const T& intent);
 
-    // One entry per history position, with the document-wide id beside the outcome.
+    // One entry per history position, with the commit id beside the outcome.
     // The deque is the array: a position indexes it in constant time and growth does
     // not move the entries. The id is checked when an entry is read, so a position
     // that no longer names the same commit cannot replay the wrong outcome. Undo and
     // redo carry the checkout id, which is what lets the same operation be resolved
     // against every hive.
-    std::shared_ptr<const event::EditEvent> history_event(std::size_t position, GlobalCommitId commit) const;
-    void record_history_event(std::size_t position, GlobalCommitId commit, event::EditEvent outcome);
+    std::shared_ptr<const event::EditEvent> history_event(std::size_t position, CommitId commit) const;
+    void record_history_event(std::size_t position, CommitId commit, event::EditEvent outcome);
     void sync_history_events();
     std::deque<event::HistoryEntry> history_events_;
 
