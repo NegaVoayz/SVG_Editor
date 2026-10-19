@@ -72,11 +72,12 @@ std::string canvas_size_text(const std::optional<LengthPercentage>& width_value,
 // A container carries nothing of its own, except the root, whose size is the canvas.
 struct ContainerText {
     std::string operator()(const Container::SVG& canvas) const {
-        std::string out = canvas_text(canvas);
-        if (canvas.view_box) out += " viewBox=\"" + to_text(*canvas.view_box) + "\"";
+        std::string out;
         if (!canvas.xmlns.empty() && canvas.xmlns != Container::SVG::default_xmlns) {
-            out += " xmlns=\"" + canvas.xmlns + "\"";
+            out += "xmlns=\"" + canvas.xmlns + "\" ";
         }
+        out += canvas_text(canvas);
+        if (canvas.view_box) out += " viewBox=\"" + to_text(*canvas.view_box) + "\"";
         return out;
     }
     std::string operator()(const Container::Group&) const { return {}; }
@@ -146,13 +147,16 @@ Words element_words(const SVGNode& element, const Transform& transform, const st
                      ? std::string{kind}
                      : std::string{kind} + "#" + quote_if_needed(element.identity_attr.id);
 
-    // Details follow SVGNode's member order: identity, paint, transform, then data.
-    // `class` is a list of names, so it is quoted whenever it has more than one.
+    // Details follow the order SvgWriter writes an element: identity, class, data, paint,
+    // transform, then the character data inside it. `class` is a list of names, so it is
+    // quoted whenever it has more than one.
     if (!element.identity_attr.class_.empty()) {
         append_detail(words, "class=" + quote_if_needed(element.identity_attr.class_));
     }
 
-    const bool is_text = std::holds_alternative<Text>(element.data);
+    // `data` follows class, as the geometry of a shape does after its id and class.
+    append_detail(words, std::visit(AttrsText{}, element.data));
+
     if (element.paint_attr.fill) {
         const std::string paint = to_text(*element.paint_attr.fill);
         if (!paint.empty()) append_detail(words, "fill=" + paint);
@@ -167,14 +171,10 @@ Words element_words(const SVGNode& element, const Transform& transform, const st
 
     if (!is_identity(transform)) append_detail(words, "transform=" + transform_text(transform));
 
-    // `data` is the last member of SVGNode. A text's character data is a child node, so
-    // its words follow the text attributes inside that final group.
-    if (is_text) {
-        append_detail(words, text_details(std::get<Text>(element.data)));
-    } else {
-        append_detail(words, std::visit(AttrsText{}, element.data));
+    // A text's character data is a child node, so its words follow every attribute.
+    if (std::holds_alternative<Text>(element.data) && !text.empty()) {
+        append_detail(words, "text=" + quoted(text));
     }
-    if (is_text && !text.empty()) append_detail(words, "text=" + quoted(text));
     return words;
 }
 
