@@ -34,8 +34,8 @@ inline std::optional<Id> look_up(const Document& document, const NodeRef& refere
     }
     const std::string& name = std::get<SvgIdRef>(reference).name;
     // The root element is an <svg>, so its element name is a reserved alias for the root.
-    // It is checked before the id table; an element whose own id is "svg" is shadowed by
-    // the alias rather than silently changing what "svg" means.
+    // No other node may keep this id: the Editor refuses it and the reader renames it, so
+    // the alias cannot shadow an element that the user cannot reach.
     if (name == "svg") {
         const Id root = document.root();
         if (root != no_id) return root;

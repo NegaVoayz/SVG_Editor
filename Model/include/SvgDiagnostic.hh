@@ -3,11 +3,14 @@
 #include <cstddef>
 #include <string>
 
-// What a read changed without refusing: the file is valid SVG for this model, but an
-// element had no id, so the loader gave it one. The front end decides how to say this.
+// What a read changed without refusing. An element with no id was given one; an element
+// that carried the reserved root alias as its id was renamed. `original_id` is empty in
+// the first case and holds the replaced id in the second, so the front end can say which
+// happened without inferring it from the values.
 struct AssignedId {
     std::string id;
     std::string element;
+    std::string original_id;
 };
 
 enum class SvgProblem {

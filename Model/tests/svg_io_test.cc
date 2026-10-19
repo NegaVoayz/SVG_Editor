@@ -244,6 +244,31 @@ int main() {
     CHECK(collision.find("rect2").has_value());
     CHECK(collision.find("rect3").has_value());
 
+    // `svg` names the root, so a non-root element carrying it is renamed. Two such
+    // elements are not duplicates of each other, and a generated id still avoids the
+    // explicit ids the file already holds.
+    const std::filesystem::path reserved_path = file_named("svg_io_reserved.svg");
+    CHECK(write_text(reserved_path,
+                     R"(<svg><rect id="svg" width="1" height="1"/><rect id="rect1" width="2" height="2"/><g id="svg"><circle r="1"/></g></svg>)"));
+    Document reserved;
+    const Status reserved_status = reserved.open(reserved_path.string());
+    CHECK(ok(reserved_status));
+    if (const model_status::Opened* renamed = std::get_if<model_status::Opened>(&reserved_status)) {
+        CHECK(renamed->assigned_ids.size() == 3);
+        if (renamed->assigned_ids.size() == 3) {
+            CHECK(renamed->assigned_ids[0].id == "rect2");
+            CHECK(renamed->assigned_ids[0].original_id == "svg");
+            CHECK(renamed->assigned_ids[1].id == "g1");
+            CHECK(renamed->assigned_ids[1].original_id == "svg");
+            CHECK(renamed->assigned_ids[2].id == "circle1");
+            CHECK(renamed->assigned_ids[2].original_id.empty());
+        }
+    }
+    CHECK(!reserved.find("svg").has_value());
+    CHECK(reserved.find("rect2").has_value());
+    CHECK(reserved.find("g1").has_value());
+    CHECK(reserved.find("circle1").has_value());
+
     // Every rejected file leaves the current tree and source path exactly as they were.
     const Status before_failure_tree = collision.save(file_named("svg_io_before_failure.svg").string());
     CHECK(ok(before_failure_tree));

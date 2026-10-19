@@ -190,8 +190,10 @@ int main() {
     CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
     CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");
-    CHECK(render(event::Opened{"a.svg", {{"rect1", "rect"}}, 3}) ==
+    CHECK(render(event::Opened{"a.svg", {{"rect1", "rect", ""}}, 3}) ==
           "read a.svg (3 elements)\nwarning: assigned id rect1 to unnamed <rect>");
+    CHECK(render(event::Opened{"a.svg", {{"rect2", "rect", "svg"}}, 3}) ==
+          "read a.svg (3 elements)\nwarning: id \"svg\" is reserved for the root, renamed <rect> to rect2");
     CHECK(render(event::Saved{"demo.svg", 5}) == "saved to demo.svg (5 elements)");
     CHECK(render(event::Saved{"one.svg", 1}) == "saved to one.svg (1 element)");
     CHECK(render(fault::CannotUngroupNonContainer{SvgIdRef{"n1"}}) ==
@@ -202,6 +204,7 @@ int main() {
     CHECK(render(fault::NonFiniteValue{"scaled value"}) ==
           "error: \"scaled value\" must be a finite number");
     CHECK(render(fault::InvalidId{"a b"}) == "error: invalid XML id: \"a b\"");
+    CHECK(render(fault::ReservedId{"svg"}) == "error: id \"svg\" is reserved for the root");
     CHECK(render(fault::UndoAfterIo{}) == "error: undo not allowed after io command");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==
           "error: the offset 1in does not add up with 1cm: 1in is imperial and 1cm is metric - mm and cm are "

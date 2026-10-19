@@ -400,8 +400,14 @@ struct EventText {
         std::string message =
             "read " + quote_if_needed(opened.path) + " (" + element_count_text(opened.elements) + ")";
         for (const AssignedId& assigned : opened.assigned_ids) {
-            message += "\nwarning: assigned id " + quote_if_needed(assigned.id) + " to unnamed <" + assigned.element +
-                       ">";
+            if (assigned.original_id.empty()) {
+                message += "\nwarning: assigned id " + quote_if_needed(assigned.id) + " to unnamed <" +
+                           assigned.element + ">";
+            } else {
+                message += "\nwarning: id " + quoted(assigned.original_id) +
+                           " is reserved for the root, renamed <" + assigned.element + "> to " +
+                           quote_if_needed(assigned.id);
+            }
         }
         return message;
     }
@@ -428,6 +434,9 @@ struct RefusalText {
     }
     std::string operator()(const fault::InvalidId& invalid) const {
         return "error: invalid XML id: " + quote_if_needed(invalid.id);
+    }
+    std::string operator()(const fault::ReservedId& reserved) const {
+        return "error: id " + quoted(reserved.id) + " is reserved for the root";
     }
     std::string operator()(const fault::DuplicateGroupMember& duplicate) const {
         return "error: duplicate node in group: " + label(duplicate.node);

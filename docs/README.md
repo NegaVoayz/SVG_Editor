@@ -112,8 +112,9 @@ The instructions are:
 
 Every `create` also takes `in <gid>`, which is where the element goes: without it, the
 element is the last child of the root. A node is named by its SVG id; `/` or `svg` names
-the root. `svg` is reserved, so an element whose own id is `svg` is shadowed by the root
-alias. The hive's internal handle is not part of the command language.
+the root. `svg` is reserved for the root: `create` and `group` refuse it as an id, and
+`read` renames a non-root element that carries it, printing a warning with the new id.
+The hive's internal handle is not part of the command language.
 
 Quotes group words that contain spaces, which is how text content and file paths are
 written. They do not make an SVG id valid: an id is an XML name, so `create g "a b"` is

@@ -304,10 +304,15 @@ silent drop that a later `save` could turn into data loss. Colours cover hex, `r
 alpha, `transparent`, `style` and element kinds such as `path` remain outside the model.
 
 Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,
-in document order. The root may stay unnamed. Explicit ids are reserved first, so a
-generated id cannot collide with an explicit id later in the file. Each assignment is an
-`AssignedId` in `model_status::Opened`; the Planner turns it into `event::Opened` and the
-front end prints `warning: assigned id rect1 to unnamed <rect>`.
+in document order. The root may stay unnamed. A non-root element whose id is `svg` is
+renamed the same way, because `svg` names the root and would leave that element
+unreachable. Explicit ids are reserved first, so a generated id cannot collide with an
+explicit id later in the file, including the `rect1` an explicit element already holds.
+Each assignment is an `AssignedId` in `model_status::Opened`; its empty `original_id`
+means the element was unnamed, and a value there is the reserved id that was replaced.
+The Planner turns these into `event::Opened`; the front end prints
+`warning: assigned id rect1 to unnamed <rect>` or
+`warning: id "svg" is reserved for the root, renamed <rect> to rect2`.
 
 The loader commits at most 1024 nodes per transaction and then clears history, making
 the loaded tree the baseline. `SvgWriter` walks the current checkout in document order

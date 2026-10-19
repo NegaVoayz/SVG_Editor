@@ -50,6 +50,13 @@ inline bool valid_svg_id(std::string_view id) {
     return true;
 }
 
+// The root element is an <svg>, and `svg` is how a reference names the root. Keeping that
+// word free means every id the document holds can also be typed: a node named `svg` would
+// otherwise be shadowed by the root alias, with no way to reach it.
+inline constexpr std::string_view root_alias = "svg";
+
+inline bool reserved_svg_id(std::string_view id) { return id == root_alias; }
+
 // The two ends of an element's child list. A node does not keep a vector of children:
 // each child keeps its own previous and next sibling, so placing, moving, or removing a
 // child writes the links that change instead of rewriting a list. Having this member is

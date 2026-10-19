@@ -252,6 +252,9 @@ private:
     void remember_id(const XmlNode& node, const std::string& id) {
         if (id.empty()) return;
         if (!valid_svg_id(id)) fail(SvgProblem::InvalidId, node, "id", id);
+        // The root alias is not a kept id: assign_missing_ids replaces it, and two such
+        // elements are not duplicates of each other because neither keeps the name.
+        if (reserved_svg_id(id)) return;
         if (!explicit_ids_.insert(id).second) fail(SvgProblem::DuplicateId, node, "id", id);
     }
 
@@ -326,7 +329,9 @@ private:
             if (!std::holds_alternative<SVGNode>(parsed_.nodes[index].payload)) continue;
 
             SVGNode& element = std::get<SVGNode>(parsed_.nodes[index].payload);
-            if (!element.identity_attr.id.empty()) continue;
+            const bool unnamed = element.identity_attr.id.empty();
+            if (!unnamed && !reserved_svg_id(element.identity_attr.id)) continue;
+            std::string original_id = unnamed ? std::string{} : std::move(element.identity_attr.id);
 
             const std::string& kind = parsed_.nodes[index].element;
             std::size_t& next = next_numbers[kind];
@@ -338,7 +343,7 @@ private:
             }
             used.insert(generated);
             element.identity_attr.id = generated;
-            parsed_.assigned_ids.push_back(AssignedId{generated, kind});
+            parsed_.assigned_ids.push_back(AssignedId{generated, kind, std::move(original_id)});
         }
     }
 

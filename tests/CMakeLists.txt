@@ -90,11 +90,26 @@ add_test(NAME cli_root_by_element_name
     COMMAND $<TARGET_FILE:Cli> "init; create rect a 0 0 1 1 in svg; tree")
 set_tests_properties(cli_root_by_element_name PROPERTIES PASS_REGULAR_EXPRESSION "rect#a")
 
-# The root alias is reserved: an element id called svg cannot take it over.
-add_test(NAME cli_root_alias_not_shadowed
-    COMMAND $<TARGET_FILE:Cli> "init; create g svg; create rect a 0 0 1 1 in svg; tree")
-set_tests_properties(cli_root_alias_not_shadowed PROPERTIES
-    PASS_REGULAR_EXPRESSION "├── g#svg\n└── rect#a")
+# The root alias is reserved: `svg` is how the root is named, so no document may keep it
+# as an element id.
+add_test(NAME cli_reserved_root_id COMMAND $<TARGET_FILE:Cli> "init; create g svg")
+set_tests_properties(cli_reserved_root_id PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: id \"svg\" is reserved for the root")
+
+add_test(NAME cli_reserved_group_id COMMAND $<TARGET_FILE:Cli>
+    "init; create rect a 0 0 1 1; group svg a")
+set_tests_properties(cli_reserved_group_id PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: id \"svg\" is reserved for the root")
+
+# A file may contain the reserved id; read renames it and says so.
+add_test(NAME cli_read_reserved_id_warning COMMAND $<TARGET_FILE:Cli>
+    "read ${CMAKE_SOURCE_DIR}/tests/fixtures/reserved-id.svg")
+set_tests_properties(cli_read_reserved_id_warning PROPERTIES PASS_REGULAR_EXPRESSION
+    "warning: id \"svg\" is reserved for the root, renamed <rect> to rect2")
+
+add_test(NAME cli_read_reserved_id_tree COMMAND $<TARGET_FILE:Cli>
+    "read ${CMAKE_SOURCE_DIR}/tests/fixtures/reserved-id.svg; tree")
+set_tests_properties(cli_read_reserved_id_tree PROPERTIES PASS_REGULAR_EXPRESSION "g#g1")
 
 # Grouping the same node twice would make the reported member count a lie.
 add_test(NAME cli_group_duplicate
