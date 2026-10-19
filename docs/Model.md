@@ -257,9 +257,15 @@ A node may carry a transform list, and each step is kept in the form SVG writes 
 ```C++
 struct Translate { LengthPercentage x, y; };
 struct Scale { float x, y; };
-struct Rotate { float degrees; };
+struct Rotate {
+    struct Center { LengthPercentage x, y; };
+    float degrees;
+    std::optional<Center> center;  // absent for rotate(deg)
+};
+struct SkewX { float degrees; };
+struct SkewY { float degrees; };
 struct Matrix { float a, b, c, d, e, f; };
-using Transform = std::variant<Translate, Scale, Rotate, Matrix>;
+using Transform = std::variant<Translate, Scale, Rotate, SkewX, SkewY, Matrix>;
 ```
 
 The list is a persistent linked list of immutable records:
@@ -272,8 +278,9 @@ struct TransformLink {
 ```
 
 `TransformAttr` in a node is only the head index. Reading from the head towards
-`no_id` gives the functions in SVG order, so `scale(2) rotate(30) scale(3) rotate(45)`
-keeps all four steps and their order. Nothing composes them into a matrix, which
+`no_id` gives the functions in SVG order, so
+`scale(2) rotate(30 10 20) skewX(15) skewY(-5) rotate(45)` keeps all five steps and
+their order. Nothing composes them into a matrix, which
 means one step never has to be approximated to carry another. A translate in `mm`
 can sit next to a scale and stay `mm`; the unit-system rules still apply when a
 command adds two lengths, but no longer restrict what a transform may contain.

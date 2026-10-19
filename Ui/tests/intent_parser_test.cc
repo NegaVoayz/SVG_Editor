@@ -264,6 +264,30 @@ int main() {
         }
     }
 
+    const Request set_transform_forms =
+        parse("set layer transform \"rotate(30 10 20) skewX(15) skewY(-5)\"");
+    CHECK(holds<SetTransform>(set_transform_forms));
+    if (holds<SetTransform>(set_transform_forms)) {
+        const std::vector<Transform>& value = as<SetTransform>(set_transform_forms).value;
+        CHECK(value.size() == 3);
+        if (value.size() == 3) {
+            CHECK(std::holds_alternative<Rotate>(value[0]));
+            CHECK(std::holds_alternative<SkewX>(value[1]));
+            CHECK(std::holds_alternative<SkewY>(value[2]));
+            if (std::holds_alternative<Rotate>(value[0])) {
+                const Rotate& rotate = std::get<Rotate>(value[0]);
+                CHECK(rotate.degrees == 30.0F);
+                CHECK(rotate.center.has_value());
+                if (rotate.center) {
+                    CHECK(to_text(rotate.center->x) == "10");
+                    CHECK(to_text(rotate.center->y) == "20");
+                }
+            }
+            if (std::holds_alternative<SkewX>(value[1])) CHECK(std::get<SkewX>(value[1]).degrees == 15.0F);
+            if (std::holds_alternative<SkewY>(value[2])) CHECK(std::get<SkewY>(value[2]).degrees == -5.0F);
+        }
+    }
+
     const Request clear_transform = parse("set layer transform none");
     CHECK(holds<SetTransform>(clear_transform));
     if (holds<SetTransform>(clear_transform)) CHECK(as<SetTransform>(clear_transform).value.empty());

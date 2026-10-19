@@ -173,10 +173,27 @@ std::optional<Transform> one_transform(const TransformFunction& function) {
         return Transform{Scale{*x, *y}};
     }
 
-    if (function.name == "rotate" && values.size() == 1) {
+    if (function.name == "rotate" && (values.size() == 1 || values.size() == 3)) {
         const std::optional<float> degrees = number(values[0]);
         if (!degrees) return std::nullopt;
-        return Transform{Rotate{*degrees}};
+        if (values.size() == 1) return Transform{Rotate{*degrees}};
+
+        const std::optional<LengthPercentage> x = SvgValueReader::length(values[1]);
+        const std::optional<LengthPercentage> y = SvgValueReader::length(values[2]);
+        if (!x || !y) return std::nullopt;
+        return Transform{Rotate{*degrees, Rotate::Center{*x, *y}}};
+    }
+
+    if (function.name == "skewX" && values.size() == 1) {
+        const std::optional<float> degrees = number(values[0]);
+        if (!degrees) return std::nullopt;
+        return Transform{SkewX{*degrees}};
+    }
+
+    if (function.name == "skewY" && values.size() == 1) {
+        const std::optional<float> degrees = number(values[0]);
+        if (!degrees) return std::nullopt;
+        return Transform{SkewY{*degrees}};
     }
 
     if (function.name == "matrix" && values.size() == 6) {

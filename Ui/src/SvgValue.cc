@@ -171,10 +171,27 @@ std::optional<Transform> parse_transform_step(std::string_view name, const std::
         return Transform{Scale{*x, *y}};
     }
 
-    if (name == "rotate" && words.size() == 1) {
+    if (name == "rotate" && (words.size() == 1 || words.size() == 3)) {
         const std::optional<float> degrees = number_of(words[0]);
         if (!degrees) return std::nullopt;
-        return Transform{Rotate{*degrees}};
+        if (words.size() == 1) return Transform{Rotate{*degrees}};
+
+        const std::optional<LengthPercentage> x = parse_length(words[1]);
+        const std::optional<LengthPercentage> y = parse_length(words[2]);
+        if (!x || !y) return std::nullopt;
+        return Transform{Rotate{*degrees, Rotate::Center{*x, *y}}};
+    }
+
+    if (name == "skewX" && words.size() == 1) {
+        const std::optional<float> degrees = number_of(words[0]);
+        if (!degrees) return std::nullopt;
+        return Transform{SkewX{*degrees}};
+    }
+
+    if (name == "skewY" && words.size() == 1) {
+        const std::optional<float> degrees = number_of(words[0]);
+        if (!degrees) return std::nullopt;
+        return Transform{SkewY{*degrees}};
     }
 
     if (name == "matrix" && words.size() == 6) {

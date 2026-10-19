@@ -96,14 +96,16 @@ int main() {
     CHECK(transform_list_text(document.transforms(layer)) == "scale(2 2) translate(1 1) translate(2 3)");
 
     // A whole list from a file keeps every step and its order, including repeated kinds.
-    const std::vector<Transform> written{Scale{2.0F, 2.0F}, Rotate{30.0F}, Scale{3.0F, 1.0F}, Rotate{45.0F}};
+    const std::vector<Transform> written{Scale{2.0F, 2.0F},
+                                         Rotate{30.0F, Rotate::Center{user_units(10), user_units(20)}},
+                                         SkewX{15.0F}, SkewY{-5.0F}, Rotate{45.0F}};
     {
         Transaction edit = document.transaction();
         edit.set_transforms(layer, written);
         edit.commit();
     }
     CHECK(transform_list_text(document.transforms(layer)) ==
-          "scale(2 2) rotate(30) scale(3 1) rotate(45)");
+          "scale(2 2) rotate(30 10 20) skewX(15) skewY(-5) rotate(45)");
 
     // A rolled-back edit leaves neither the node nor the chain behind.
     {
@@ -111,7 +113,7 @@ int main() {
         edit.prepend_transform(layer, Translate{user_units(9), user_units(9)});
     }
     CHECK(transform_list_text(document.transforms(layer)) ==
-          "scale(2 2) rotate(30) scale(3 1) rotate(45)");
+          "scale(2 2) rotate(30 10 20) skewX(15) skewY(-5) rotate(45)");
 
     {
         Transaction edit = document.transaction();

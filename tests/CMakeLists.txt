@@ -113,6 +113,12 @@ add_test(NAME cli_set
 set_tests_properties(cli_set PROPERTIES PASS_REGULAR_EXPRESSION
     "rect#box +x=5 y=0 w=10 h=10 fill=#00ff00 stroke-width=2")
 
+add_test(NAME cli_set_transform_forms
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create rect box 0 0 10 10; set box transform \"rotate(30 10 20) skewX(15) skewY(-5)\"; show box")
+set_tests_properties(cli_set_transform_forms PROPERTIES PASS_REGULAR_EXPRESSION
+    "transform=rotate\\(30 10 20\\) skewX\\(15\\) skewY\\(-5\\)")
+
 # an attribute the node does not carry is refused with its own spelling
 add_test(NAME cli_unknown_attribute COMMAND $<TARGET_FILE:Cli> "init; create circle dot 1 1 1; set dot x 5")
 set_tests_properties(cli_unknown_attribute PROPERTIES PASS_REGULAR_EXPRESSION "error: unknown attribute: x")

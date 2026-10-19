@@ -57,7 +57,7 @@ std::optional<SvgDiagnostic> diagnostic_of(const Status& status) {
 constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"?>
 <!-- declaration and comments are syntax, not tree nodes -->
 <svg xmlns="http://www.w3.org/2000/svg" width="320mm" height="200mm" viewBox="0 0 320 200">
-  <g id="layer" fill="RED" stroke="url(#paint) red" transform="translate(1 2) scale(2)">
+  <g id="layer" fill="RED" stroke="url(#paint) red" transform="translate(1 2) scale(2) rotate(30 10 20) skewX(15) skewY(-5)">
     <rect x="1" y="2" width="30" height="40" fill="#3366ff"/>
     <circle cx="50" cy="60" r="10" stroke="darkslategrey" stroke-width="2"/>
     <ellipse cx="70" cy="80" rx="12" ry="8"/>
@@ -200,10 +200,21 @@ int main() {
                 }
             }
             const std::vector<Transform> transforms = document.transforms(*layer);
-            CHECK(transforms.size() == 2);
-            if (transforms.size() == 2) {
+            CHECK(transforms.size() == 5);
+            if (transforms.size() == 5) {
                 CHECK(std::holds_alternative<Translate>(transforms[0]));
                 CHECK(std::holds_alternative<Scale>(transforms[1]));
+                CHECK(std::holds_alternative<Rotate>(transforms[2]));
+                CHECK(std::holds_alternative<SkewX>(transforms[3]));
+                CHECK(std::holds_alternative<SkewY>(transforms[4]));
+                if (std::holds_alternative<Rotate>(transforms[2])) {
+                    const Rotate& rotate = std::get<Rotate>(transforms[2]);
+                    CHECK(rotate.center.has_value());
+                    if (rotate.center) {
+                        CHECK(to_text(rotate.center->x) == "10");
+                        CHECK(to_text(rotate.center->y) == "20");
+                    }
+                }
             }
             CHECK(document.children(*layer).size() == 4);
         }
@@ -355,10 +366,13 @@ int main() {
             CHECK(std::get<Color::Named>(fill.specific).id == Color::NamedColorId::Red);
         }
         const std::vector<Transform> transforms = reread.transforms(*saved_layer);
-        CHECK(transforms.size() == 2);
-        if (transforms.size() == 2) {
+        CHECK(transforms.size() == 5);
+        if (transforms.size() == 5) {
             CHECK(std::holds_alternative<Translate>(transforms[0]));
             CHECK(std::holds_alternative<Scale>(transforms[1]));
+            CHECK(std::holds_alternative<Rotate>(transforms[2]));
+            CHECK(std::holds_alternative<SkewX>(transforms[3]));
+            CHECK(std::holds_alternative<SkewY>(transforms[4]));
         }
     }
     const std::optional<Id> saved_small = named(reread, "small");

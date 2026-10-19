@@ -133,6 +133,9 @@ descendant that already has a transform: it prepends the move or scale to that t
 and leaves the subtree below alone, because editing those params would apply the
 operation in the child's local units instead of the parent's.
 
+A transform list is one or more of `translate(x [y])`, `scale(x [y])`,
+`rotate(deg [cx cy])`, `skewX(deg)`, `skewY(deg)` and `matrix(a b c d e f)`.
+
 Moving or scaling an empty container is refused with
 `error: cannot move or scale an empty container: g#node2`. Such an edit would be
 invisible, but a shape inserted into that container later would inherit the displaced

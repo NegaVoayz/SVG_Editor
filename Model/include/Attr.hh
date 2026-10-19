@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -20,9 +21,15 @@ inline constexpr Id no_id = std::numeric_limits<Id>::max();
 // it has to carry.
 struct Translate { LengthPercentage x, y; };
 struct Scale { float x, y; };
-struct Rotate { float degrees; };
+struct Rotate {
+    struct Center { LengthPercentage x, y; };
+    float degrees;
+    std::optional<Center> center = std::nullopt;
+};
+struct SkewX { float degrees; };
+struct SkewY { float degrees; };
 struct Matrix { float a, b, c, d, e, f; };
-using Transform = std::variant<Translate, Scale, Rotate, Matrix>;
+using Transform = std::variant<Translate, Scale, Rotate, SkewX, SkewY, Matrix>;
 
 // One step of a transform list and the step before it. A list is stored as immutable
 // links: an edit adds a record that points at the previous head, so the node only swaps
@@ -42,7 +49,17 @@ struct TransformText {
         return "scale(" + number_text(scale.x) + " " + number_text(scale.y) + ")";
     }
     std::string operator()(const Rotate& rotate) const {
-        return "rotate(" + number_text(rotate.degrees) + ")";
+        std::string text = "rotate(" + number_text(rotate.degrees);
+        if (rotate.center) {
+            text += " " + to_text(rotate.center->x) + " " + to_text(rotate.center->y);
+        }
+        return text + ")";
+    }
+    std::string operator()(const SkewX& skew) const {
+        return "skewX(" + number_text(skew.degrees) + ")";
+    }
+    std::string operator()(const SkewY& skew) const {
+        return "skewY(" + number_text(skew.degrees) + ")";
     }
     std::string operator()(const Matrix& matrix) const {
         return "matrix(" + number_text(matrix.a) + " " + number_text(matrix.b) + " " + number_text(matrix.c) + " " +
@@ -68,7 +85,12 @@ struct FiniteTransform {
         return is_finite(translate.x) && is_finite(translate.y);
     }
     bool operator()(const Scale& scale) const { return std::isfinite(scale.x) && std::isfinite(scale.y); }
-    bool operator()(const Rotate& rotate) const { return std::isfinite(rotate.degrees); }
+    bool operator()(const Rotate& rotate) const {
+        return std::isfinite(rotate.degrees) &&
+               (!rotate.center || (is_finite(rotate.center->x) && is_finite(rotate.center->y)));
+    }
+    bool operator()(const SkewX& skew) const { return std::isfinite(skew.degrees); }
+    bool operator()(const SkewY& skew) const { return std::isfinite(skew.degrees); }
     bool operator()(const Matrix& matrix) const {
         return std::isfinite(matrix.a) && std::isfinite(matrix.b) && std::isfinite(matrix.c) &&
                std::isfinite(matrix.d) && std::isfinite(matrix.e) && std::isfinite(matrix.f);

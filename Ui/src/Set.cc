@@ -44,8 +44,8 @@ Request transform_attribute(const NodeRef& node, const std::string& word) {
     const std::optional<std::vector<Transform>> value = SvgValue::parse_transform(word);
     if (!value) {
         throw ParseFailed{"cannot read '" + word +
-                          "' as a transform list: translate(x [y]), scale(x [y]), rotate(deg), matrix(a b c d e f), "
-                          "or none"};
+                          "' as a transform list: translate(x [y]), scale(x [y]), rotate(deg [cx cy]), "
+                          "skewX(deg), skewY(deg), matrix(a b c d e f), or none"};
     }
     return Intent{Set{SetTransform{node, *value}}};
 }

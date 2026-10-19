@@ -22,10 +22,10 @@ std::optional<Color> parse_color(std::string_view text);
 // A plain number, with no unit and no percentage: what a scale factor is written as.
 std::optional<float> parse_number(std::string_view text);
 
-// One or more of "translate(x [y])", "scale(x [y])", "rotate(deg)" and
-// "matrix(a b c d e f)", in the order SVG applies them. The translate form takes lengths,
-// the others plain numbers; commas or spaces separate values and functions. `none` is not
-// read here; an empty value reads as an empty list.
+// One or more of "translate(x [y])", "scale(x [y])", "rotate(deg [cx cy])",
+// "skewX(deg)", "skewY(deg)" and "matrix(a b c d e f)", in the order SVG applies them.
+// The translate and rotate-centre forms take lengths, the others plain numbers; commas
+// or spaces separate values and functions. An empty value reads as an empty list.
 std::optional<std::vector<Transform>> parse_transform(std::string_view text);
 
 // "min-x min-y width height", four plain numbers. A viewBox has no units and cannot
