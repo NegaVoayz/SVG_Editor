@@ -224,6 +224,7 @@ private:
 
     void remember_id(const XmlNode& node, const std::string& id) {
         if (id.empty()) return;
+        if (!valid_svg_id(id)) fail(SvgProblem::InvalidId, node, "id", id);
         if (!explicit_ids_.insert(id).second) fail(SvgProblem::DuplicateId, node, "id", id);
     }
 

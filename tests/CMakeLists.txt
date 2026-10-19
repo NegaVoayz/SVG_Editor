@@ -158,7 +158,7 @@ set_tests_properties(cli_nan_length PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME cli_scale_overflow
     COMMAND $<TARGET_FILE:Cli> "init; create rect huge 3e38 0 3e38 1; scale huge 2; show huge")
 set_tests_properties(cli_scale_overflow PROPERTIES
-    PASS_REGULAR_EXPRESSION "error: scaled value must be a finite number"
+    PASS_REGULAR_EXPRESSION "error: \"scaled value\" must be a finite number"
     FAIL_REGULAR_EXPRESSION "x=inf|w=inf")
 
 add_test(NAME cli_undo_after_init COMMAND $<TARGET_FILE:Cli> "init; undo")
@@ -181,9 +181,9 @@ set_tests_properties(cli_undo_after_canvas PROPERTIES PASS_REGULAR_EXPRESSION
 
 # A parameter with a space is one word when it is quoted, and the answer prints it back
 # the same way so the reader can copy it into another instruction.
-add_test(NAME cli_quoted_id COMMAND $<TARGET_FILE:Cli>
-    "init; create g \"my layer\"; create rect \"my box\" 0 0 10 10 in \"my layer\"; tree")
-set_tests_properties(cli_quoted_id PROPERTIES PASS_REGULAR_EXPRESSION "g#my layer")
+add_test(NAME cli_invalid_quoted_id COMMAND $<TARGET_FILE:Cli> "init; create g \"a b\"")
+set_tests_properties(cli_invalid_quoted_id PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: invalid XML id: \"a b\"")
 
 add_test(NAME cli_quoted_id_error COMMAND $<TARGET_FILE:Cli> "init; delete \"id with space\"")
 set_tests_properties(cli_quoted_id_error PROPERTIES PASS_REGULAR_EXPRESSION "error: no such shape: \"id with space\"")

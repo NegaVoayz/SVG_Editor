@@ -196,7 +196,8 @@ int main() {
     CHECK(render(fault::NegativeDimension{"width"}) == "error: width must not be negative");
     CHECK(render(fault::NonPositiveCanvas{"height"}) == "error: canvas height must be positive");
     CHECK(render(fault::NonFiniteValue{"scaled value"}) ==
-          "error: scaled value must be a finite number");
+          "error: \"scaled value\" must be a finite number");
+    CHECK(render(fault::InvalidId{"a b"}) == "error: invalid XML id: \"a b\"");
     CHECK(render(fault::UndoAfterIo{}) == "error: undo not allowed after io command");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==
           "error: the offset 1in does not add up with 1cm: 1in is imperial and 1cm is metric - mm and cm are "

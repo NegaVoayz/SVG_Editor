@@ -136,6 +136,7 @@ template<> Outcome Editor::handle<Back>(const Back& intent) {
 
 template<> Outcome Editor::handle<Group>(const Group& intent) {
     if (intent.nodes.empty()) return refused(Kind::Change, fault::EmptyGroup{});
+    if (!valid_svg_id(intent.id)) return refused(Kind::Change, fault::InvalidId{intent.id});
     if (document_.find(intent.id)) {
         return refused(Kind::Change, fault::DuplicateId{intent.id});
     }

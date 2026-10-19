@@ -115,6 +115,10 @@ element is the last child of the root. A node is named by its SVG id; `/` or `sv
 the root. `svg` is reserved, so an element whose own id is `svg` is shadowed by the root
 alias. The hive's internal handle is not part of the command language.
 
+Quotes group words that contain spaces, which is how text content and file paths are
+written. They do not make an SVG id valid: an id is an XML name, so `create g "a b"` is
+refused.
+
 `init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
 says `error: undo not allowed after io command`; once an edit has been made, undo works
 until the baseline is reached again.

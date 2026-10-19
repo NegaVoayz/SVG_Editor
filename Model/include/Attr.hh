@@ -1,5 +1,6 @@
 #pragma once
 #include <limits>
+#include <string_view>
 #include <variant>
 
 #include "BasicType.hh"
@@ -25,6 +26,29 @@ using Transform = std::variant<Translate, Scale, Rotate, Matrix>;
 struct IdentityAttr { std::string id, class_; };
 struct PaintAttr { std::optional<Paint> fill, stroke; std::optional<LengthPercentage> stroke_width; };
 struct TransformAttr { std::optional<Transform> transform; };
+
+// SVG ids are XML names: they have no whitespace, start with a name-start character and
+// continue with name characters. Non-ASCII bytes are accepted as name characters here;
+// ASCII punctuation that XML excludes is not, so a quoted command cannot smuggle a space
+// or a quote into an id.
+inline bool svg_id_start(char character) {
+    const unsigned char value = static_cast<unsigned char>(character);
+    return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z') || value == '_' || value == ':' ||
+           value >= 0x80;
+}
+
+inline bool svg_id_character(char character) {
+    const unsigned char value = static_cast<unsigned char>(character);
+    return svg_id_start(character) || (value >= '0' && value <= '9') || value == '-' || value == '.';
+}
+
+inline bool valid_svg_id(std::string_view id) {
+    if (id.empty() || !svg_id_start(id.front())) return false;
+    for (const char character : id.substr(1)) {
+        if (!svg_id_character(character)) return false;
+    }
+    return true;
+}
 
 // The two ends of an element's child list. A node does not keep a vector of children:
 // each child keeps its own previous and next sibling, so placing, moving, or removing a

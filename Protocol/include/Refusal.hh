@@ -32,6 +32,10 @@ struct DuplicateId {
     std::string id;
 };
 
+struct InvalidId {
+    std::string id;
+};
+
 struct DuplicateGroupMember {
     NodeRef node;
 };
@@ -129,7 +133,7 @@ struct InternalError {};
 }  // namespace fault
 
 using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::MissingContainer, fault::NotContainer,
-                             fault::DuplicateId, fault::DuplicateGroupMember, fault::UnknownAttribute,
+                             fault::DuplicateId, fault::InvalidId, fault::DuplicateGroupMember, fault::UnknownAttribute,
                              fault::NegativeDimension, fault::NonPositiveCanvas, fault::NonFiniteValue,
                              fault::CannotUngroupNonContainer,
                              fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,

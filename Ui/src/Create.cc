@@ -106,5 +106,7 @@ Request parse_create(const Words& words) {
             return Intent{std::move(made)};
         }
     }
-    throw ParseFailed{"error: unknown shape type: " + words[1] + " (is the plugin loaded?)"};
+    std::string kind = words[1];
+    if (kind.find_first_of(" \t\r\n") != std::string::npos) kind = "\"" + kind + "\"";
+    throw ParseFailed{"error: unknown shape type: " + kind + " (is the plugin loaded?)"};
 }

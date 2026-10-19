@@ -240,6 +240,8 @@ int main() {
         R"(<svg><rect width="wide" height="2"/></svg>)",
         R"(<svg><g>words</g></svg>)",
         R"(<svg><g id="same"/><rect id="same"/></svg>)",
+        R"(<svg><g id="a b"/></svg>)",
+        R"(<svg><rect id="1bad"/></svg>)",
         R"(<not-svg/>)",
     };
     for (std::size_t index = 0; index < rejected.size(); ++index) {
@@ -255,6 +257,10 @@ int main() {
     const std::filesystem::path malformed_path = file_named("svg_io_malformed.svg");
     CHECK(write_text(malformed_path, "<svg>"));
     CHECK(has_problem(collision.open(malformed_path.string()), SvgProblem::MalformedXml));
+
+    const std::filesystem::path invalid_id_path = file_named("svg_io_invalid_id.svg");
+    CHECK(write_text(invalid_id_path, R"(<svg><g id="a b"/></svg>)"));
+    CHECK(has_problem(collision.open(invalid_id_path.string()), SvgProblem::InvalidId));
 
     // A successful read and save round-trip preserves structure, values, text and the
     // ids that were assigned while reading.

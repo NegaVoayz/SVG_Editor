@@ -134,6 +134,7 @@ Editor::NewElement Editor::new_element(const CreateText& intent) const {
 
 template<typename T>
 Outcome Editor::create(const T& intent) {
+    if (!valid_svg_id(intent.id)) return refused(Kind::Change, fault::InvalidId{intent.id});
     std::optional<Refusal> problem = dimension_problem(intent);
     if (problem) return refused(Kind::Change, std::move(*problem));
 

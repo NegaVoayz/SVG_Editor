@@ -12,6 +12,15 @@
 
 namespace {
 
+// A field is printed in quotes whenever it can contain a space; this keeps a name or a
+// path from being read as several words of the answer.
+std::string quote_if_needed(std::string_view text) {
+    if (!text.empty() && text.find_first_of(" \t\r\n") == std::string_view::npos) {
+        return std::string{text};
+    }
+    return "\"" + std::string{text} + "\"";
+}
+
 // --- what an element carries ---
 
 // A shape's own values, in the same words `create` takes them in, so a line of the tree
@@ -135,8 +144,9 @@ Words element_words(const SVGNode& element, const std::string& text) {
     const std::string_view kind = element_name(element);
     // The kind and the id the user wrote: the handle is not part of the drawing, because
     // it is the hive's virtual id, which is never reused for another node.
-    words.name =
-        element.identity_attr.id.empty() ? std::string{kind} : std::string{kind} + "#" + element.identity_attr.id;
+    words.name = element.identity_attr.id.empty()
+                     ? std::string{kind}
+                     : std::string{kind} + "#" + quote_if_needed(element.identity_attr.id);
 
     // A text's words are the character data inside it. That is a node of the model and it
     // is not a line of the drawing: printing it inside the element is what makes a text
@@ -270,16 +280,6 @@ std::string render(const View& view) {
 
 namespace {
 
-// The two ways a reference is named in an answer: with its own spelling in a clause, and
-// as the thing an error is about. Both are presentation, which is why they live here and
-// not next to the protocol's NodeRef.
-std::string quote_if_needed(std::string_view text) {
-    if (!text.empty() && text.find_first_of(" \t\r\n") == std::string_view::npos) {
-        return std::string{text};
-    }
-    return "\"" + std::string{text} + "\"";
-}
-
 std::string label(const NodeRef& reference) {
     if (std::holds_alternative<RootRef>(reference)) return "/";
     if (std::holds_alternative<HandleRef>(reference)) {
@@ -382,7 +382,8 @@ struct EventText {
         std::string message =
             "read " + quote_if_needed(opened.path) + " (" + element_count_text(opened.elements) + ")";
         for (const AssignedId& assigned : opened.assigned_ids) {
-            message += "\nwarning: assigned id " + assigned.id + " to unnamed <" + assigned.element + ">";
+            message += "\nwarning: assigned id " + quote_if_needed(assigned.id) + " to unnamed <" + assigned.element +
+                       ">";
         }
         return message;
     }
@@ -407,6 +408,9 @@ struct RefusalText {
     std::string operator()(const fault::DuplicateId& taken) const {
         return "error: id already exists: " + quote_if_needed(taken.id);
     }
+    std::string operator()(const fault::InvalidId& invalid) const {
+        return "error: invalid XML id: " + quote_if_needed(invalid.id);
+    }
     std::string operator()(const fault::DuplicateGroupMember& duplicate) const {
         return "error: duplicate node in group: " + label(duplicate.node);
     }
@@ -420,7 +424,7 @@ struct RefusalText {
         return "error: canvas " + quote_if_needed(dimension.attribute) + " must be positive";
     }
     std::string operator()(const fault::NonFiniteValue& value) const {
-        return "error: " + value.name + " must be a finite number";
+        return "error: " + quote_if_needed(value.name) + " must be a finite number";
     }
     std::string operator()(const fault::CannotUngroupNonContainer& leaf) const {
         return "error: cannot ungroup a shape or text node: " + label(leaf.node);
@@ -488,6 +492,8 @@ struct RefusalText {
                        quote_if_needed(diagnostic.attribute) + " on <" + diagnostic.element + ">";
             case SvgProblem::DuplicateId:
                 return message + "duplicate id " + quote_if_needed(diagnostic.value);
+            case SvgProblem::InvalidId:
+                return message + "invalid id " + quote_if_needed(diagnostic.value);
             case SvgProblem::UnexpectedText: return message + "text outside a text element";
         }
         return message + "invalid SVG";

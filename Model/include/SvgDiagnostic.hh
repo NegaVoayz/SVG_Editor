@@ -18,6 +18,7 @@ enum class SvgProblem {
     UnsupportedAttribute,
     InvalidAttributeValue,
     DuplicateId,
+    InvalidId,
     UnexpectedText,
 };
 
