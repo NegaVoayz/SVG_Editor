@@ -228,8 +228,8 @@ descendant a cascade reached: writing a parent-space delta into its params would
 in its local coordinate system and move it by the wrong amount. The operation is
 pre-multiplied into that node's matrix instead, and a cascade leaves its subtree alone
 because the new matrix already covers it. A transformed node therefore takes a default or
-explicit `params` move or scale in its transform; a scale says `in its transform` when it
-takes that route, while every `move` answer uses `moved <target> by (x, y)`.
+explicit `params` move or scale in its transform. Every `move` answer uses
+`<target> moved by (x, y)`; a cascade adds the number of changed elements.
 An untransformed node still changes its params. `event::Moved`/
 `event::Scaled` carry the resolved mode and the number of nodes whose params or transform
 the edit changed.
@@ -303,7 +303,7 @@ svg> tree
 svg (800x600)
 ├── g#markers
 │   └── rect#box  x=0 y=0 w=10 h=10 fill=#ff0000
-└── text#title    (20,40) "My Diagram"
+└── text#title    (20,40) text="My Diagram"
 ```
 
 Three things about the drawing are worth knowing, because each of them is a decision:
@@ -319,7 +319,7 @@ Three things about the drawing are worth knowing, because each of them is a deci
   sees, not in bytes, because every box character is one place and three bytes.
 - **A text's words are printed inside the element that holds them**, and not as a line
   of their own, which is what makes a text read as a text: the character data is a node
-  of the model, so `text#title (20,40) "My Diagram"` is one row of the view and two
+  of the model, so `text#title (20,40) text="My Diagram"` is one row of the view and two
   nodes of the tree.
 
 What a name is, is the kind and the SVG id the user wrote - `rect#box`, `g#markers` -

@@ -37,6 +37,7 @@ struct GeometryText {
 // The canvas of a document, as one value: the two sides are joined by an x, the way a
 // user writes a size, and a unit the two of them share is said once.
 std::string canvas_text(const Container::SVG& canvas) {
+    if (!canvas.width && !canvas.height) return "(unsized)";
     if (canvas.width && canvas.height && std::holds_alternative<Length>(*canvas.width) &&
         std::holds_alternative<Length>(*canvas.height)) {
         const Length& width = std::get<Length>(*canvas.width);
@@ -173,7 +174,7 @@ Words element_words(const SVGNode& element, const Transform& transform, const st
     if (element.paint_attr.stroke_width) {
         append_detail(words, "stroke-width=" + to_text(*element.paint_attr.stroke_width));
     }
-    if (is_text && !text.empty()) append_detail(words, "\"" + text + "\"");
+    if (is_text && !text.empty()) append_detail(words, "text=" + quoted(text));
     return words;
 }
 
@@ -185,7 +186,7 @@ Words words_of(const Node& payload, const Transform& transform, const std::strin
     // Character data reaches a view on its own only when something asked for it by
     // handle: it has no id to be named by.
     Words words{"<text-node>", {}};
-    append_detail(words, "\"" + text + "\"");
+    append_detail(words, "text=" + quoted(text));
     return words;
 }
 
@@ -300,6 +301,14 @@ std::string element_count_text(std::size_t count) {
     return std::to_string(count) + (count == 1 ? " element" : " elements");
 }
 
+std::string child_count_text(std::size_t count) {
+    return std::to_string(count) + (count == 1 ? " child" : " children");
+}
+
+std::string affected_count_text(std::size_t count) {
+    return " (" + element_count_text(count) + " affected)";
+}
+
 std::string_view system_name(Length::Unit unit) {
     switch (unit) {
         case Length::Unit::Mm:
@@ -323,57 +332,45 @@ struct EventText {
         return message;
     }
     std::string operator()(const event::Deleted& gone) const {
-        std::string message = "deleted " + element_label(gone.node);
+        std::string message = element_label(gone.node) + " deleted";
         if (gone.descendants != 0) {
-            message += " and " + std::to_string(gone.descendants) + " node(s) under it";
+            message += " (" + element_count_text(gone.descendants) + ")";
         }
         return message;
     }
     std::string operator()(const event::Moved& moved) const {
-        std::string target;
-        if (moved.mode == EditMode::Cascade) {
-            target = std::to_string(moved.nodes) + " node(s) under " + element_label(moved.node);
-        } else {
-            target = element_label(moved.node);
-        }
-        return "moved " + target + " by (" + to_text(moved.dx) + ", " + to_text(moved.dy) + ")";
+        std::string message =
+            element_label(moved.node) + " moved by (" + to_text(moved.dx) + ", " + to_text(moved.dy) + ")";
+        if (moved.mode == EditMode::Cascade) message += affected_count_text(moved.nodes);
+        return message;
     }
     std::string operator()(const event::Scaled& scaled) const {
-        if (scaled.mode == EditMode::ContainerTransform) {
-            return element_label(scaled.node) + " scaled by " + number_text(scaled.factor);
-        }
-        if (scaled.mode == EditMode::Cascade) {
-            return "scaled " + std::to_string(scaled.nodes) + " node(s) under " + element_label(scaled.node) +
-                   " by " + number_text(scaled.factor);
-        }
-        if (scaled.mode == EditMode::Transform) {
-            return "scaled " + element_label(scaled.node) + " by " + number_text(scaled.factor) +
-                   " in its transform";
-        }
-        return "scaled " + element_label(scaled.node) + " by " + number_text(scaled.factor) +
-               ", so everything drawn with it grew by that much";
+        std::string message = element_label(scaled.node) + " scaled by " + number_text(scaled.factor);
+        if (scaled.mode == EditMode::Cascade) message += affected_count_text(scaled.nodes);
+        return message;
     }
     std::string operator()(const event::AddedTo& moved) const {
-        return "moved " + element_label(moved.node) + " to the end of " + element_label(moved.parent);
+        return element_label(moved.node) + " moved to the end of " + element_label(moved.parent);
     }
     std::string operator()(const event::MovedToFront& moved) const {
-        return "moved " + element_label(moved.node) + " to the front of " + element_label(moved.parent);
+        return element_label(moved.node) + " moved to the front of " + element_label(moved.parent);
     }
     std::string operator()(const event::MovedToBack& moved) const {
-        return "moved " + element_label(moved.node) + " to the back of " + element_label(moved.parent);
+        return element_label(moved.node) + " moved to the back of " + element_label(moved.parent);
     }
     std::string operator()(const event::Grouped& grouped) const {
-        return element_label(grouped.node) + " created holding " + std::to_string(grouped.members) +
-               " node(s)";
+        return element_label(grouped.node) + " created with " + child_count_text(grouped.members);
     }
     std::string operator()(const event::Ungrouped& released) const {
-        return "released " + std::to_string(released.members) + " node(s) into " + element_label(released.parent) +
-               " and erased " + element_label(released.erased);
+        return element_label(released.erased) + " ungrouped into " + element_label(released.parent) + " (" +
+               element_count_text(released.members) + ")";
     }
     std::string operator()(const event::AttributeSet& set) const {
         return "set " + quote_if_needed(set.attribute) + " on " + element_label(set.node);
     }
-    std::string operator()(const event::ContentSet& set) const { return "set text on " + element_label(set.node); }
+    std::string operator()(const event::ContentSet& set) const {
+        return element_label(set.node) + " updated: text=" + quoted(set.content);
+    }
     std::string operator()(const event::CanvasSet& canvas) const {
         const std::string width = canvas.width ? to_text(*canvas.width) : "?";
         const std::string height = canvas.height ? to_text(*canvas.height) : "?";

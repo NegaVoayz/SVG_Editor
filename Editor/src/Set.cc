@@ -510,7 +510,7 @@ Outcome set_text(Document& document, Id node, const std::string& value, std::str
         Transaction edit = document.transaction();
         edit.update(node, Node{std::move(text)});
         edit.commit();
-        return happened(Kind::Change, event::ContentSet{name_of(document, node)});
+        return happened(Kind::Change, event::ContentSet{name_of(document, node), value});
     }
 
     if (!std::holds_alternative<SVGNode>(*payload) ||
@@ -538,7 +538,7 @@ Outcome set_text(Document& document, Id node, const std::string& value, std::str
         for (std::size_t index = 1; index < text_children.size(); ++index) edit.erase(text_children[index]);
     }
     edit.commit();
-    return happened(Kind::Change, event::ContentSet{name_of(document, node)});
+    return happened(Kind::Change, event::ContentSet{name_of(document, node), value});
 }
 
 Outcome apply(Document& document, Id node, const SetText& intent) {

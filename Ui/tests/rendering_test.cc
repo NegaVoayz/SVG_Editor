@@ -54,6 +54,12 @@ Node root_with(LengthPercentage width, LengthPercentage height) {
     return element("", Container{ChildAttr{}, Container::SVG{width, height}});
 }
 
+Node unsized_root_with(Container::ViewBox view_box) {
+    Container::SVG canvas{std::nullopt, std::nullopt};
+    canvas.view_box = view_box;
+    return element("", Container{ChildAttr{}, std::move(canvas)});
+}
+
 Node text_element(std::string id, float x, float y) {
     Text text;
     text.common.x = units(x);
@@ -97,7 +103,7 @@ int main() {
     const std::string expected = join({
         "svg (800x600)",
         "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 rect#bg        x=0 y=0 w=800 h=600 fill=#ffffff",
-        "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 text#title     (20,40) \"My Diagram\"",
+        "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 text#title     (20,40) text=\"My Diagram\"",
         "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 g#markers",
         "    \xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 circle#c1  cx=100 cy=100 r=20",
         "    \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box   x=200 y=80 w=60 h=60 fill=#3366ff",
@@ -131,7 +137,8 @@ int main() {
                                                    "svg (800x600)",
                                                    "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 g#markers",
                                                    "\xE2\x94\x82   \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box  x=0 y=0 w=10 h=10 fill=#ff0000",
-                                                   "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 text#title    (20,40) \"My Diagram\"",
+                                                   "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 text#title    (20,40) "
+                                                   "text=\"My Diagram\"",
                                                }));
 
     // A single node has a heading and one indented line per group of attributes. A node
@@ -159,21 +166,25 @@ int main() {
     CHECK(render(NodeView{1, group("markers"), {}, NodeParent{0, root_with(units(800), units(600))}}) ==
           "g#markers  parent=svg");
     CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram"}) ==
-          "text#title\n  (20,40)\n  \"My Diagram\"");
+          "text#title\n  (20,40)\n  text=\"My Diagram\"");
     CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram", NodeParent{1, group("markers")}}) ==
-          "text#title  parent=g#markers\n  (20,40)\n  \"My Diagram\"");
+          "text#title  parent=g#markers\n  (20,40)\n  text=\"My Diagram\"");
 
     // The character data is the last thing a text prints, after the paint attributes.
     Node filled_text = text_element("title", 20, 40);
     std::get<SVGNode>(filled_text).paint_attr.fill = Paint{Color{Color::Named{Color::NamedColorId::Red}}};
     CHECK(render(NodeView{4, filled_text, "My Diagram"}) ==
-          "text#title\n  (20,40)\n  fill=red\n  \"My Diagram\"");
+          "text#title\n  (20,40)\n  fill=red\n  text=\"My Diagram\"");
     CHECK(render(TreeView{{row(0, true, filled_text, "My Diagram")}}) ==
-          "text#title (20,40) fill=red \"My Diagram\"");
+          "text#title (20,40) fill=red text=\"My Diagram\"");
 
     // An element with no id of its own is named by its kind alone, which is what the root
     // of an empty document is
     CHECK(render(NodeView{0, root_with(units(800), units(600)), {}}) == "svg (800x600)");
+
+    // A root that describes only its user-coordinate rectangle has no explicit size.
+    CHECK(render(NodeView{0, unsized_root_with(Container::ViewBox{0.0F, 0.0F, 100.0F, 50.0F}), {}}) ==
+          "svg (unsized) viewBox=\"0 0 100 50\"");
 
     // A unit both sides of the canvas share is said once, and a canvas that is not a plain
     // number keeps its own text: what a length is, is what to_text says it is.
@@ -182,9 +193,9 @@ int main() {
     CHECK(render(NodeView{0, root_with(Length{2.0F, Length::Unit::Cm}, Length{3.0F, Length::Unit::Mm}), {}}) ==
           "svg (2cmx3mm)");
 
-    // Character data asked for by handle has no id and no kind of its own: it is the words
-    // it is made of.
-    CHECK(render(NodeView{7, Node{PlainText{"hello"}}, "hello"}) == "<text-node> \"hello\"");
+    // Character data asked for by handle has no id and no kind of its own: it is the
+    // labelled words it is made of.
+    CHECK(render(NodeView{7, Node{PlainText{"hello"}}, "hello"}) == "<text-node> text=\"hello\"");
 
     // The other half of the boundary: an event and a refusal are data until this file
     // turns them into words. Editor results have no route prefix; the special branches
@@ -193,35 +204,34 @@ int main() {
     CHECK(render(event::Created{{"text", "start label"}, {"g", "node 1"}, true}) ==
           "text#\"start label\" created in g#\"node 1\"");
     CHECK(render(event::Grouped{{"g", "markers"}, {"svg", ""}, 2}) ==
-          "g#markers created holding 2 node(s)");
+          "g#markers created with 2 children");
     CHECK(render(event::Ungrouped{{"g", "pair"}, {"svg", ""}, 2}) ==
-          "released 2 node(s) into svg and erased g#pair");
-    CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7)}) == "moved rect#r1 by (5, 7)");
+          "g#pair ungrouped into svg (2 elements)");
+    CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7)}) == "rect#r1 moved by (5, 7)");
     CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7), EditMode::Transform}) ==
-          "moved rect#r1 by (5, 7)");
+          "rect#r1 moved by (5, 7)");
     CHECK(render(event::Moved{{"g", "g1"}, units(5), units(7), EditMode::Cascade, 3}) ==
-          "moved 3 node(s) under g#g1 by (5, 7)");
+          "g#g1 moved by (5, 7) (3 elements affected)");
     CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::ContainerTransform}) ==
-          "moved g#node2 by (0, 100)");
+          "g#node2 moved by (0, 100)");
     CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::Transform}) ==
-          "moved g#node2 by (0, 100)");
-    CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F}) ==
-          "scaled rect#r1 by 2, so everything drawn with it grew by that much");
-    CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F, EditMode::Transform}) ==
-          "scaled rect#r1 by 2 in its transform");
+          "g#node2 moved by (0, 100)");
+    CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F}) == "rect#r1 scaled by 2");
+    CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F, EditMode::Transform}) == "rect#r1 scaled by 2");
     CHECK(render(event::Scaled{{"g", "g1"}, 2.0F, EditMode::Cascade, 2}) ==
-          "scaled 2 node(s) under g#g1 by 2");
+          "g#g1 scaled by 2 (2 elements affected)");
     CHECK(render(event::Scaled{{"g", "node2"}, 3.0F, EditMode::ContainerTransform}) ==
           "g#node2 scaled by 3");
-    CHECK(render(event::AddedTo{{"rect", "r1"}, {"g", "g1"}}) == "moved rect#r1 to the end of g#g1");
+    CHECK(render(event::AddedTo{{"rect", "r1"}, {"g", "g1"}}) == "rect#r1 moved to the end of g#g1");
     CHECK(render(event::MovedToFront{{"rect", "r1"}, {"g", "g1"}}) ==
-          "moved rect#r1 to the front of g#g1");
+          "rect#r1 moved to the front of g#g1");
     CHECK(render(event::MovedToBack{{"rect", "r1"}, {"g", "g1"}}) ==
-          "moved rect#r1 to the back of g#g1");
+          "rect#r1 moved to the back of g#g1");
     CHECK(render(event::AttributeSet{{"rect", "r1"}, "fill"}) == "set fill on rect#r1");
-    CHECK(render(event::ContentSet{{"text", "title"}}) == "set text on text#title");
-    CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "deleted rect#box");
-    CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "deleted g#markers and 2 node(s) under it");
+    CHECK(render(event::ContentSet{{"text", "title"}, "Hello World"}) ==
+          "text#title updated: text=\"Hello World\"");
+    CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "rect#box deleted");
+    CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "g#markers deleted (2 elements)");
     CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
     CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");

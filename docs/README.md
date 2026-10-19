@@ -83,7 +83,7 @@ svg> tree
 svg (800x600)
 ├── g#markers
 │   └── rect#box  x=0 y=0 w=10 h=10 fill=#ff0000
-└── text#title    (20,40) "My Diagram"
+└── text#title    (20,40) text="My Diagram"
 ```
 
 The instructions are:
@@ -126,7 +126,7 @@ refused.
 that field, so it works for a shape, a text, a group and the root alike. `params` changes values
 directly. `restrict` limits the edit to the node itself: on a leaf that is its params, and
 on a container it is the container's own transform, so the message is
-`moved g#node2 by (0, 100)`. `cascade` changes every descendant's params. A non-container
+`g#node2 moved by (0, 100)`. `cascade` changes every descendant's params. A non-container
 has no container descendants, so its cascade changes that node's own params. With no
 selector, `move` and `scale` use `params` and `cascade`. A node that already carries a
 transform is a coordinate-system boundary too: a parent-space offset written into its
@@ -137,17 +137,21 @@ params by default. When a cascade reaches such a descendant, it pre-multiplies t
 or scale into that descendant's matrix and leaves the subtree below alone, because the
 new matrix already covers it.
 
-A `move` answer uses one sentence for every mode: `moved <target> by (x, y)`. A cascade
-target reads `3 node(s) under g#g1`; a transformed node keeps its ordinary target name.
-The mode is still in `event::Moved`, but is not repeated in the prose.
+A `move` answer uses one sentence for every mode: `<target> moved by (x, y)`. A cascade
+adds how many inner elements changed: `g#g1 moved by (5, 7) (3 elements affected)`. The
+mode is still in `event::Moved`, but is not repeated in the prose.
+
+Other edit answers keep the subject first as well: `g#gg created with 2 children`,
+`g#gg ungrouped into g#layer (2 elements)`, and `circle#c1 scaled by 2`. A text edit
+reports its value directly: `text#t updated: text="Hello World"`.
 
 A transform list is one or more of `translate(x [y])`, `scale(x [y])`,
 `rotate(deg [cx cy])`, `skewX(deg)`, `skewY(deg)` and `matrix(a b c d e f)`.
 The list is composed into one matrix when it is read. `show` and a saved file print that
 matrix in TRS+skew form - `translate(...) rotate(...) scale(...) skewX(...)` or
-`skewY(...)` - leaving out identity steps. Both skew decompositions are exact, so the one
-with the smaller absolute angle is printed: `skewX(15)` reads back as its equivalent
-`rotate(-15) scale(0.965926 1.03528) skewY(14.0362)`, while `rotate(30 10 20)` reads
+`skewY(...)` - leaving out identity steps. Both skew decompositions are exact, so the
+shorter rendering is printed; a tie prefers the smaller absolute skew angle. A plain
+`skewX(15)` or `skewY(15)` therefore reads back unchanged, while `rotate(30 10 20)` reads
 back as `translate(11.3397 -2.32051) rotate(30)`.
 
 Moving or scaling an empty container is refused with

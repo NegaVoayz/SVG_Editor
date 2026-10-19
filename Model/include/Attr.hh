@@ -149,8 +149,8 @@ inline std::optional<Transform> rotation_about(float degrees_value, LengthPercen
 enum class SkewAxis { X, Y };
 
 // The canonical read-side form: translate, rotate, scale, then one skew. Both a skewX and
-// a skewY decomposition are exact; the smaller absolute angle is the one a reader has to
-// reason about, so that is the one written.
+// a skewY decomposition are exact. Prefer the one whose rendering is shorter; when both
+// render at the same length, the smaller absolute skew is easier to read.
 struct TransformParts {
     LengthPercentage x, y;
     float rotation = 0.0F;
@@ -215,16 +215,9 @@ inline TransformParts decomposed_with_y(const Transform& transform) {
     return parts;
 }
 
-inline TransformParts decomposed(const Transform& transform) {
-    const TransformParts x = decomposed_with_x(transform);
-    const TransformParts y = decomposed_with_y(transform);
-    return std::fabs(y.skew) < std::fabs(x.skew) ? y : x;
-}
-
-inline std::string transform_text(const Transform& transform) {
+inline std::string transform_parts_text(const TransformParts& parts) {
     constexpr float value_tolerance = 1.0e-6F;
     constexpr float angle_tolerance = 1.0e-5F;
-    const TransformParts parts = decomposed(transform);
 
     std::string text;
     auto append = [&text](std::string step) {
@@ -249,6 +242,19 @@ inline std::string transform_text(const Transform& transform) {
         append(std::string{parts.skew_axis == SkewAxis::Y ? "skewY(" : "skewX("} + number_text(parts.skew) + ")");
     }
     return text;
+}
+
+inline TransformParts decomposed(const Transform& transform) {
+    const TransformParts x = decomposed_with_x(transform);
+    const TransformParts y = decomposed_with_y(transform);
+    const std::size_t x_size = transform_parts_text(x).size();
+    const std::size_t y_size = transform_parts_text(y).size();
+    if (x_size != y_size) return y_size < x_size ? y : x;
+    return std::fabs(y.skew) < std::fabs(x.skew) ? y : x;
+}
+
+inline std::string transform_text(const Transform& transform) {
+    return transform_parts_text(decomposed(transform));
 }
 
 inline std::string to_text(const Transform& transform) { return transform_text(transform); }

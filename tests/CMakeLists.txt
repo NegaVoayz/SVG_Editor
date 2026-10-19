@@ -48,7 +48,7 @@ set_tests_properties(cli_move_cascade_rect PROPERTIES PASS_REGULAR_EXPRESSION "x
 add_test(NAME cli_move_cascade_text
     COMMAND $<TARGET_FILE:Cli>
         "init; create g g1; create text t 5 6 \"hi\" in g1; move g1 2 3; tree")
-set_tests_properties(cli_move_cascade_text PROPERTIES PASS_REGULAR_EXPRESSION "\\(7,9\\) \"hi\"")
+set_tests_properties(cli_move_cascade_text PROPERTIES PASS_REGULAR_EXPRESSION "\\(7,9\\) text=\"hi\"")
 
 add_test(NAME cli_move_cascade_text_children COMMAND $<TARGET_FILE:Cli>
     "read ${CMAKE_SOURCE_DIR}/tests/fixtures/mixed-text.svg; move svg 2 3; tree")
@@ -63,21 +63,25 @@ add_test(NAME cli_scale_transform
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 10 10; scale r 2 transform; show r")
 set_tests_properties(cli_scale_transform PROPERTIES PASS_REGULAR_EXPRESSION "transform=scale\\(2 2\\)")
 
+add_test(NAME cli_scale_result COMMAND $<TARGET_FILE:Cli>
+    "init; create circle c1 10 10 5; scale c1 2 params restrict")
+set_tests_properties(cli_scale_result PROPERTIES PASS_REGULAR_EXPRESSION "circle#c1 scaled by 2")
+
 add_test(NAME cli_move_cascade_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1 cascade")
 set_tests_properties(cli_move_cascade_leaf PROPERTIES PASS_REGULAR_EXPRESSION
-    "moved rect#r by \\(1, 1\\)")
+    "rect#r moved by \\(1, 1\\)")
 
 add_test(NAME cli_move_default_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1")
 set_tests_properties(cli_move_default_leaf PROPERTIES PASS_REGULAR_EXPRESSION
-    "moved rect#r by \\(1, 1\\)")
+    "rect#r moved by \\(1, 1\\)")
 
 add_test(NAME cli_move_restrict_container
     COMMAND $<TARGET_FILE:Cli>
         "init; create g g1; create rect r 0 0 1 1 in g1; move g1 0 100 restrict")
 set_tests_properties(cli_move_restrict_container PROPERTIES PASS_REGULAR_EXPRESSION
-    "moved g#g1 by \\(0, 100\\)")
+    "g#g1 moved by \\(0, 100\\)")
 
 add_test(NAME cli_move_empty_container
     COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 restrict")
@@ -96,7 +100,7 @@ add_test(NAME cli_move_transformed_container_default
     COMMAND $<TARGET_FILE:Cli>
         "init; create g gR; create rect a 0 0 10 10 in gR; set gR transform \"rotate(90)\"; move gR 10 0; show gR")
 set_tests_properties(cli_move_transformed_container_default PROPERTIES PASS_REGULAR_EXPRESSION
-    "moved g#gR by \\(10, 0\\)")
+    "g#gR moved by \\(10, 0\\)")
 
 add_test(NAME cli_move_transformed_container_chain
     COMMAND $<TARGET_FILE:Cli>
@@ -142,7 +146,12 @@ set_tests_properties(cli_set_transform_rotate_center PROPERTIES PASS_REGULAR_EXP
 add_test(NAME cli_set_transform_skew
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"skewX(15)\"; show box")
 set_tests_properties(cli_set_transform_skew PROPERTIES PASS_REGULAR_EXPRESSION
-    "transform=rotate\\(-15\\) scale\\(0.965926 1.03528\\) skewY\\(14.0362\\)")
+    "transform=skewX\\(15\\)")
+
+add_test(NAME cli_set_transform_skew_y
+    COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"skewY(15)\"; show box")
+set_tests_properties(cli_set_transform_skew_y PROPERTIES PASS_REGULAR_EXPRESSION
+    "transform=skewY\\(15\\)")
 
 add_test(NAME cli_set_transform_matrix
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"matrix(1 0 0 1 5 6)\"; show box")
@@ -155,23 +164,28 @@ set_tests_properties(cli_unknown_attribute PROPERTIES PASS_REGULAR_EXPRESSION "e
 # the drawing is what a text element's content is printed in the line of, and the line
 # under a last child hangs from spaces rather than bars
 add_test(NAME cli_text COMMAND $<TARGET_FILE:Cli> "init; create text title 20 40 \"My Diagram\"; tree")
-set_tests_properties(cli_text PROPERTIES PASS_REGULAR_EXPRESSION "\\(20,40\\) \"My Diagram\"")
+set_tests_properties(cli_text PROPERTIES PASS_REGULAR_EXPRESSION "\\(20,40\\) text=\"My Diagram\"")
 
 # `text` is the UI attribute for the PlainText child of a text element.
 add_test(NAME cli_set_text
     COMMAND $<TARGET_FILE:Cli> "init; create text title 20 40 \"My Diagram\"; set title text \"My Diagram v2\"; tree")
-set_tests_properties(cli_set_text PROPERTIES PASS_REGULAR_EXPRESSION "\"My Diagram v2\"")
+set_tests_properties(cli_set_text PROPERTIES PASS_REGULAR_EXPRESSION "text=\"My Diagram v2\"")
+
+add_test(NAME cli_set_text_result COMMAND $<TARGET_FILE:Cli>
+    "init; create text t 0 0 \"old\"; set t text \"Hello World\"")
+set_tests_properties(cli_set_text_result PROPERTIES PASS_REGULAR_EXPRESSION
+    "text#t updated: text=\"Hello World\"")
 
 # The character data is printed after the text element's paint attributes.
 add_test(NAME cli_text_content_last COMMAND $<TARGET_FILE:Cli>
     "init; create text t 20 40 \"hello\"; set t fill red; tree")
-set_tests_properties(cli_text_content_last PROPERTIES PASS_REGULAR_EXPRESSION "fill=red \"hello\"")
+set_tests_properties(cli_text_content_last PROPERTIES PASS_REGULAR_EXPRESSION "fill=red text=\"hello\"")
 
 # Deleting a leaf does not claim a subtree went with it, and edits have no route label.
 add_test(NAME cli_delete_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 1 1; delete box")
 set_tests_properties(cli_delete_leaf PROPERTIES
-    PASS_REGULAR_EXPRESSION "deleted rect#box"
+    PASS_REGULAR_EXPRESSION "rect#box deleted"
     FAIL_REGULAR_EXPRESSION "under it|\\[change\\]")
 
 # Character data is not a user-visible node: deleting a text element that holds only
@@ -179,7 +193,7 @@ set_tests_properties(cli_delete_leaf PROPERTIES
 add_test(NAME cli_delete_text_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create text title 0 0 \"hello\"; delete title")
 set_tests_properties(cli_delete_text_leaf PROPERTIES
-    PASS_REGULAR_EXPRESSION "deleted text#title"
+    PASS_REGULAR_EXPRESSION "text#title deleted"
     FAIL_REGULAR_EXPRESSION "under it")
 
 # In mixed content only the element child counts; the words on either side of it are
@@ -188,8 +202,8 @@ add_test(NAME cli_delete_mixed_text
     COMMAND $<TARGET_FILE:Cli>
         "read ${CMAKE_SOURCE_DIR}/tests/fixtures/mixed-text.svg; delete mixed")
 set_tests_properties(cli_delete_mixed_text PROPERTIES
-    PASS_REGULAR_EXPRESSION "and 1 node\\(s\\) under it"
-    FAIL_REGULAR_EXPRESSION "and 2 node\\(s\\) under it")
+    PASS_REGULAR_EXPRESSION "text#mixed deleted \\(1 element\\)"
+    FAIL_REGULAR_EXPRESSION "deleted \\(2 elements\\)|under it")
 
 # A handle is the hive's internal id, so the front end leaves '#' to the SVG id syntax.
 add_test(NAME cli_tree_hash_is_an_id
@@ -229,6 +243,16 @@ add_test(NAME cli_group_duplicate
 set_tests_properties(cli_group_duplicate PROPERTIES
     PASS_REGULAR_EXPRESSION "error: duplicate node in group: a")
 
+add_test(NAME cli_group_result COMMAND $<TARGET_FILE:Cli>
+    "init; create rect a 0 0 1 1; create rect b 0 0 1 1; group gg a b")
+set_tests_properties(cli_group_result PROPERTIES PASS_REGULAR_EXPRESSION
+    "g#gg created with 2 children")
+
+add_test(NAME cli_ungroup_result COMMAND $<TARGET_FILE:Cli>
+    "init; create g layer; create rect a 0 0 1 1 in layer; create rect b 0 0 1 1 in layer; group gg a b; ungroup gg")
+set_tests_properties(cli_ungroup_result PROPERTIES PASS_REGULAR_EXPRESSION
+    "g#gg ungrouped into g#layer \\(2 elements\\)")
+
 # Event answers name elements the way the tree does; the hive's numeric handle never
 # appears in one.
 add_test(NAME cli_no_internal_handles
@@ -236,7 +260,7 @@ add_test(NAME cli_no_internal_handles
         "init; create g g1; create rect r1 0 0 1 1 in g1; create circle c1 0 0 1 in g1; move r1 5 5 params restrict; set r1 fill red; front r1; back r1; addto g1 r1")
 set_tests_properties(cli_no_internal_handles PROPERTIES
     PASS_REGULAR_EXPRESSION
-        "moved rect#r1 by \\(5, 5\\)\nset fill on rect#r1\nmoved rect#r1 to the front of g#g1\nmoved rect#r1 to the back of g#g1\nmoved rect#r1 to the end of g#g1"
+        "rect#r1 moved by \\(5, 5\\)\nset fill on rect#r1\nrect#r1 moved to the front of g#g1\nrect#r1 moved to the back of g#g1\nrect#r1 moved to the end of g#g1"
     FAIL_REGULAR_EXPRESSION "#0|#[1-9][0-9]*")
 
 add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>
@@ -331,6 +355,11 @@ set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: 
 add_test(NAME cli_set_view_box COMMAND $<TARGET_FILE:Cli>
     "init; set svg viewBox \"0 0 1024 768\"; show svg")
 set_tests_properties(cli_set_view_box PROPERTIES PASS_REGULAR_EXPRESSION "viewBox=\"0 0 1024 768\"")
+
+add_test(NAME cli_read_unsized_view_box COMMAND $<TARGET_FILE:Cli>
+    "read ${CMAKE_SOURCE_DIR}/tests/fixtures/viewbox-only.svg; show svg")
+set_tests_properties(cli_read_unsized_view_box PROPERTIES PASS_REGULAR_EXPRESSION
+    "svg \\(unsized\\) viewBox=\"0 0 100 50\"")
 
 add_test(NAME cli_invalid_view_box COMMAND $<TARGET_FILE:Cli>
     "init; set svg viewBox \"0 0 -1 10\"")

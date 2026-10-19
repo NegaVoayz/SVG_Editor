@@ -88,6 +88,7 @@ struct AttributeSet {
 
 struct ContentSet {
     NodeName node;
+    std::string content;
 };
 
 struct CanvasSet {

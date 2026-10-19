@@ -98,17 +98,18 @@ int main() {
     set_transform(document, layer, Transform{});
     CHECK(is_identity(document.transform(layer)));
 
-    // Both decompositions are exact; the output uses the skew with the smaller absolute
-    // angle. A skewX therefore reads back through a rotate/scale/skewY form, and vice versa.
+    // Both decompositions are exact. The shorter rendering wins, so a skew stays a single
+    // skew step instead of expanding into a rotate/scale/skew form with the other axis.
     const TransformParts skew_x = decomposed_with_x(skewed_x(15.0F));
     const TransformParts skew_y = decomposed_with_y(skewed_x(15.0F));
     CHECK(skew_x.skew_axis == SkewAxis::X);
     CHECK(skew_y.skew_axis == SkewAxis::Y);
     CHECK(std::fabs(skew_y.skew) < std::fabs(skew_x.skew));
-    CHECK(decomposed(skewed_x(15.0F)).skew_axis == SkewAxis::Y);
-    CHECK(transform_text(skewed_x(15.0F)) == "rotate(-15) scale(0.965926 1.03528) skewY(14.0362)");
-    CHECK(decomposed(skewed_y(-5.0F)).skew_axis == SkewAxis::X);
-    CHECK(transform_text(skewed_y(-5.0F)) == "rotate(-5) scale(1.00382 0.996195) skewX(-4.96221)");
+    CHECK(decomposed(skewed_x(15.0F)).skew_axis == SkewAxis::X);
+    CHECK(transform_text(skewed_x(15.0F)) == "skewX(15)");
+    CHECK(decomposed(skewed_y(-5.0F)).skew_axis == SkewAxis::Y);
+    CHECK(transform_text(skewed_y(-5.0F)) == "skewY(-5)");
+    CHECK(transform_text(skewed_y(15.0F)) == "skewY(15)");
 
     if (failures != 0) {
         std::printf("%d failure(s)\n", failures);

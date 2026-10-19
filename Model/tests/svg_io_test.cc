@@ -399,6 +399,15 @@ int main() {
     const std::string trs_svg = read_text(trs_path);
     CHECK(trs_svg.find("transform=\"translate(10 0) rotate(90)\"") != std::string::npos);
 
+    // A skew that already has the shortest form stays that way when it is written back.
+    const std::filesystem::path skew_path = file_named("svg_io_transform_skew.svg");
+    CHECK(write_text(skew_path,
+                     R"SVG(<svg><rect id="sheared" width="10" height="10" transform="skewY(15)"/></svg>)SVG"));
+    Document skew_document;
+    CHECK(ok(skew_document.open(skew_path.string())));
+    CHECK(ok(skew_document.save(skew_path.string())));
+    CHECK(read_text(skew_path).find("transform=\"skewY(15)\"") != std::string::npos);
+
     if (failures != 0) {
         std::printf("svg_io: %d check(s) failed\n", failures);
         return 1;
