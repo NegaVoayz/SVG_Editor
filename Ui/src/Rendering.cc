@@ -168,14 +168,11 @@ Words element_words(const SVGNode& element, const std::string& text) {
 
     // A text's words are the character data inside it. That is a node of the model and it
     // is not a line of the drawing: printing it inside the element is what makes a text
-    // read as a text.
-    if (std::holds_alternative<Text>(element.data)) {
-        std::string line = text_details(std::get<Text>(element.data));
-        if (!text.empty()) {
-            if (!line.empty()) line += " ";
-            line += "\"" + text + "\"";
-        }
-        append_detail(words, std::move(line));
+    // read as a text. Its position and style are attributes, so the words come last, after
+    // the paint and transform every element may carry.
+    const bool is_text = std::holds_alternative<Text>(element.data);
+    if (is_text) {
+        append_detail(words, text_details(std::get<Text>(element.data)));
     } else {
         append_detail(words, std::visit(AttrsText{}, element.data));
     }
@@ -194,6 +191,7 @@ Words element_words(const SVGNode& element, const std::string& text) {
     if (element.paint_attr.stroke_width) {
         append_detail(words, "stroke-width=" + to_text(*element.paint_attr.stroke_width));
     }
+    if (is_text && !text.empty()) append_detail(words, "\"" + text + "\"");
     return words;
 }
 

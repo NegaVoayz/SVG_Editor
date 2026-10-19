@@ -146,9 +146,18 @@ int main() {
     CHECK(render(NodeView{1, group("markers"), {}}) == "g#markers");
     CHECK(render(NodeView{1, group("markers"), {}, NodeParent{0, root_with(units(800), units(600))}}) ==
           "g#markers  parent=svg");
-    CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram"}) == "text#title (20,40) \"My Diagram\"");
+    CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram"}) ==
+          "text#title\n  (20,40)\n  \"My Diagram\"");
     CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram", NodeParent{1, group("markers")}}) ==
-          "text#title  parent=g#markers\n  (20,40) \"My Diagram\"");
+          "text#title  parent=g#markers\n  (20,40)\n  \"My Diagram\"");
+
+    // The character data is the last thing a text prints, after the paint attributes.
+    Node filled_text = text_element("title", 20, 40);
+    std::get<SVGNode>(filled_text).paint_attr.fill = Paint{Color{Color::Named{Color::NamedColorId::Red}}};
+    CHECK(render(NodeView{4, filled_text, "My Diagram"}) ==
+          "text#title\n  (20,40)\n  fill=red\n  \"My Diagram\"");
+    CHECK(render(TreeView{{row(0, true, filled_text, "My Diagram")}}) ==
+          "text#title (20,40) fill=red \"My Diagram\"");
 
     // An element with no id of its own is named by its kind alone, which is what the root
     // of an empty document is

@@ -55,6 +55,11 @@ add_test(NAME cli_set_text
     COMMAND $<TARGET_FILE:Cli> "init; create text title 20 40 \"My Diagram\"; set title text \"My Diagram v2\"; tree")
 set_tests_properties(cli_set_text PROPERTIES PASS_REGULAR_EXPRESSION "\"My Diagram v2\"")
 
+# The character data is printed after the text element's paint attributes.
+add_test(NAME cli_text_content_last COMMAND $<TARGET_FILE:Cli>
+    "init; create text t 20 40 \"hello\"; set t fill red; tree")
+set_tests_properties(cli_text_content_last PROPERTIES PASS_REGULAR_EXPRESSION "fill=red \"hello\"")
+
 # Deleting a leaf does not claim a subtree went with it, and edits have no route label.
 add_test(NAME cli_delete_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 1 1; delete box")
