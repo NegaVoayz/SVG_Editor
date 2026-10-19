@@ -132,6 +132,10 @@ int main() {
     // with a parent says where it hangs on the heading line.
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {}}) ==
           "rect#box\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
+    Node classified = rect("tagged", 0, 0, 1, 1, std::nullopt);
+    std::get<SVGNode>(classified).identity_attr.class_ = "a b";
+    CHECK(render(NodeView{3, std::move(classified), {}}) ==
+          "rect#tagged\n  class=\"a b\"\n  x=0 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("red", 0, 0, 1, 1, Color{Color::Named{Color::NamedColorId::RebeccaPurple}}), {}}) ==
           "rect#red\n  x=0 y=0 w=1 h=1\n  fill=rebeccapurple");
     CHECK(render(NodeView{3, rect("float", 1.234567F, 0, 1, 1, std::nullopt), {}}) ==

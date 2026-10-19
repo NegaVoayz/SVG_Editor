@@ -161,6 +161,11 @@ Words element_words(const SVGNode& element, const std::string& text) {
                      ? std::string{kind}
                      : std::string{kind} + "#" + quote_if_needed(element.identity_attr.id);
 
+    // `class` is a list of names, so it is quoted whenever it has more than one.
+    if (!element.identity_attr.class_.empty()) {
+        append_detail(words, "class=" + quote_if_needed(element.identity_attr.class_));
+    }
+
     // A text's words are the character data inside it. That is a node of the model and it
     // is not a line of the drawing: printing it inside the element is what makes a text
     // read as a text.

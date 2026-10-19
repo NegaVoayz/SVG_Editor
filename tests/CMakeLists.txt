@@ -192,6 +192,10 @@ add_test(NAME cli_quoted_attribute_error COMMAND $<TARGET_FILE:Cli> "init; creat
 set_tests_properties(cli_quoted_attribute_error PROPERTIES PASS_REGULAR_EXPRESSION
     "error: unknown attribute: \"bad attr\"")
 
+add_test(NAME cli_show_class COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; set r class \"a b\"; show r")
+set_tests_properties(cli_show_class PROPERTIES PASS_REGULAR_EXPRESSION "class=\"a b\"")
+
 add_test(NAME cli_quoted_path COMMAND $<TARGET_FILE:Cli> "read \"no such file.svg\"")
 set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: cannot read file: \"no such file.svg\"")
 
