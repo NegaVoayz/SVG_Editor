@@ -81,8 +81,6 @@ struct ScaleFactorNotPositive {};
 // A selector that cannot apply to the node the Editor resolved.
 struct TransformHasNoScope {};
 
-struct CascadeRequiresContainer {};
-
 // A container with no descendants has nothing for a move or a scale to change. Editing
 // its transform anyway would silently move whatever is inserted into it later.
 struct EmptyContainer {
@@ -149,7 +147,7 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
                              fault::TransformHasNoScope,
-                             fault::CascadeRequiresContainer, fault::EmptyContainer, fault::NoDirectParams,
+                             fault::EmptyContainer, fault::NoDirectParams,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,
                              fault::NothingToUndo, fault::UndoAfterIo, fault::NothingToRedo, fault::NoRootElement,
                              fault::RootIsNotContainer, fault::RootIsNotSvg, fault::MissingSourcePath,

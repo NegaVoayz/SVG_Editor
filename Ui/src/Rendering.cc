@@ -475,9 +475,6 @@ struct RefusalText {
     std::string operator()(const fault::TransformHasNoScope&) const {
         return "error: transform does not take cascade or restrict";
     }
-    std::string operator()(const fault::CascadeRequiresContainer&) const {
-        return "error: cascade is only for containers";
-    }
     std::string operator()(const fault::EmptyContainer& empty) const {
         const std::string_view kind = empty.element == "g" ? "group" : "container";
         return "error: cannot move or scale an empty " + std::string{kind} + ": " +

@@ -126,12 +126,12 @@ refused.
 it works for a shape, a text, a group and the root alike. `params` changes values
 directly. `restrict` limits the edit to the node itself: on a leaf that is its params, and
 on a container it is the container's own transform, so the message is
-`g#node2 moved by (0,100)`. `cascade` changes every descendant's params and is refused
-for a leaf. With no selector, `move` and `scale` use `params` and `cascade`; a leaf must
-name `restrict` or `transform`. A cascade stops at a descendant that already has a
-transform: it prepends the move or scale to that transform and leaves the subtree below
-alone, because editing those params would apply the operation in the child's local units
-instead of the parent's.
+`g#node2 moved by (0,100)`. `cascade` changes every descendant's params. A non-container
+has no container descendants, so its cascade changes that node's own params. With no
+selector, `move` and `scale` use `params` and `cascade`. A container cascade stops at a
+descendant that already has a transform: it prepends the move or scale to that transform
+and leaves the subtree below alone, because editing those params would apply the
+operation in the child's local units instead of the parent's.
 
 Moving or scaling an empty container is refused with
 `error: cannot move or scale an empty container: g#node2`. Such an edit would be

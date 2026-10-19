@@ -66,12 +66,12 @@ set_tests_properties(cli_scale_transform PROPERTIES PASS_REGULAR_EXPRESSION "tra
 add_test(NAME cli_move_cascade_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1 cascade")
 set_tests_properties(cli_move_cascade_leaf PROPERTIES PASS_REGULAR_EXPRESSION
-    "error: cascade is only for containers")
+    "moved rect#r by 1 1")
 
 add_test(NAME cli_move_default_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1")
 set_tests_properties(cli_move_default_leaf PROPERTIES PASS_REGULAR_EXPRESSION
-    "error: cascade is only for containers")
+    "moved rect#r by 1 1")
 
 add_test(NAME cli_move_restrict_container
     COMMAND $<TARGET_FILE:Cli>

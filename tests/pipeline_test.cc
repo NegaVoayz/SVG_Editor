@@ -471,9 +471,19 @@ int main() {
     }
     for (int edit = 0; edit < 5; ++edit) CHECK(planner.dispatch(Undo{}).ok());
 
-    CHECK(refused_with<fault::CascadeRequiresContainer>(
-        planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Params, EditScope::Cascade})));
-    CHECK(refused_with<fault::CascadeRequiresContainer>(planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1)})));
+    const Outcome explicit_leaf_cascade =
+        planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Params, EditScope::Cascade});
+    CHECK(explicit_leaf_cascade.ok());
+    if (happened_with<event::Moved>(explicit_leaf_cascade)) {
+        CHECK(std::get<event::Moved>(explicit_leaf_cascade.event()).mode == EditMode::Params);
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
+    const Outcome default_leaf_move = planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1)});
+    CHECK(default_leaf_move.ok());
+    if (happened_with<event::Moved>(default_leaf_move)) {
+        CHECK(std::get<event::Moved>(default_leaf_move.event()).mode == EditMode::Params);
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
     const Outcome restricted_group =
         planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Params, EditScope::Restrict});
     CHECK(restricted_group.ok());
@@ -674,9 +684,19 @@ int main() {
     }
     CHECK(planner.dispatch(Undo{}).ok());
 
-    CHECK(refused_with<fault::CascadeRequiresContainer>(
-        planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F, EditTarget::Params, EditScope::Cascade})));
-    CHECK(refused_with<fault::CascadeRequiresContainer>(planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F})));
+    const Outcome explicit_leaf_scale =
+        planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F, EditTarget::Params, EditScope::Cascade});
+    CHECK(explicit_leaf_scale.ok());
+    if (happened_with<event::Scaled>(explicit_leaf_scale)) {
+        CHECK(std::get<event::Scaled>(explicit_leaf_scale.event()).mode == EditMode::Params);
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
+    const Outcome default_leaf_scale = planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F});
+    CHECK(default_leaf_scale.ok());
+    if (happened_with<event::Scaled>(default_leaf_scale)) {
+        CHECK(std::get<event::Scaled>(default_leaf_scale.event()).mode == EditMode::Params);
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
     const Outcome restricted_scale =
         planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Params, EditScope::Restrict});
     CHECK(restricted_scale.ok());

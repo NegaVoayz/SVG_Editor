@@ -219,9 +219,9 @@ order, so a later line is nearer the front.
 transform list and leaves its params alone. A transform is a field of every SVG node, so
 this is accepted for containers too; the edit touches the container record and leaves its
 descendants untouched. `params` changes values directly. `restrict` edits only the node
-itself: a leaf's params, or a container's own transform. `cascade` edits descendants and
-is refused for a leaf. With neither selector, the defaults are `params` and `cascade`; a
-leaf must name `restrict` (or `transform`) explicitly.
+itself: a leaf's params, or a container's own transform. `cascade` edits descendants; on a
+non-container the only node in that subtree is the node itself, so it behaves as a params
+edit. With neither selector, the defaults are `params` and `cascade`.
 `Editor/src/Payload.cc` resolves the node kind, collects a cascade's changed payloads
 before opening a transaction, and commits them as one undo step. A cascade stops at any
 descendant that already carries a transform: writing a parent-space delta into that

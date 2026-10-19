@@ -232,7 +232,6 @@ int main() {
     CHECK(render(fault::InvalidId{"a b"}) == "error: invalid XML id: \"a b\"");
     CHECK(render(fault::ReservedId{"svg"}) == "error: id \"svg\" is reserved for the root");
     CHECK(render(fault::TransformHasNoScope{}) == "error: transform does not take cascade or restrict");
-    CHECK(render(fault::CascadeRequiresContainer{}) == "error: cascade is only for containers");
     CHECK(render(fault::EmptyContainer{"g", "node2"}) ==
           "error: cannot move or scale an empty group: g#node2");
     CHECK(render(fault::NoDirectParams{}) == "error: this node has no direct params");
