@@ -126,16 +126,20 @@ refused.
 that field, so it works for a shape, a text, a group and the root alike. `params` changes values
 directly. `restrict` limits the edit to the node itself: on a leaf that is its params, and
 on a container it is the container's own transform, so the message is
-`g#node2 moved by (0,100)`. `cascade` changes every descendant's params. A non-container
+`moved g#node2 by (0, 100)`. `cascade` changes every descendant's params. A non-container
 has no container descendants, so its cascade changes that node's own params. With no
 selector, `move` and `scale` use `params` and `cascade`. A node that already carries a
 transform is a coordinate-system boundary too: a parent-space offset written into its
 params would be read in its local units, so the operation pre-multiplies its matrix
-instead, and the answer says `in its transform`. This applies to the node the instruction
+instead. This applies to the node the instruction
 named as well as to a transformed descendant; an untransformed node still changes its
 params by default. When a cascade reaches such a descendant, it pre-multiplies the move
 or scale into that descendant's matrix and leaves the subtree below alone, because the
 new matrix already covers it.
+
+A `move` answer uses one sentence for every mode: `moved <target> by (x, y)`. A cascade
+target reads `3 node(s) under g#g1`; a transformed node keeps its ordinary target name.
+The mode is still in `event::Moved`, but is not repeated in the prose.
 
 A transform list is one or more of `translate(x [y])`, `scale(x [y])`,
 `rotate(deg [cx cy])`, `skewX(deg)`, `skewY(deg)` and `matrix(a b c d e f)`.

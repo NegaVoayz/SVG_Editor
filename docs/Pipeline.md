@@ -228,8 +228,9 @@ descendant a cascade reached: writing a parent-space delta into its params would
 in its local coordinate system and move it by the wrong amount. The operation is
 pre-multiplied into that node's matrix instead, and a cascade leaves its subtree alone
 because the new matrix already covers it. A transformed node therefore takes a default or
-explicit `params` move or scale in its transform, and the answer says `in its transform`;
-an untransformed node still changes its params. `event::Moved`/
+explicit `params` move or scale in its transform; a scale says `in its transform` when it
+takes that route, while every `move` answer uses `moved <target> by (x, y)`.
+An untransformed node still changes its params. `event::Moved`/
 `event::Scaled` carry the resolved mode and the number of nodes whose params or transform
 the edit changed.
 

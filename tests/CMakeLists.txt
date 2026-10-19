@@ -66,18 +66,18 @@ set_tests_properties(cli_scale_transform PROPERTIES PASS_REGULAR_EXPRESSION "tra
 add_test(NAME cli_move_cascade_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1 cascade")
 set_tests_properties(cli_move_cascade_leaf PROPERTIES PASS_REGULAR_EXPRESSION
-    "moved rect#r by 1 1")
+    "moved rect#r by \\(1, 1\\)")
 
 add_test(NAME cli_move_default_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1")
 set_tests_properties(cli_move_default_leaf PROPERTIES PASS_REGULAR_EXPRESSION
-    "moved rect#r by 1 1")
+    "moved rect#r by \\(1, 1\\)")
 
 add_test(NAME cli_move_restrict_container
     COMMAND $<TARGET_FILE:Cli>
         "init; create g g1; create rect r 0 0 1 1 in g1; move g1 0 100 restrict")
 set_tests_properties(cli_move_restrict_container PROPERTIES PASS_REGULAR_EXPRESSION
-    "g#g1 moved by \\(0,100\\)")
+    "moved g#g1 by \\(0, 100\\)")
 
 add_test(NAME cli_move_empty_container
     COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 restrict")
@@ -96,7 +96,7 @@ add_test(NAME cli_move_transformed_container_default
     COMMAND $<TARGET_FILE:Cli>
         "init; create g gR; create rect a 0 0 10 10 in gR; set gR transform \"rotate(90)\"; move gR 10 0; show gR")
 set_tests_properties(cli_move_transformed_container_default PROPERTIES PASS_REGULAR_EXPRESSION
-    "moved g#gR by 10 0 in its transform")
+    "moved g#gR by \\(10, 0\\)")
 
 add_test(NAME cli_move_transformed_container_chain
     COMMAND $<TARGET_FILE:Cli>
@@ -236,7 +236,7 @@ add_test(NAME cli_no_internal_handles
         "init; create g g1; create rect r1 0 0 1 1 in g1; create circle c1 0 0 1 in g1; move r1 5 5 params restrict; set r1 fill red; front r1; back r1; addto g1 r1")
 set_tests_properties(cli_no_internal_handles PROPERTIES
     PASS_REGULAR_EXPRESSION
-        "moved rect#r1 by 5 5\nset fill on rect#r1\nmoved rect#r1 to the front of g#g1\nmoved rect#r1 to the back of g#g1\nmoved rect#r1 to the end of g#g1"
+        "moved rect#r1 by \\(5, 5\\)\nset fill on rect#r1\nmoved rect#r1 to the front of g#g1\nmoved rect#r1 to the back of g#g1\nmoved rect#r1 to the end of g#g1"
     FAIL_REGULAR_EXPRESSION "#0|#[1-9][0-9]*")
 
 add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>

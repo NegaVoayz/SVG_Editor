@@ -330,18 +330,13 @@ struct EventText {
         return message;
     }
     std::string operator()(const event::Moved& moved) const {
-        if (moved.mode == EditMode::ContainerTransform) {
-            return element_label(moved.node) + " moved by (" + to_text(moved.dx) + "," + to_text(moved.dy) + ")";
-        }
-        std::string message;
+        std::string target;
         if (moved.mode == EditMode::Cascade) {
-            message = "moved " + std::to_string(moved.nodes) + " node(s) under " + element_label(moved.node);
+            target = std::to_string(moved.nodes) + " node(s) under " + element_label(moved.node);
         } else {
-            message = "moved " + element_label(moved.node);
+            target = element_label(moved.node);
         }
-        message += " by " + to_text(moved.dx) + " " + to_text(moved.dy);
-        if (moved.mode == EditMode::Transform) message += " in its transform";
-        return message;
+        return "moved " + target + " by (" + to_text(moved.dx) + ", " + to_text(moved.dy) + ")";
     }
     std::string operator()(const event::Scaled& scaled) const {
         if (scaled.mode == EditMode::ContainerTransform) {

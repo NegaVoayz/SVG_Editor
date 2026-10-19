@@ -196,15 +196,15 @@ int main() {
           "g#markers created holding 2 node(s)");
     CHECK(render(event::Ungrouped{{"g", "pair"}, {"svg", ""}, 2}) ==
           "released 2 node(s) into svg and erased g#pair");
-    CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7)}) == "moved rect#r1 by 5 7");
+    CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7)}) == "moved rect#r1 by (5, 7)");
     CHECK(render(event::Moved{{"rect", "r1"}, units(5), units(7), EditMode::Transform}) ==
-          "moved rect#r1 by 5 7 in its transform");
+          "moved rect#r1 by (5, 7)");
     CHECK(render(event::Moved{{"g", "g1"}, units(5), units(7), EditMode::Cascade, 3}) ==
-          "moved 3 node(s) under g#g1 by 5 7");
+          "moved 3 node(s) under g#g1 by (5, 7)");
     CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::ContainerTransform}) ==
-          "g#node2 moved by (0,100)");
+          "moved g#node2 by (0, 100)");
     CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::Transform}) ==
-          "moved g#node2 by 0 100 in its transform");
+          "moved g#node2 by (0, 100)");
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F}) ==
           "scaled rect#r1 by 2, so everything drawn with it grew by that much");
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F, EditMode::Transform}) ==
