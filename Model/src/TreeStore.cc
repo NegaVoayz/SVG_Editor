@@ -1,5 +1,7 @@
 #include "TreeStore.hh"
 
+#include <algorithm>
+#include <iterator>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -204,6 +206,51 @@ CommitId TreeStore::commit_id() const { return view_ ? view_->commit_id() : 0; }
 std::optional<CommitId> TreeStore::commit_at(std::size_t position) const {
     if (checkouts_.size() < 2 || position >= checkouts_.size() - 1) return std::nullopt;
     return checkouts_[position + 1];
+}
+
+std::optional<HistoryCheckout> TreeStore::checkout(CommitId commit) {
+    if (!view_) return std::nullopt;
+    const auto found = std::find(checkouts_.begin(), checkouts_.end(), commit);
+    if (found == checkouts_.end()) return std::nullopt;
+    const std::size_t target = static_cast<std::size_t>(std::distance(checkouts_.begin(), found));
+    if (target == position_) return HistoryCheckout{position_, {}};
+
+    // The hive only exposes undo/redo as ways to move its checkout, so a jump walks the
+    // retained branch once. The work is the sum of the commits crossed, not a run of
+    // separate user instructions, and the redo tail is left intact.
+    TouchedNodes touched;
+    auto record = [&touched](const TouchedNodes& steps) {
+        for (const TouchedNode& step : steps) {
+            const auto existing =
+                std::find_if(touched.begin(), touched.end(), [&step](const TouchedNode& value) {
+                    return value.node == step.node;
+                });
+            if (existing == touched.end()) {
+                touched.push_back(step);
+            } else {
+                existing->kind = step.kind;
+            }
+        }
+    };
+
+    if (target < position_) {
+        while (position_ > target) {
+            const CommitId leaving = view_->commit_id();
+            if (!nodes_.undo()) throw std::logic_error("TreeStore: checkout left the retained history");
+            --position_;
+            view_ = nodes_.head();
+            record(touched_by(leaving, Direction::Undo));
+        }
+    } else {
+        while (position_ < target) {
+            if (!nodes_.redo()) throw std::logic_error("TreeStore: checkout left the retained history");
+            ++position_;
+            view_ = nodes_.head();
+            record(touched_by(view_->commit_id(), Direction::Redo));
+        }
+    }
+    require_checkout_matches_view();
+    return HistoryCheckout{position_, std::move(touched)};
 }
 
 void TreeStore::require_checkout_matches_view() const {

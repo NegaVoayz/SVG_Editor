@@ -40,6 +40,7 @@ template<> Outcome Editor::handle<Set>(const Set& intent);
 // History.cc: the edits that are not of the tree at all.
 template<> Outcome Editor::handle<Undo>(const Undo& intent);
 template<> Outcome Editor::handle<Redo>(const Redo& intent);
+template<> Outcome Editor::handle<Checkout>(const Checkout& intent);
 
 // The one element more than one file builds. A command builds its own element, but the
 // three that rearrange the tree - `group` in particular - have to make one out of nothing

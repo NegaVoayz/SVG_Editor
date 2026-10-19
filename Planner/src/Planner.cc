@@ -155,6 +155,11 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
                                             parent_of(document_, *node), document_.transform(*node)}});
 }
 
+template<> Outcome Planner::handle<ShowHistory>(const ShowHistory& intent) {
+    if (!document_.has_document()) return no_document(Kind::View);
+    return viewed(Kind::View, View{editor_.history(intent.limit)});
+}
+
 // `init` replaces the document, file and all, rather than editing the tree in it: the
 // canvas an instruction may carry comes with the new root, and there is nothing left of
 // the old document to undo back into.

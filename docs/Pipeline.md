@@ -154,6 +154,7 @@ until every one of them names it.
 | ------------------------------------------------ | ------------------------------------------------------ | ----------------------- |
 | `tree [id]`                                      | the tree, the whole document by default                | the Planner, Model's viewing API |
 | `show <id>`                                      | one element's attributes and its parent                | the Planner, Model's viewing API |
+| `history [n]`                                    | the last n edits with their commit ids, all by default | the Editor's replay log |
 | `canvas`                                         | the document's size, which is the root element's       | the Planner, Model's viewing API |
 | `help`                                           | the command list                                       | the front end itself    |
 | `create rect <id> <x> <y> <w> <h> [fill]`        | a rectangle                                            | the Editor, one transaction |
@@ -170,7 +171,7 @@ until every one of them names it.
 | `ungroup <gid>`                                  | the children, back in the group's place                | the Editor, one transaction |
 | `addto <gid> <id>`                               | the node, as the last child (the front) of a container  | the Editor, one transaction |
 | `front <id>` / `back <id>`                       | the two ends of the child order, last child in front    | the Editor, one transaction |
-| `undo` / `redo`                                  | one instruction back, or forward again                 | the Editor, the history |
+| `undo` / `redo` / `checkout <commit>`            | one instruction back, forward again, or to a commit    | the Editor, the history |
 | `canvas <w> [h]`                                 | a new size, and a checkpoint                           | the Editor, the history |
 | `init [w] [h]`                                   | a fresh document, 800x600 by default                   | the Planner, Model      |
 | `read <file.svg>`                                | read a document                                        | the Planner, Model/FileSystem |

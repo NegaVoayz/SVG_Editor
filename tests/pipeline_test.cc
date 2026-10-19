@@ -1229,6 +1229,48 @@ int main() {
             if (original) CHECK(std::holds_alternative<event::AttributeSet>(*original));
         }
 
+        const Outcome listed = replay_planner.dispatch(ShowHistory{});
+        CHECK(listed.ok());
+        CHECK(std::holds_alternative<HistoryView>(listed.view()));
+        if (std::holds_alternative<HistoryView>(listed.view())) {
+            const HistoryView& history = std::get<HistoryView>(listed.view());
+            CHECK(history.position == 3);
+            CHECK(history.depth == 3);
+            CHECK(history.entries.size() == 3);
+            if (history.entries.size() == 3) {
+                CHECK(history.entries[0].commit == created_commit);
+                CHECK(history.entries[1].commit == moved_commit);
+                CHECK(history.entries[2].commit == class_commit);
+                CHECK(history.entries[2].outcome != nullptr);
+            }
+        }
+
+        const Outcome recent = replay_planner.dispatch(ShowHistory{std::size_t{1}});
+        CHECK(recent.ok());
+        if (std::holds_alternative<HistoryView>(recent.view())) {
+            const HistoryView& history = std::get<HistoryView>(recent.view());
+            CHECK(history.entries.size() == 1);
+            if (history.entries.size() == 1) CHECK(history.entries[0].commit == class_commit);
+        }
+
+        const Outcome jumped = replay_planner.dispatch(Checkout{moved_commit});
+        CHECK(happened_with<event::CheckedOut>(jumped));
+        if (happened_with<event::CheckedOut>(jumped)) {
+            const event::CheckedOut& checkout = std::get<event::CheckedOut>(jumped.event());
+            CHECK(checkout.commit == moved_commit);
+            CHECK(checkout.position == 2);
+            CHECK(checkout.original != nullptr);
+            if (checkout.original) CHECK(std::holds_alternative<event::Moved>(*checkout.original));
+        }
+        CHECK(replay_document.commit_id() == moved_commit);
+        CHECK(replay_document.position() == 2);
+        CHECK(replay_document.can_redo());
+
+        const Outcome returned = replay_planner.dispatch(Checkout{class_commit});
+        CHECK(happened_with<event::CheckedOut>(returned));
+        CHECK(replay_document.commit_id() == class_commit);
+        CHECK(replay_document.position() == 3);
+
         CHECK(replay_planner.dispatch(Undo{}).ok());
         CHECK(replay_planner.dispatch(Create{CreateCircle{"c", units(1), units(1), units(1), std::nullopt}}).ok());
         const CommitId branch_commit = replay_document.commit_id();

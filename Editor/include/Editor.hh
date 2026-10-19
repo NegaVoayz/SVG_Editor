@@ -38,6 +38,10 @@ public:
     // branch that quietly does nothing.
     Outcome translate(const ChangeIntent& intent);
 
+    // The last `limit` edits of the current context, oldest first. The view carries the
+    // commit ids `checkout` takes.
+    HistoryView history(std::optional<std::size_t> limit);
+
 private:
     // Which translation answers an instruction is a question about the type of the
     // instruction, and this is the whole of the answer: an instruction that brings an

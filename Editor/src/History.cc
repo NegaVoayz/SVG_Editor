@@ -38,3 +38,18 @@ template<> Outcome Editor::handle<Redo>(const Redo&) {
                     event::Redone{document_.position(), document_.depth(), std::move(touched), std::move(original),
                                   document_.commit_id()});
 }
+
+template<> Outcome Editor::handle<Checkout>(const Checkout& intent) {
+    sync_history_events();
+    const std::optional<HistoryCheckout> moved = document_.checkout(intent.commit);
+    if (!moved) return refused(Kind::Change, fault::UnknownCommit{intent.commit});
+
+    std::shared_ptr<const event::EditEvent> original;
+    if (moved->position > 0) {
+        const std::optional<CommitId> commit = document_.commit_at(moved->position - 1);
+        if (commit) original = history_event(moved->position - 1, *commit);
+    }
+    return happened(Kind::Change,
+                    event::CheckedOut{moved->position, document_.depth(), moved->touched, std::move(original),
+                                      intent.commit});
+}

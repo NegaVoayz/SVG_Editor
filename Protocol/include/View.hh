@@ -6,6 +6,7 @@
 #include <variant>
 #include <vector>
 
+#include "Event.hh"
 #include "SVGNode.hh"
 
 // What a read hands back: the document as data rather than as a sentence. The ui layer is
@@ -44,6 +45,14 @@ struct NodeView {
     Transform transform = {};
 };
 
+// The edits since the last context change, with their commit ids, in the order they
+// happened. A checkout moves to one of these, so the list is also its operand table.
+struct HistoryView {
+    std::size_t position = 0;
+    std::size_t depth = 0;
+    std::vector<event::HistoryEntry> entries;
+};
+
 // One of the two reads, or nothing: an outcome that is a change or a failure carries its
 // sentence instead of a view.
-using View = std::variant<std::monostate, TreeView, NodeView>;
+using View = std::variant<std::monostate, TreeView, NodeView, HistoryView>;

@@ -86,6 +86,8 @@ std::size_t Document::position() const { return store_.position(); }
 CommitId Document::commit_id() const { return store_.commit_id(); }
 std::optional<CommitId> Document::commit_at(std::size_t position) const { return store_.commit_at(position); }
 
+std::optional<HistoryCheckout> Document::checkout(CommitId commit) { return store_.checkout(commit); }
+
 Status Document::open(std::string_view path) {
     const FileResult file = FileSystem::read(path);
     if (!std::holds_alternative<FileBytes>(file)) return model_status::CannotReadFile{std::string{path}};

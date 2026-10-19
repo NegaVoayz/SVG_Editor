@@ -4,7 +4,10 @@
 #include "Command.hh"
 
 #include <array>
+#include <charconv>
 #include <cstddef>
+#include <cstdint>
+#include <system_error>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -114,6 +117,32 @@ Request parse_redo(const Words& words) {
     return Redo{};
 }
 
+Request parse_checkout(const Words& words) {
+    expect(words.size(), 2, "checkout takes '<commit>' from history");
+    CommitId commit = 0;
+    const std::string& word = words[1];
+    const auto [end, error] = std::from_chars(word.data(), word.data() + word.size(), commit);
+    if (error != std::errc{} || end != word.data() + word.size() || commit == 0) {
+        throw ParseFailed{"cannot read '" + word + "' as a commit id"};
+    }
+    return Checkout{commit};
+}
+
+Request parse_history(const Words& words) {
+    expect_between(words.size(), 1, 2, "history takes an optional count");
+    ShowHistory intent;
+    if (words.size() == 2) {
+        std::size_t limit = 0;
+        const std::string& word = words[1];
+        const auto [end, error] = std::from_chars(word.data(), word.data() + word.size(), limit);
+        if (error != std::errc{} || end != word.data() + word.size()) {
+            throw ParseFailed{"cannot read '" + word + "' as a history count"};
+        }
+        intent.limit = limit;
+    }
+    return intent;
+}
+
 Request parse_tree(const Words& words) {
     expect_between(words.size(), 1, 2, "tree takes an optional '<id>'");
     ShowTree intent;
@@ -165,12 +194,13 @@ Request parse_help(const Words& words) {
 }
 
 // The vocabulary itself: one row per verb, in the order the help lists them - `canvas` is
-// the one row that answers both of the forms the help gives it. Nineteen names to compare
-// one word against is a scan, not a lookup structure.
-constexpr std::array<Verb, 19> table{{
+// the one row that answers both of the forms the help gives it. A table this size is a
+// scan, not a lookup structure.
+constexpr std::array<Verb, 21> table{{
     {"help", parse_help},
     {"tree", parse_tree},
     {"show", parse_show},
+    {"history", parse_history},
     {"canvas", parse_canvas},
     {"create", parse_create},
     {"delete", parse_delete},
@@ -184,6 +214,7 @@ constexpr std::array<Verb, 19> table{{
     {"back", parse_back},
     {"undo", parse_undo},
     {"redo", parse_redo},
+    {"checkout", parse_checkout},
     {"init", parse_init},
     {"read", parse_read},
     {"save", parse_save},

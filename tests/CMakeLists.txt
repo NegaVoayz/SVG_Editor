@@ -354,6 +354,32 @@ add_test(NAME cli_undo_redo_history_outcome COMMAND $<TARGET_FILE:Cli>
 set_tests_properties(cli_undo_redo_history_outcome PROPERTIES PASS_REGULAR_EXPRESSION
     "undo: rect#r moved by \\(5, 7\\)\nredo: rect#r moved by \\(5, 7\\)")
 
+# `history` lists the current context branch, and `checkout` takes one of its ids.
+add_test(NAME cli_history COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; move r 5 7; history")
+set_tests_properties(cli_history PROPERTIES PASS_REGULAR_EXPRESSION
+    "2 +rect#r created\n3 +rect#r moved by \\(5, 7\\)")
+
+add_test(NAME cli_history_limit COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; move r 5 7; history 1")
+set_tests_properties(cli_history_limit PROPERTIES
+    PASS_REGULAR_EXPRESSION "3 +rect#r moved by \\(5, 7\\)"
+    FAIL_REGULAR_EXPRESSION "2 +rect#r created")
+
+add_test(NAME cli_history_after_canvas COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; canvas 800 600; history")
+set_tests_properties(cli_history_after_canvas PROPERTIES PASS_REGULAR_EXPRESSION "no history")
+
+add_test(NAME cli_checkout COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; move r 5 7; checkout 2; show r; checkout 3; show r")
+set_tests_properties(cli_checkout PROPERTIES PASS_REGULAR_EXPRESSION
+    "checked out 2: rect#r created\nrect#r  parent=svg\n  x=0 y=0 w=1 h=1\nchecked out 3: rect#r moved by \\(5, 7\\)\nrect#r  parent=svg\n  x=5 y=7 w=1 h=1")
+
+add_test(NAME cli_checkout_unknown COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; checkout 999")
+set_tests_properties(cli_checkout_unknown PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: no such commit: 999")
+
 # A parameter with a space is one word when it is quoted, and the answer prints it back
 # the same way so the reader can copy it into another instruction.
 add_test(NAME cli_invalid_quoted_id COMMAND $<TARGET_FILE:Cli> "init; create g \"a b\"")

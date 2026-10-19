@@ -212,6 +212,17 @@ int main() {
     // labelled words it is made of.
     CHECK(render(NodeView{7, Node{PlainText{"hello"}}, "hello"}) == "<text-node> text=\"hello\"");
 
+    // The history is the current context branch, oldest first, with the ids checkout takes.
+    HistoryView history;
+    history.position = 1;
+    history.depth = 2;
+    history.entries.push_back(event::HistoryEntry{
+        12, std::make_shared<const event::EditEvent>(event::Created{{"rect", "r"}, {"svg", ""}, false})});
+    history.entries.push_back(event::HistoryEntry{
+        13, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r"}, units(5), units(7)})});
+    CHECK(render(history) == "12  rect#r created\n13  rect#r moved by (5, 7)");
+    CHECK(render(HistoryView{}) == "no history");
+
     // The other half of the boundary: an event and a refusal are data until this file
     // turns them into words. Every branch is plain prose; a refusal starts with `error:`.
     CHECK(render(event::Created{{"rect", "box"}, {"g", "markers"}, false}) == "rect#box created");
@@ -258,6 +269,11 @@ int main() {
               3, 3, {},
               std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)})}) ==
           "redo: rect#r1 moved by (5, 7)");
+    CHECK(render(event::CheckedOut{
+              2, 3, {},
+              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)}), 13}) ==
+          "checked out 13: rect#r1 moved by (5, 7)");
+    CHECK(render(event::CheckedOut{0, 3, {}, nullptr, 12}) == "checked out 12");
     CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
     CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");
@@ -276,6 +292,7 @@ int main() {
     CHECK(render(fault::NonPositiveCanvas{"height"}) == "error: canvas height must be positive");
     CHECK(render(fault::NonFiniteValue{"scaled value"}) ==
           "error: \"scaled value\" must be a finite number");
+    CHECK(render(fault::UnknownCommit{42}) == "error: no such commit: 42");
     CHECK(render(fault::InvalidId{"a b"}) == "error: invalid XML id: \"a b\"");
     CHECK(render(fault::ReservedId{"svg"}) == "error: id \"svg\" is reserved for the root");
     CHECK(render(fault::TransformHasNoScope{}) == "error: transform does not take cascade or restrict");

@@ -72,6 +72,11 @@ public:
     // for every hive that took part in that edit.
     std::optional<CommitId> commit_at(std::size_t position) const;
 
+    // Move the checkout to a commit on the current branch. Nothing is committed and the
+    // redo tail stays available. The result reports the checkout's position and the
+    // visible nodes the jump changed; an unknown or pruned commit answers nothing.
+    std::optional<HistoryCheckout> checkout(CommitId commit);
+
     // Forget the way back: the current tree stays and becomes the baseline.
     void clear_history();
 

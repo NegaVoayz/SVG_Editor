@@ -4,6 +4,7 @@
 #include <string>
 #include <variant>
 
+#include "History.hh"
 #include "NodeRef.hh"
 #include "SVGNode.hh"
 #include "SvgDiagnostic.hh"
@@ -106,6 +107,10 @@ struct UndoAfterIo {};
 
 struct NothingToRedo {};
 
+struct UnknownCommit {
+    CommitId commit;
+};
+
 struct NoRootElement {};
 
 struct RootIsNotContainer {};
@@ -154,7 +159,8 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::TransformHasNoScope,
                              fault::EmptyContainer, fault::NoDirectParams,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,
-                             fault::NothingToUndo, fault::UndoAfterIo, fault::NothingToRedo, fault::NoRootElement,
+                             fault::NothingToUndo, fault::UndoAfterIo, fault::NothingToRedo, fault::UnknownCommit,
+                             fault::NoRootElement,
                              fault::RootIsNotContainer, fault::RootIsNotSvg, fault::MissingSourcePath,
                              fault::CannotReadFile, fault::CannotWriteFile, fault::InvalidSvg,
                              fault::IncompatibleLengths,

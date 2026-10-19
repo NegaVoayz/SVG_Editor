@@ -342,6 +342,22 @@ int main() {
         CHECK(!as<SetCanvas>(widened).height.has_value());
     }
 
+    // history reads the current branch; checkout takes one of its commit ids.
+    const Request all_history = parse("history");
+    CHECK(holds<ShowHistory>(all_history));
+    if (holds<ShowHistory>(all_history)) CHECK(!as<ShowHistory>(all_history).limit.has_value());
+    const Request recent_history = parse("history 2");
+    CHECK(holds<ShowHistory>(recent_history));
+    if (holds<ShowHistory>(recent_history)) CHECK(as<ShowHistory>(recent_history).limit == 2);
+    CHECK(refuses(parse("history two")));
+    CHECK(refuses(parse("history -1")));
+
+    const Request checkout = parse("checkout 42");
+    CHECK(holds<Checkout>(checkout));
+    if (holds<Checkout>(checkout)) CHECK(as<Checkout>(checkout).commit == 42);
+    CHECK(refuses(parse("checkout 0")));
+    CHECK(refuses(parse("checkout")));
+
     // the context changes
     const Request fresh = parse("init");
     CHECK(holds<Init>(fresh));

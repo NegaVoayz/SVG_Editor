@@ -160,10 +160,20 @@ struct Redone {
     CommitId checkout = 0;
 };
 
+// A history jump to a commit shown by `history`. The outcome is the edit that commit
+// introduced; a checkout of the baseline has none.
+struct CheckedOut {
+    std::size_t position;
+    std::size_t depth;
+    TouchedNodes touched;
+    std::shared_ptr<const EditEvent> original;
+    CommitId commit = 0;
+};
+
 }  // namespace event
 
 using Event = std::variant<event::Created, event::Deleted, event::Moved, event::Scaled, event::AddedTo,
                            event::MovedToFront, event::MovedToBack, event::Grouped, event::Ungrouped,
                            event::AttributeSet, event::ContentSet, event::CanvasSet, event::Undone, event::Redone,
-                           event::NothingMoved, event::AlreadyFront, event::AlreadyBack, event::Initialized,
-                           event::Opened, event::Saved>;
+                           event::CheckedOut, event::NothingMoved, event::AlreadyFront, event::AlreadyBack,
+                           event::Initialized, event::Opened, event::Saved>;

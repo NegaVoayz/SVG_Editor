@@ -270,12 +270,18 @@ using Set = std::variant<SetX, SetY, SetW, SetH, SetCx, SetCy, SetR, SetRx, SetR
 
 struct Undo {};
 struct Redo {};
+struct Checkout {
+    CommitId commit;
+};
 struct SetCanvas { std::optional<LengthPercentage> width, height; };
 // Back to a fresh document: an empty tree, the canvas the instruction gave (default 800x600
 // for whichever side it left out), no history and no file behind it.
 struct Init { std::optional<LengthPercentage> width, height; };
 struct ShowTree { NodeRef node = RootRef{}; };
 struct Show { NodeRef node; };
+struct ShowHistory {
+    std::optional<std::size_t> limit;
+};
 struct Read { std::string path; };
 // No path: write where the document was read from, which is the Model's to remember.
 struct Save { std::optional<std::string> path; };
@@ -290,10 +296,11 @@ using Create = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine,
 // specialization rather than by a chain over verbs. A create is answered by a second visit,
 // over the kinds it may hold.
 using Intent = std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Set, Undo, Redo,
-                            SetCanvas, Init, ShowTree, Show, Read, Save>;
+                            Checkout, SetCanvas, Init, ShowTree, Show, ShowHistory, Read, Save>;
 
 // The change instructions on their own: the Editor is typed to these, so a view or a
 // context instruction reaching the write path is not a runtime branch it has to refuse, it
 // is a type it does not accept.
 using ChangeIntent =
-    std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Set, SetCanvas, Undo, Redo>;
+    std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Set, SetCanvas, Undo, Redo,
+                 Checkout>;

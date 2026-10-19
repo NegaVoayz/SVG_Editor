@@ -78,6 +78,7 @@ bool starts_comment(std::string_view line) {
 std::string_view usage() {
     return "  view     tree [id]              the tree, the whole document by default\n"
            "           show <id>              one element's attributes and parent\n"
+           "           history [n]            the last n edits and their commit ids, all by default\n"
            "           canvas                 the document's size, which is the root's\n"
            "           help                   this list\n"
            "  change   create <kind> <id> [values] [in <gid>]\n"
@@ -94,7 +95,7 @@ std::string_view usage() {
            "           group <newGid> <id> <id> ... | ungroup <gid> | addto <gid> <id>\n"
            "           front <id> | back <id>   the ends of the child order, last child in front\n"
            "           canvas <w> [h]         a new size, and the history starts over\n"
-           "           undo | redo\n"
+           "           undo | redo | checkout <commit>\n"
            "  context  init [w] [h]           a fresh document, 800x600 by default\n"
            "           read <file.svg>        read a document, naming what it left unnamed\n"
            "           save [file.svg]        write it, and the history starts over\n"

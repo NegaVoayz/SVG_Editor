@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -32,3 +33,9 @@ struct TouchedNode {
 };
 
 using TouchedNodes = std::vector<TouchedNode>;
+
+// The result of moving the checkout to a commit in the current history branch.
+struct HistoryCheckout {
+    std::size_t position;
+    TouchedNodes touched;
+};

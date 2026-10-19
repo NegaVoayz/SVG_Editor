@@ -277,6 +277,7 @@ std::string render(const NodeView& view) {
 std::string render(const View& view) {
     if (std::holds_alternative<TreeView>(view)) return render(std::get<TreeView>(view));
     if (std::holds_alternative<NodeView>(view)) return render(std::get<NodeView>(view));
+    if (std::holds_alternative<HistoryView>(view)) return render(std::get<HistoryView>(view));
     return {};
 }
 
@@ -374,6 +375,11 @@ struct EventText {
     }
     std::string operator()(const event::Undone& undo) const;
     std::string operator()(const event::Redone& redo) const;
+    std::string operator()(const event::CheckedOut& checkout) const {
+        std::string message = "checked out " + std::to_string(checkout.commit);
+        if (checkout.original) message += ": " + std::visit(*this, *checkout.original);
+        return message;
+    }
     std::string operator()(const event::NothingMoved&) const { return "the offset is zero, nothing moved"; }
     std::string operator()(const event::AlreadyFront& front) const {
         return element_label(front.node) + " is already in front";
@@ -494,6 +500,9 @@ struct RefusalText {
         return "error: undo not allowed after io command";
     }
     std::string operator()(const fault::NothingToRedo&) const { return "error: there is nothing left to redo"; }
+    std::string operator()(const fault::UnknownCommit& missing) const {
+        return "error: no such commit: " + std::to_string(missing.commit);
+    }
     std::string operator()(const fault::NoRootElement&) const {
         return "error: the document has no root element";
     }
@@ -571,6 +580,17 @@ struct OutcomeText {
 std::string render(const Event& event) { return std::visit(EventText{}, event); }
 
 std::string render(const Refusal& refusal) { return std::visit(RefusalText{}, refusal); }
+
+std::string render(const HistoryView& view) {
+    if (view.entries.empty()) return "no history";
+    std::string out;
+    for (const event::HistoryEntry& entry : view.entries) {
+        if (!out.empty()) out += '\n';
+        out += std::to_string(entry.commit);
+        if (entry.outcome) out += "  " + std::visit(EventText{}, *entry.outcome);
+    }
+    return out;
+}
 
 std::string render(const Outcome& outcome) { return std::visit(OutcomeText{}, outcome.result); }
 

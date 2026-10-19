@@ -107,6 +107,9 @@ public:
     // for every hive that took part in that edit.
     std::optional<CommitId> commit_at(std::size_t position) const;
 
+    // Move to a commit in the current context's history, without committing anything.
+    std::optional<HistoryCheckout> checkout(CommitId commit);
+
     // --- the file the document came from (Model/FileSystem) ---
 
     // Where the document was last read from, empty when it came from nowhere. A

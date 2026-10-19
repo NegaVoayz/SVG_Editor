@@ -568,6 +568,61 @@ int main() {
         CHECK(!branch.can_redo());
     }
 
+    // Checkout jumps straight to a commit on the current branch, in either direction,
+    // and leaves the redo tail available.
+    {
+        Document document;
+        document.reset(std::nullopt, std::nullopt);
+        const CommitId baseline = document.commit_id();
+
+        Id a = no_id;
+        {
+            Transaction edit = document.transaction();
+            a = edit.append_child(document.root(), group("a"));
+            edit.commit(next_commit_id());
+        }
+        const CommitId after_a = document.commit_id();
+        Id b = no_id;
+        {
+            Transaction edit = document.transaction();
+            b = edit.append_child(document.root(), group("b"));
+            edit.commit(next_commit_id());
+        }
+        const CommitId after_b = document.commit_id();
+        CHECK(baseline < after_a);
+        CHECK(after_a < after_b);
+
+        const std::optional<HistoryCheckout> first = document.checkout(after_a);
+        CHECK(first.has_value());
+        if (first) {
+            CHECK(first->position == 1);
+            CHECK(kind_of(first->touched, b) == TouchedKind::Remove);
+        }
+        CHECK(document.commit_id() == after_a);
+        CHECK(document.find("a") == a);
+        CHECK(!document.find("b").has_value());
+        CHECK(document.can_redo());
+
+        const std::optional<HistoryCheckout> second = document.checkout(after_b);
+        CHECK(second.has_value());
+        if (second) {
+            CHECK(second->position == 2);
+            CHECK(kind_of(second->touched, b) == TouchedKind::Insert);
+        }
+        CHECK(document.commit_id() == after_b);
+        CHECK(document.find("b") == b);
+
+        const std::optional<HistoryCheckout> floor = document.checkout(baseline);
+        CHECK(floor.has_value());
+        if (floor) CHECK(floor->position == 0);
+        CHECK(document.commit_id() == baseline);
+        CHECK(!document.find("a").has_value());
+        CHECK(!document.find("b").has_value());
+        CHECK(document.can_redo());
+
+        CHECK(!document.checkout(after_b + 1000).has_value());
+    }
+
     // One edit can span hives. The coordinator allocates one id and passes it to every
     // transaction, so MVCCHive's native commit id is the same checkout in each hive.
     {
