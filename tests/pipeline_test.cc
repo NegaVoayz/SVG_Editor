@@ -159,7 +159,8 @@ int main() {
     // addto re-parents the shape, and move only changes its geometry
     const Outcome attached = planner.dispatch(AddTo{SvgIdRef{"layer"}, SvgIdRef{"box"}});
     CHECK(attached.ok());
-    const Outcome moved = planner.dispatch(Move{SvgIdRef{"box"}, units(5), units(5)});
+    const Outcome moved =
+        planner.dispatch(Move{SvgIdRef{"box"}, units(5), units(5), EditTarget::Params, EditScope::Restrict});
     CHECK(moved.ok());
 
     const Outcome found = planner.dispatch(Show{SvgIdRef{"layer"}});
@@ -472,6 +473,7 @@ int main() {
 
     CHECK(refused_with<fault::CascadeRequiresContainer>(
         planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Params, EditScope::Cascade})));
+    CHECK(refused_with<fault::CascadeRequiresContainer>(planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1)})));
     const Outcome restricted_group =
         planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Params, EditScope::Restrict});
     CHECK(restricted_group.ok());
@@ -527,10 +529,12 @@ int main() {
                                                              Length{10.0F, Length::Unit::Mm},
                                                              Length{10.0F, Length::Unit::Mm}, std::nullopt}});
     CHECK(ruler.ok());
-    CHECK(planner.dispatch(Move{SvgIdRef{"ruler"}, Length{5.0F, Length::Unit::Mm}, Length{0.0F, Length::Unit::Mm}})
+    CHECK(planner.dispatch(Move{SvgIdRef{"ruler"}, Length{5.0F, Length::Unit::Mm}, Length{0.0F, Length::Unit::Mm},
+                                EditTarget::Params, EditScope::Restrict})
               .ok());  // 2cm + 5mm = 2.5cm
     const Outcome inch_into_metric =
-        planner.dispatch(Move{SvgIdRef{"ruler"}, Length{1.0F, Length::Unit::In}, Length{0.0F, Length::Unit::Mm}});
+        planner.dispatch(Move{SvgIdRef{"ruler"}, Length{1.0F, Length::Unit::In}, Length{0.0F, Length::Unit::Mm},
+                              EditTarget::Params, EditScope::Restrict});
     CHECK(!inch_into_metric.ok());
     CHECK(refused_with<fault::IncompatibleLengths>(inch_into_metric));
 
@@ -549,16 +553,18 @@ int main() {
 
     // A user unit is not a px: its size is whatever the viewport says, so that pair is
     // refused even though one of the two is a plain number.
-    CHECK(planner.dispatch(Move{SvgIdRef{"box"}, units(5), units(0)}).ok());
+    CHECK(planner.dispatch(Move{SvgIdRef{"box"}, units(5), units(0), EditTarget::Params, EditScope::Restrict}).ok());
     const Outcome px_into_user_unit =
-        planner.dispatch(Move{SvgIdRef{"box"}, Length{1.0F, Length::Unit::Px}, units(0)});
+        planner.dispatch(Move{SvgIdRef{"box"}, Length{1.0F, Length::Unit::Px}, units(0), EditTarget::Params,
+                              EditScope::Restrict});
     CHECK(!px_into_user_unit.ok());
     CHECK(refused_with<fault::IncompatibleLengths>(px_into_user_unit));
 
     const Outcome relative = planner.dispatch(Create{CreateRect{"relative", Percentage{50.0F}, Percentage{0.0F},
                                                                 units(1), units(1), std::nullopt}});
     CHECK(relative.ok());
-    const Outcome into_percentage = planner.dispatch(Move{SvgIdRef{"relative"}, units(1), units(0)});
+    const Outcome into_percentage = planner.dispatch(
+        Move{SvgIdRef{"relative"}, units(1), units(0), EditTarget::Params, EditScope::Restrict});
     CHECK(!into_percentage.ok());
     CHECK(refused_with<fault::IncompatibleLengths>(into_percentage));
 
@@ -670,6 +676,7 @@ int main() {
 
     CHECK(refused_with<fault::CascadeRequiresContainer>(
         planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F, EditTarget::Params, EditScope::Cascade})));
+    CHECK(refused_with<fault::CascadeRequiresContainer>(planner.dispatch(ScaleBy{SvgIdRef{"box"}, 2.0F})));
     const Outcome restricted_scale =
         planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Params, EditScope::Restrict});
     CHECK(restricted_scale.ok());
@@ -699,7 +706,8 @@ int main() {
 
     // A scale of a shape is its own values, and the whole instruction is one undo
     if (dot) {
-        CHECK(planner.dispatch(ScaleBy{SvgIdRef{"c1"}, 3.0F}).ok());
+        CHECK(planner.dispatch(Set{SetStrokeWidth{SvgIdRef{"c1"}, units(2)}}).ok());
+        CHECK(planner.dispatch(ScaleBy{SvgIdRef{"c1"}, 3.0F, EditTarget::Params, EditScope::Restrict}).ok());
         const Outcome after_growth = planner.dispatch(ShowTree{});
         const std::optional<Node> grown_dot = node_in(after_growth, "c1");
         CHECK(grown_dot.has_value());
@@ -711,7 +719,12 @@ int main() {
                 CHECK(to_text(geometry.r) == "15");
                 CHECK(to_text(geometry.cx) == "30");
             }
+            CHECK(std::get<SVGNode>(*grown_dot).paint_attr.stroke_width.has_value());
+            if (std::get<SVGNode>(*grown_dot).paint_attr.stroke_width) {
+                CHECK(to_text(*std::get<SVGNode>(*grown_dot).paint_attr.stroke_width) == "6");
+            }
         }
+        CHECK(planner.dispatch(Undo{}).ok());
         CHECK(planner.dispatch(Undo{}).ok());
     }
 
@@ -1035,7 +1048,8 @@ int main() {
     const Outcome huge = planner.dispatch(
         Create{CreateRect{"huge", units(3.0e38F), units(0), units(3.0e38F), units(1), std::nullopt}});
     CHECK(huge.ok());
-    const Outcome overflow = planner.dispatch(ScaleBy{SvgIdRef{"huge"}, 2.0F});
+    const Outcome overflow =
+        planner.dispatch(ScaleBy{SvgIdRef{"huge"}, 2.0F, EditTarget::Params, EditScope::Restrict});
     CHECK(!overflow.ok());
     CHECK(refused_with<fault::NonFiniteValue>(overflow));
     if (const std::optional<Id> huge_id = document.find("huge")) {

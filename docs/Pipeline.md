@@ -220,8 +220,8 @@ transform list and leaves its params alone. A transform is a field of every SVG 
 this is accepted for containers too; the edit touches the container record and leaves its
 descendants untouched. `params` changes values directly. `restrict` edits only the node
 itself: a leaf's params, or a container's own transform. `cascade` edits descendants and
-is refused for a leaf. With neither selector, a leaf is `restrict` and a container is
-`cascade`.
+is refused for a leaf. With neither selector, the defaults are `params` and `cascade`; a
+leaf must name `restrict` (or `transform`) explicitly.
 `Editor/src/Payload.cc` resolves the node kind, collects a cascade's changed payloads
 before opening a transaction, and commits them as one undo step. A cascade stops at any
 descendant that already carries a transform: writing a parent-space delta into that
@@ -230,6 +230,10 @@ amount. The operation is prepended to the transformed node's transform instead, 
 subtree is left alone because the new step already covers it. `event::Moved`/
 `event::Scaled` carry the resolved mode and the number of nodes whose params or transform
 the edit changed.
+
+When `scale` edits params, it scales every drawn dimension on the leaf: shape geometry,
+text position, offsets and font size, and `stroke-width`. A transform-based scale reaches
+the stroke through the transform instead.
 
 A container with no descendants is refused for both `restrict` and `cascade`:
 `fault::EmptyContainer` becomes

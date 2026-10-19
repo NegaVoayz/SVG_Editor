@@ -87,7 +87,7 @@ std::string_view usage() {
            "           move <id> <dx> <dy> [transform|params] [cascade|restrict]\n"
            "           scale <id> <factor> [transform|params] [cascade|restrict]\n"
            "             params changes values directly; transform changes the node's transform\n"
-           "             a leaf defaults to restrict, a container to cascade; the mismatches are refused\n"
+           "             defaults are params + cascade; a leaf needs restrict or transform\n"
            "           set <id> <attr> <value>   one attribute; id, parent and children are not attributes\n"
            "           group <newGid> <id> <id> ... | ungroup <gid> | addto <gid> <id>\n"
            "           front <id> | back <id>   the ends of the child order, last child in front\n"

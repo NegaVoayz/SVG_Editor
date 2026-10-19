@@ -1,7 +1,7 @@
 #pragma once
 
-// How a `move` or `scale` reaches the values it changes. The front end reads the two
-// selector words into these values; the Editor resolves Default against the node kind.
+// How a `move` or `scale` reaches the values it changes. An omitted selector defaults to
+// Param and Cascade; the Editor then checks whether those apply to the node it resolved.
 enum class EditTarget {
     Default,
     Transform,

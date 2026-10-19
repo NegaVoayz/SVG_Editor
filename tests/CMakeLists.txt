@@ -26,7 +26,8 @@ add_test(NAME cli_chain COMMAND $<TARGET_FILE:Cli> "init; create g layer; tree")
 set_tests_properties(cli_chain PROPERTIES PASS_REGULAR_EXPRESSION "g#layer")
 
 add_test(NAME cli_shape
-    COMMAND $<TARGET_FILE:Cli> "init; create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5; tree")
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5 params restrict; tree")
 set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +x=5 y=5 w=10 h=10 fill=#ff0000")
 
 # `move` and `scale` can change a leaf's transform, a leaf's own params, or a
@@ -65,6 +66,11 @@ set_tests_properties(cli_scale_transform PROPERTIES PASS_REGULAR_EXPRESSION "tra
 add_test(NAME cli_move_cascade_leaf
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1 cascade")
 set_tests_properties(cli_move_cascade_leaf PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: cascade is only for containers")
+
+add_test(NAME cli_move_default_leaf
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1")
+set_tests_properties(cli_move_default_leaf PROPERTIES PASS_REGULAR_EXPRESSION
     "error: cascade is only for containers")
 
 add_test(NAME cli_move_restrict_container
@@ -192,7 +198,7 @@ set_tests_properties(cli_group_duplicate PROPERTIES
 # appears in one.
 add_test(NAME cli_no_internal_handles
     COMMAND $<TARGET_FILE:Cli>
-        "init; create g g1; create rect r1 0 0 1 1 in g1; create circle c1 0 0 1 in g1; move r1 5 5; set r1 fill red; front r1; back r1; addto g1 r1")
+        "init; create g g1; create rect r1 0 0 1 1 in g1; create circle c1 0 0 1 in g1; move r1 5 5 params restrict; set r1 fill red; front r1; back r1; addto g1 r1")
 set_tests_properties(cli_no_internal_handles PROPERTIES
     PASS_REGULAR_EXPRESSION
         "moved rect#r1 by 5 5\nset fill on rect#r1\nmoved rect#r1 to the front of g#g1\nmoved rect#r1 to the back of g#g1\nmoved rect#r1 to the end of g#g1"
@@ -207,7 +213,8 @@ set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION
 # answer says which of the two is which. WILL_FAIL cannot stand next to a pattern here -
 # ctest inverts the pattern when it is set - and the exit code of a refused instruction is
 # what the unknown-verb case below covers.
-add_test(NAME cli_units COMMAND $<TARGET_FILE:Cli> "init; create rect r 1cm 0 10mm 10mm; move r 1in 0")
+add_test(NAME cli_units
+    COMMAND $<TARGET_FILE:Cli> "init; create rect r 1cm 0 10mm 10mm; move r 1in 0 params restrict")
 set_tests_properties(cli_units PROPERTIES PASS_REGULAR_EXPRESSION "1in is imperial and 1cm is metric")
 
 # A canvas needs a positive size, and a shape dimension cannot be negative.
@@ -242,7 +249,7 @@ set_tests_properties(cli_nan_length PROPERTIES PASS_REGULAR_EXPRESSION
     "cannot read 'nan' as a length")
 
 add_test(NAME cli_scale_overflow
-    COMMAND $<TARGET_FILE:Cli> "init; create rect huge 3e38 0 3e38 1; scale huge 2; show huge")
+    COMMAND $<TARGET_FILE:Cli> "init; create rect huge 3e38 0 3e38 1; scale huge 2 params restrict; show huge")
 set_tests_properties(cli_scale_overflow PROPERTIES
     PASS_REGULAR_EXPRESSION "error: \"scaled value\" must be a finite number"
     FAIL_REGULAR_EXPRESSION "x=inf|w=inf")

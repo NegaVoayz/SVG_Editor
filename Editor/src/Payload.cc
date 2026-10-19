@@ -20,8 +20,8 @@
 
 namespace {
 
-// The node kind decides what an omitted selector means. A container has no params of its
-// own, so it reaches its descendants; a leaf has params and no descendants to reach.
+// Omitted selectors mean params and cascade. The node kind only decides whether those
+// values are usable: cascade needs a container, and a leaf must say restrict or transform.
 std::expected<EditMode, Refusal> resolve_mode(const Node& payload, EditTarget target, EditScope scope) {
     const bool container = is_container(payload);
     if (target == EditTarget::Transform) {
@@ -29,7 +29,7 @@ std::expected<EditMode, Refusal> resolve_mode(const Node& payload, EditTarget ta
         return EditMode::Transform;
     }
 
-    if (scope == EditScope::Default) scope = container ? EditScope::Cascade : EditScope::Restrict;
+    if (scope == EditScope::Default) scope = EditScope::Cascade;
     if (scope == EditScope::Cascade) {
         if (!container) return std::unexpected(Refusal{fault::CascadeRequiresContainer{}});
         return EditMode::Cascade;
