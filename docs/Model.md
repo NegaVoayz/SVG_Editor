@@ -26,12 +26,14 @@ Id insert_at(Id parent, Id before, Node payload);   // before a sibling; no_id i
 void attach_at(Id parent, Id before, Id node);
 void update(Id node, Node payload);
 void erase(Id node);
-void commit();  void rollback();
+void commit(GlobalCommitId = 0);  void rollback();
 
 // history: the Model owns it, so the Planner never sees a commit id
 TouchedNodes undo();  TouchedNodes redo();
 bool can_undo() const;  bool can_redo() const;
 bool undo_barred_by_io() const;
+GlobalCommitId global_commit_id() const;             // the checkout across all hives
+std::optional<CommitId> hive_commit(GlobalCommitId) const;  // its local commit
 
 // the context: which document this is, rather than what is in it
 const std::string& source_path() const;
@@ -233,7 +235,7 @@ prune the history around the checkout, and makes that checkout the baseline.
 A document that holds that hive by value cannot be moved, which is why
 `Document` is non-copyable and non-movable.
 
-The number of user edits is `depth_`; `position_` is where the checkout stands.
+The number of user edits is `depth()`; `position()` is where the checkout stands.
 Undo and redo return `TouchedNodes`: one entry per changed virtual id with a
 `TouchedKind` of `Insert`, `Update`, or `Remove`. The ids come from the hive's
 public `diffs(commit_id)`, and the kind comes directly from `DiffKind`,
@@ -244,6 +246,18 @@ removed id. The cost is proportional to that touched set: the hive copies its
 public 24-byte `Diff` entries, then the document keeps an id and a kind for each one.
 The checkout switch itself stays O(1); the touched list is the price of telling
 a front end what to refresh.
+
+Every real commit also takes an id from one process-wide increasing sequence. The
+id is never reused: a branch after undo gets a new value even though its local hive
+commit id is the one the discarded tail held, and a checkpoint keeps the id of the
+checkout it preserves. A document records the pair for each commit on its current
+branch, which gives `global_commit_id()` and `hive_commit(global)` their answers;
+those are the values a coordinator uses to check every hive out at the same edit.
+`commit()` allocates the next id when it is called with no argument. An edit that
+spans hives allocates one id and passes it to every hive's `commit(id)`, so each
+local commit resolves from the same global id. The id is allocated after the hives
+have their baselines, because `reset`, `read` and the loader also take ids from the
+same sequence.
 
 ## The transform
 

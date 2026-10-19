@@ -7,6 +7,7 @@ include(cmake/TinyXml2.cmake)
 add_library(Model
     src/Color.cc
     src/Document.cc
+    src/History.cc
     src/LoadDocument.cc
     src/SvgReader.cc
     src/SvgValueReader.cc

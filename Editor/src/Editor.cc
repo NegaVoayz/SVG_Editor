@@ -34,12 +34,22 @@ std::optional<event::EditEvent> edit_event_of(const Event& event) {
 Editor::Editor(Document& document) : document_(document) {}
 
 void Editor::sync_history_events() {
-    const std::size_t depth = document_.depth();
-    if (depth == 0) {
-        history_events_.clear();
-    } else {
-        history_events_.resize(depth);
-    }
+    // Entries above the checkout belong to the redo tail and have to stay for redo.
+    // Only a baseline with no editable history at all makes every entry unreachable.
+    if (document_.depth() == 0) history_events_.clear();
+}
+
+std::shared_ptr<const event::EditEvent> Editor::history_event(std::size_t position, GlobalCommitId commit) const {
+    if (position >= history_events_.size()) return nullptr;
+    const event::HistoryEntry& entry = history_events_[position];
+    return entry.commit == commit ? entry.outcome : nullptr;
+}
+
+void Editor::record_history_event(std::size_t position, GlobalCommitId commit, event::EditEvent outcome) {
+    // A new edit after undo replaces the redo tail and the entries that described it.
+    history_events_.resize(position);
+    history_events_.push_back(
+        event::HistoryEntry{commit, std::make_shared<const event::EditEvent>(std::move(outcome))});
 }
 
 // The dispatch: the type of the instruction decides, and Translations.hh is where the
@@ -47,7 +57,7 @@ void Editor::sync_history_events() {
 // element to build reaches the primary template, which fails the build naming the type.
 Outcome Editor::translate(const ChangeIntent& intent) {
     sync_history_events();
-    const std::size_t before_position = document_.position();
+    const GlobalCommitId before_commit = document_.global_commit_id();
     Outcome outcome = refused(Kind::Change, fault::InternalError{});
     try {
         outcome = std::visit([this](const auto& value) { return handle(value); }, intent);
@@ -61,17 +71,15 @@ Outcome Editor::translate(const ChangeIntent& intent) {
     }
 
     const std::size_t after_position = document_.position();
-    const std::size_t after_depth = document_.depth();
-    if (after_depth == 0) {
+    const GlobalCommitId after_commit = document_.global_commit_id();
+    if (document_.depth() == 0) {
         history_events_.clear();
-    } else {
-        history_events_.resize(after_depth);
-        if (outcome.ok() && std::holds_alternative<Event>(outcome.result) &&
-            after_position == before_position + 1 && after_position == after_depth) {
-            if (std::optional<event::EditEvent> edit = edit_event_of(outcome.event())) {
-                history_events_[after_position - 1] =
-                    std::make_shared<const event::EditEvent>(std::move(*edit));
-            }
+    } else if (outcome.ok() && std::holds_alternative<Event>(outcome.result) &&
+               after_commit > before_commit && after_position > 0) {
+        // One intent is one commit, so one new id is the only shape an outcome can
+        // describe. An empty transaction leaves the id and the log alone.
+        if (std::optional<event::EditEvent> edit = edit_event_of(outcome.event())) {
+            record_history_event(after_position - 1, after_commit, std::move(*edit));
         }
     }
     return outcome;

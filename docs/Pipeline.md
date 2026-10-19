@@ -42,6 +42,10 @@ to those fields directly; it does not have to recover them from a sentence.
 An `Undone` or `Redone` event also carries the original structured edit event when the
 Editor recorded one, alongside the nodes whose state changed during the history move.
 The text front end prints it as `undo: <original edit>` or `redo: <original edit>`.
+The event also carries the document-wide commit id of the checkout it landed on. Each
+hive maps that id to its own local commit, so one undo or redo can be resolved for
+all of them. The Editor keeps the outcomes in a `std::deque` indexed by that id: the
+id never repeats, so an outcome is never displaced by a branch or a checkpoint.
 
 ## How an intent is dispatched
 

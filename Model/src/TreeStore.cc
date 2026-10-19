@@ -1,5 +1,6 @@
 #include "TreeStore.hh"
 
+#include <algorithm>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -115,7 +116,7 @@ void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<Lengt
     // keep the old generation alive, and none of it can be reached from this document.
     view_.reset();
     nodes_.clear();
-    depth_ = 0;
+    checkouts_.clear();
     position_ = 0;
 
     // The root is the first virtual id, 0, because no id is reserved in front of it: a
@@ -126,6 +127,8 @@ void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<Lengt
     static_cast<void>(edit.commit());
     nodes_.clear_history();
     view_ = nodes_.head();
+    checkouts_.push_back(Checkout{next_global_commit_id(), view_->commit_id()});
+    require_checkout_matches_view();
 }
 
 TreeStore::Edit TreeStore::begin() {
@@ -133,14 +136,22 @@ TreeStore::Edit TreeStore::begin() {
     return nodes_.begin_transaction();
 }
 
-void TreeStore::commit(Edit& edit) {
+void TreeStore::commit(Edit& edit, GlobalCommitId commit) {
     const Hive::CommitId before = view_->commit_id();
+    if (commit != 0 && !checkouts_.empty() && commit <= checkouts_.back().global) {
+        throw std::invalid_argument("TreeStore: a global commit id must increase");
+    }
     const Snapshot next = edit.commit();
     view_ = next;
     if (next.commit_id() == before) return;  // an edit that wrote nothing is no block
 
-    ++position_;
-    depth_ = position_;
+    const GlobalCommitId global = commit == 0 ? next_global_commit_id() : commit;
+
+    // The new edit replaces whatever redo tail the checkout had left.
+    checkouts_.resize(position_ + 1);
+    checkouts_.push_back(Checkout{global, next.commit_id()});
+    position_ = checkouts_.size() - 1;
+    require_checkout_matches_view();
 }
 
 void TreeStore::rollback(Edit& edit) noexcept {
@@ -148,7 +159,7 @@ void TreeStore::rollback(Edit& edit) noexcept {
 }
 
 bool TreeStore::can_undo() const { return position_ > 0; }
-bool TreeStore::can_redo() const { return position_ < depth_; }
+bool TreeStore::can_redo() const { return position_ + 1 < checkouts_.size(); }
 
 TouchedNodes TreeStore::touched_by(Hive::CommitId commit, Direction direction) const {
     const std::vector<Hive::Diff> diffs = nodes_.diffs(commit);
@@ -176,6 +187,7 @@ TouchedNodes TreeStore::undo() {
     if (!nodes_.undo()) return {};
     --position_;
     view_ = nodes_.head();
+    require_checkout_matches_view();
     return touched_by(commit, Direction::Undo);
 }
 
@@ -184,19 +196,51 @@ TouchedNodes TreeStore::redo() {
     if (!nodes_.redo()) return {};
     ++position_;
     view_ = nodes_.head();
+    require_checkout_matches_view();
     return touched_by(view_->commit_id(), Direction::Redo);
 }
 
-std::size_t TreeStore::depth() const { return depth_; }
+std::size_t TreeStore::depth() const { return checkouts_.empty() ? 0 : checkouts_.size() - 1; }
 std::size_t TreeStore::position() const { return position_; }
+
+CommitId TreeStore::commit_id() const { return view_ ? view_->commit_id() : 0; }
+
+GlobalCommitId TreeStore::global_commit_id() const {
+    if (checkouts_.empty() || position_ >= checkouts_.size()) return 0;
+    return checkouts_[position_].global;
+}
+
+std::optional<GlobalCommitId> TreeStore::global_commit_at(std::size_t position) const {
+    if (checkouts_.size() < 2 || position >= checkouts_.size() - 1) return std::nullopt;
+    return checkouts_[position + 1].global;
+}
+
+std::optional<CommitId> TreeStore::hive_commit(GlobalCommitId commit) const {
+    const auto found = std::lower_bound(
+        checkouts_.begin(), checkouts_.end(), commit,
+        [](const Checkout& checkout, GlobalCommitId value) { return checkout.global < value; });
+    if (found == checkouts_.end() || found->global != commit) return std::nullopt;
+    return found->hive;
+}
+
+void TreeStore::require_checkout_matches_view() const {
+    if (!view_ || checkouts_.empty() || position_ >= checkouts_.size()) return;
+    if (view_->commit_id() != checkouts_[position_].hive) {
+        throw std::logic_error("TreeStore: the hive checkout and the recorded global commit disagree");
+    }
+}
 
 void TreeStore::clear_history() {
     if (!view_) return;
+    const Checkout current = checkouts_.empty() ? Checkout{0, view_->commit_id()}
+                                                : checkouts_[position_];
     view_.reset();
     nodes_.clear_history();
-    depth_ = 0;
+    checkouts_.clear();
+    checkouts_.push_back(current);
     position_ = 0;
     view_ = nodes_.head();
+    require_checkout_matches_view();
 }
 
 bool TreeStore::has_node(Id node) const { return live_node(node).has_value(); }
