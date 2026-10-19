@@ -84,7 +84,7 @@ template<> Outcome Editor::handle<AddTo>(const AddTo& intent) {
     const std::expected<Id, Refusal> node = resolve(intent.node);
     if (!node) return refused(Kind::Change, node.error());
     if (inside(document_, *parent, *node)) {
-        return refused(Kind::Change, fault::CannotGroupIntoOwnDescendant{intent.node});
+        return refused(Kind::Change, fault::CannotAddToOwnDescendant{intent.node});
     }
 
     // The child chain is SVG's paint order: the last child is painted on top.

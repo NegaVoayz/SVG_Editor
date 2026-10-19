@@ -102,11 +102,11 @@ int main() {
 
     const std::string expected = join({
         "svg (800x600)",
-        "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 rect#bg        x=0 y=0 w=800 h=600 fill=#ffffff",
+        "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 rect#bg        fill=#ffffff x=0 y=0 w=800 h=600",
         "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 text#title     (20,40) text=\"My Diagram\"",
         "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 g#markers",
         "    \xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 circle#c1  cx=100 cy=100 r=20",
-        "    \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box   x=200 y=80 w=60 h=60 fill=#3366ff",
+        "    \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box   fill=#3366ff x=200 y=80 w=60 h=60",
     });
     const std::string drawing = render(TreeView{rows});
     CHECK(drawing == expected);
@@ -136,7 +136,7 @@ int main() {
     CHECK(render(TreeView{under_a_bar}) == join({
                                                    "svg (800x600)",
                                                    "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 g#markers",
-                                                   "\xE2\x94\x82   \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box  x=0 y=0 w=10 h=10 fill=#ff0000",
+                                                   "\xE2\x94\x82   \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box  fill=#ff0000 x=0 y=0 w=10 h=10",
                                                    "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 text#title    (20,40) "
                                                    "text=\"My Diagram\"",
                                                }));
@@ -144,24 +144,24 @@ int main() {
     // A single node has a heading and one indented line per group of attributes. A node
     // with a parent says where it hangs on the heading line.
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {}}) ==
-          "rect#box\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
+          "rect#box\n  fill=#3366ff\n  x=200 y=80 w=60 h=60");
     Node classified = rect("tagged", 0, 0, 1, 1, std::nullopt);
     std::get<SVGNode>(classified).identity_attr.class_ = "a b";
     CHECK(render(NodeView{3, std::move(classified), {}}) ==
           "rect#tagged\n  class=\"a b\"\n  x=0 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("red", 0, 0, 1, 1, Color{Color::Named{Color::NamedColorId::RebeccaPurple}}), {}}) ==
-          "rect#red\n  x=0 y=0 w=1 h=1\n  fill=rebeccapurple");
+          "rect#red\n  fill=rebeccapurple\n  x=0 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("float", 1.234567F, 0, 1, 1, std::nullopt), {}}) ==
           "rect#float x=1.23457 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("turned", 0, 0, 1, 1, std::nullopt), {}, std::nullopt,
                           composed_transform(
                               {scaled(2.0F, 2.0F), *rotation_about(30.0F, units(10), units(20)),
                                skewed_x(15.0F), skewed_y(-5.0F)})}) ==
-          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=translate(22.6795 -4.64101) rotate(15) "
-          "scale(1.93185 2.07055) skewY(9.23052)");
+          "rect#turned\n  transform=translate(22.6795 -4.64101) rotate(15) scale(1.93185 2.07055) "
+          "skewY(9.23052)\n  x=0 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {},
                            NodeParent{1, group("markers")}}) ==
-          "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
+          "rect#box  parent=g#markers\n  fill=#3366ff\n  x=200 y=80 w=60 h=60");
     CHECK(render(NodeView{1, group("markers"), {}}) == "g#markers");
     CHECK(render(NodeView{1, group("markers"), {}, NodeParent{0, root_with(units(800), units(600))}}) ==
           "g#markers  parent=svg");
@@ -174,9 +174,9 @@ int main() {
     Node filled_text = text_element("title", 20, 40);
     std::get<SVGNode>(filled_text).paint_attr.fill = Paint{Color{Color::Named{Color::NamedColorId::Red}}};
     CHECK(render(NodeView{4, filled_text, "My Diagram"}) ==
-          "text#title\n  (20,40)\n  fill=red\n  text=\"My Diagram\"");
+          "text#title\n  fill=red\n  (20,40)\n  text=\"My Diagram\"");
     CHECK(render(TreeView{{row(0, true, filled_text, "My Diagram")}}) ==
-          "text#title (20,40) fill=red text=\"My Diagram\"");
+          "text#title fill=red (20,40) text=\"My Diagram\"");
 
     // An element with no id of its own is named by its kind alone, which is what the root
     // of an empty document is
@@ -243,6 +243,8 @@ int main() {
     CHECK(render(event::Saved{"one.svg", 1}) == "saved to one.svg (1 element)");
     CHECK(render(fault::CannotUngroupNonContainer{SvgIdRef{"n1"}}) ==
           "error: cannot ungroup a shape or text node: n1");
+    CHECK(render(fault::CannotAddToOwnDescendant{SvgIdRef{"layer"}}) ==
+          "error: cannot add a container to its own descendant: layer");
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");
     CHECK(render(fault::NegativeDimension{"width"}) == "error: width must not be negative");
     CHECK(render(fault::NonPositiveCanvas{"height"}) == "error: canvas height must be positive");

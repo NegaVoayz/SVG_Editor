@@ -28,7 +28,7 @@ set_tests_properties(cli_chain PROPERTIES PASS_REGULAR_EXPRESSION "g#layer")
 add_test(NAME cli_shape
     COMMAND $<TARGET_FILE:Cli>
         "init; create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5 params restrict; tree")
-set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +x=5 y=5 w=10 h=10 fill=#ff0000")
+set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +fill=#ff0000 x=5 y=5 w=10 h=10")
 
 # `move` and `scale` can change a leaf's transform, a leaf's own params, or a
 # container's descendants' params. The mismatched combinations are refused.
@@ -135,7 +135,7 @@ set_tests_properties(cli_show_parent PROPERTIES PASS_REGULAR_EXPRESSION "circle#
 add_test(NAME cli_set
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box x 5; set box fill #00ff00; set box stroke-width 2; tree")
 set_tests_properties(cli_set PROPERTIES PASS_REGULAR_EXPRESSION
-    "rect#box +x=5 y=0 w=10 h=10 fill=#00ff00 stroke-width=2")
+    "rect#box +fill=#00ff00 stroke-width=2 x=5 y=0 w=10 h=10")
 
 add_test(NAME cli_set_transform_rotate_center
     COMMAND $<TARGET_FILE:Cli>
@@ -179,7 +179,8 @@ set_tests_properties(cli_set_text_result PROPERTIES PASS_REGULAR_EXPRESSION
 # The character data is printed after the text element's paint attributes.
 add_test(NAME cli_text_content_last COMMAND $<TARGET_FILE:Cli>
     "init; create text t 20 40 \"hello\"; set t fill red; tree")
-set_tests_properties(cli_text_content_last PROPERTIES PASS_REGULAR_EXPRESSION "fill=red text=\"hello\"")
+set_tests_properties(cli_text_content_last PROPERTIES PASS_REGULAR_EXPRESSION
+    "fill=red \\(20,40\\) text=\"hello\"")
 
 # Deleting a leaf does not claim a subtree went with it, and edits have no route label.
 add_test(NAME cli_delete_leaf
@@ -252,6 +253,11 @@ add_test(NAME cli_ungroup_result COMMAND $<TARGET_FILE:Cli>
     "init; create g layer; create rect a 0 0 1 1 in layer; create rect b 0 0 1 1 in layer; group gg a b; ungroup gg")
 set_tests_properties(cli_ungroup_result PROPERTIES PASS_REGULAR_EXPRESSION
     "g#gg ungrouped into g#layer \\(2 elements\\)")
+
+add_test(NAME cli_addto_cycle_error COMMAND $<TARGET_FILE:Cli>
+    "init; create g layer; create g inner in layer; addto inner layer")
+set_tests_properties(cli_addto_cycle_error PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: cannot add a container to its own descendant: layer")
 
 # Event answers name elements the way the tree does; the hive's numeric handle never
 # appears in one.
@@ -389,7 +395,7 @@ set_tests_properties(cli_read_count PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME cli_read_tree
     COMMAND $<TARGET_FILE:Cli> "read ${CMAKE_SOURCE_DIR}/tests/fixtures/load.svg; tree")
 set_tests_properties(cli_read_tree PROPERTIES PASS_REGULAR_EXPRESSION
-    "rect#rect1 +x=1 y=2 w=30 h=40 fill=#3366ff")
+    "rect#rect1 +fill=#3366ff x=1 y=2 w=30 h=40")
 
 # A save writes the current model tree, and reading it back preserves the named paints
 # and the ids that the first read assigned.

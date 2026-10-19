@@ -302,7 +302,7 @@ text#title created
 svg> tree
 svg (800x600)
 ├── g#markers
-│   └── rect#box  x=0 y=0 w=10 h=10 fill=#ff0000
+│   └── rect#box  fill=#ff0000 x=0 y=0 w=10 h=10
 └── text#title    (20,40) text="My Diagram"
 ```
 

@@ -68,6 +68,10 @@ struct CannotGroupIntoOwnDescendant {
     NodeRef node;
 };
 
+struct CannotAddToOwnDescendant {
+    NodeRef node;
+};
+
 struct CannotGroupTopLevelContainer {
     std::string name;
 };
@@ -144,7 +148,8 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::UnknownAttribute, fault::NegativeDimension, fault::NonPositiveCanvas,
                              fault::NonFiniteValue,
                              fault::CannotUngroupNonContainer,
-                             fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,
+                             fault::CannotGroupIntoOwnDescendant, fault::CannotAddToOwnDescendant,
+                             fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
                              fault::TransformHasNoScope,
                              fault::EmptyContainer, fault::NoDirectParams,

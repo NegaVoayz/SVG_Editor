@@ -146,23 +146,13 @@ Words element_words(const SVGNode& element, const Transform& transform, const st
                      ? std::string{kind}
                      : std::string{kind} + "#" + quote_if_needed(element.identity_attr.id);
 
+    // Details follow SVGNode's member order: identity, paint, transform, then data.
     // `class` is a list of names, so it is quoted whenever it has more than one.
     if (!element.identity_attr.class_.empty()) {
         append_detail(words, "class=" + quote_if_needed(element.identity_attr.class_));
     }
 
-    // A text's words are the character data inside it. That is a node of the model and it
-    // is not a line of the drawing: printing it inside the element is what makes a text
-    // read as a text. Its position and style are attributes, so the words come last, after
-    // the paint and transform every element may carry.
     const bool is_text = std::holds_alternative<Text>(element.data);
-    if (is_text) {
-        append_detail(words, text_details(std::get<Text>(element.data)));
-    } else {
-        append_detail(words, std::visit(AttrsText{}, element.data));
-    }
-
-    if (!is_identity(transform)) append_detail(words, "transform=" + transform_text(transform));
     if (element.paint_attr.fill) {
         const std::string paint = to_text(*element.paint_attr.fill);
         if (!paint.empty()) append_detail(words, "fill=" + paint);
@@ -173,6 +163,16 @@ Words element_words(const SVGNode& element, const Transform& transform, const st
     }
     if (element.paint_attr.stroke_width) {
         append_detail(words, "stroke-width=" + to_text(*element.paint_attr.stroke_width));
+    }
+
+    if (!is_identity(transform)) append_detail(words, "transform=" + transform_text(transform));
+
+    // `data` is the last member of SVGNode. A text's character data is a child node, so
+    // its words follow the text attributes inside that final group.
+    if (is_text) {
+        append_detail(words, text_details(std::get<Text>(element.data)));
+    } else {
+        append_detail(words, std::visit(AttrsText{}, element.data));
     }
     if (is_text && !text.empty()) append_detail(words, "text=" + quoted(text));
     return words;
@@ -454,6 +454,9 @@ struct RefusalText {
     }
     std::string operator()(const fault::CannotGroupIntoOwnDescendant& descendant) const {
         return "error: cannot group a container into its own descendant: " + label(descendant.node);
+    }
+    std::string operator()(const fault::CannotAddToOwnDescendant& descendant) const {
+        return "error: cannot add a container to its own descendant: " + label(descendant.node);
     }
     std::string operator()(const fault::CannotGroupTopLevelContainer& top) const {
         return "error: cannot group top-level container: " + quote_if_needed(top.name);

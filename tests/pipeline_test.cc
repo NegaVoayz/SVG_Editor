@@ -937,7 +937,7 @@ int main() {
     CHECK(planner.dispatch(Create{CreateGroup{"inner", SvgIdRef{"layer"}}}).ok());
     const Outcome add_cycle = planner.dispatch(AddTo{SvgIdRef{"inner"}, SvgIdRef{"layer"}});
     CHECK(!add_cycle.ok());
-    CHECK(refused_with<fault::CannotGroupIntoOwnDescendant>(add_cycle));
+    CHECK(refused_with<fault::CannotAddToOwnDescendant>(add_cycle));
     const Outcome group_cycle = planner.dispatch(Group{"cycle", {SvgIdRef{"inner"}, SvgIdRef{"layer"}}});
     CHECK(!group_cycle.ok());
     CHECK(refused_with<fault::CannotGroupIntoOwnDescendant>(group_cycle));
