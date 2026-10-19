@@ -79,8 +79,6 @@ struct CannotUngroupTopLevelContainer {
 struct ScaleFactorNotPositive {};
 
 // A selector that cannot apply to the node the Editor resolved.
-struct TransformOnContainer {};
-
 struct TransformHasNoScope {};
 
 struct CascadeRequiresContainer {};
@@ -150,7 +148,7 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::CannotUngroupNonContainer,
                              fault::CannotGroupIntoOwnDescendant, fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
-                             fault::TransformOnContainer, fault::TransformHasNoScope,
+                             fault::TransformHasNoScope,
                              fault::CascadeRequiresContainer, fault::EmptyContainer, fault::NoDirectParams,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,
                              fault::NothingToUndo, fault::UndoAfterIo, fault::NothingToRedo, fault::NoRootElement,

@@ -100,8 +100,8 @@ The instructions are:
 | `create text <id> <x> <y> "content"`            | a text element, and the character data inside it           |
 | `create g <id>`                                 | a group                                                    |
 | `delete <id>`                                   | the node and its descendants                               |
-| `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants |
-| `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants |
+| `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants |
+| `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants |
 | `set <id> <attr> <value>`                       | one editable attribute; `id`, parent and children are not attributes |
 | `group <newGid> <id> <id> ...`                  | a new group, taking those nodes' place                     |
 | `ungroup <gid>`                                 | the group's children, back in its place; top-level groups are refused |
@@ -122,14 +122,15 @@ Quotes group words that contain spaces, which is how text content and file paths
 written. They do not make an SVG id valid: an id is an XML name, so `create g "a b"` is
 refused.
 
-`transform` adds one step to the node's transform list and is refused for a container.
-`params` changes values directly. `restrict` limits the edit to the node itself: on a
-leaf that is its params, and on a container it is the container's own transform, so the
-message is `g#node2 moved by (0,100)`. `cascade` changes every descendant's params and is
-refused for a leaf. With no selector, a leaf is restricted and a container cascades. A
-cascade stops at a descendant that already has a transform: it prepends the move or scale
-to that transform and leaves the subtree below alone, because editing those params would
-apply the operation in the child's local units instead of the parent's.
+`transform` adds one step to the node's transform list. Every SVG node has that field, so
+it works for a shape, a text, a group and the root alike. `params` changes values
+directly. `restrict` limits the edit to the node itself: on a leaf that is its params, and
+on a container it is the container's own transform, so the message is
+`g#node2 moved by (0,100)`. `cascade` changes every descendant's params and is refused
+for a leaf. With no selector, a leaf is restricted and a container cascades. A cascade
+stops at a descendant that already has a transform: it prepends the move or scale to that
+transform and leaves the subtree below alone, because editing those params would apply
+the operation in the child's local units instead of the parent's.
 
 Moving or scaling an empty container is refused with
 `error: cannot move or scale an empty container: g#node2`. Such an edit would be

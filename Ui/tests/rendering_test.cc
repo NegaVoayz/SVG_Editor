@@ -194,6 +194,8 @@ int main() {
           "moved 3 node(s) under g#g1 by 5 7");
     CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::ContainerTransform}) ==
           "g#node2 moved by (0,100)");
+    CHECK(render(event::Moved{{"g", "node2"}, units(0), units(100), EditMode::Transform}) ==
+          "moved g#node2 by 0 100 in its transform");
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F}) ==
           "scaled rect#r1 by 2, so everything drawn with it grew by that much");
     CHECK(render(event::Scaled{{"rect", "r1"}, 2.0F, EditMode::Transform}) ==
@@ -229,7 +231,6 @@ int main() {
           "error: \"scaled value\" must be a finite number");
     CHECK(render(fault::InvalidId{"a b"}) == "error: invalid XML id: \"a b\"");
     CHECK(render(fault::ReservedId{"svg"}) == "error: id \"svg\" is reserved for the root");
-    CHECK(render(fault::TransformOnContainer{}) == "error: transform mode is only for non-containers");
     CHECK(render(fault::TransformHasNoScope{}) == "error: transform does not take cascade or restrict");
     CHECK(render(fault::CascadeRequiresContainer{}) == "error: cascade is only for containers");
     CHECK(render(fault::EmptyContainer{"g", "node2"}) ==

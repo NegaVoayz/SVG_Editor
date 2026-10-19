@@ -79,9 +79,16 @@ set_tests_properties(cli_move_empty_container PROPERTIES PASS_REGULAR_EXPRESSION
     "error: cannot move or scale an empty group: g#g1")
 
 add_test(NAME cli_move_transform_container
-    COMMAND $<TARGET_FILE:Cli> "init; create g g1; move g1 1 1 transform")
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g g1; create rect r 0 0 1 1 in g1; move g1 0 100 transform; show g1")
 set_tests_properties(cli_move_transform_container PROPERTIES PASS_REGULAR_EXPRESSION
-    "error: transform mode is only for non-containers")
+    "transform=translate\\(0 100\\)")
+
+add_test(NAME cli_scale_transform_container
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create g g1; create rect r 0 0 1 1 in g1; scale g1 2 transform; show g1")
+set_tests_properties(cli_scale_transform_container PROPERTIES PASS_REGULAR_EXPRESSION
+    "transform=scale\\(2 2\\)")
 
 add_test(NAME cli_move_transform_scope
     COMMAND $<TARGET_FILE:Cli> "init; create rect r 0 0 1 1; move r 1 1 transform cascade")

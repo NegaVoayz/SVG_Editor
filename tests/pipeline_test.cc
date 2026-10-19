@@ -491,8 +491,19 @@ int main() {
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
-    CHECK(refused_with<fault::TransformOnContainer>(
-        planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Transform})));
+    const Outcome group_transform =
+        planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1), EditTarget::Transform});
+    CHECK(group_transform.ok());
+    if (happened_with<event::Moved>(group_transform)) {
+        CHECK(std::get<event::Moved>(group_transform.event()).mode == EditMode::Transform);
+    }
+    {
+        const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
+        if (std::holds_alternative<NodeView>(layer.view())) {
+            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "translate(1 1)");
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
     CHECK(refused_with<fault::TransformHasNoScope>(planner.dispatch(
         Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Transform, EditScope::Cascade})));
 
@@ -503,6 +514,8 @@ int main() {
         planner.dispatch(Move{SvgIdRef{"empty-group"}, units(1), units(0)})));
     CHECK(refused_with<fault::EmptyContainer>(planner.dispatch(
         Move{SvgIdRef{"empty-group"}, units(1), units(0), EditTarget::Params, EditScope::Restrict})));
+    CHECK(refused_with<fault::EmptyContainer>(
+        planner.dispatch(Move{SvgIdRef{"empty-group"}, units(1), units(0), EditTarget::Transform})));
     CHECK(refused_with<fault::EmptyContainer>(
         planner.dispatch(ScaleBy{SvgIdRef{"empty-group"}, 2.0F})));
     CHECK(planner.dispatch(Undo{}).ok());
@@ -670,8 +683,19 @@ int main() {
         }
     }
     CHECK(planner.dispatch(Undo{}).ok());
-    CHECK(refused_with<fault::TransformOnContainer>(
-        planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Transform})));
+    const Outcome group_transform_scale =
+        planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 2.0F, EditTarget::Transform});
+    CHECK(group_transform_scale.ok());
+    if (happened_with<event::Scaled>(group_transform_scale)) {
+        CHECK(std::get<event::Scaled>(group_transform_scale.event()).mode == EditMode::Transform);
+    }
+    {
+        const Outcome layer = planner.dispatch(Show{SvgIdRef{"layer"}});
+        if (std::holds_alternative<NodeView>(layer.view())) {
+            CHECK(transform_list_text(std::get<NodeView>(layer.view()).transforms) == "scale(2 2)");
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
 
     // A scale of a shape is its own values, and the whole instruction is one undo
     if (dot) {

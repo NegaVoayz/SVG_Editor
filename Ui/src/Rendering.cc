@@ -472,9 +472,6 @@ struct RefusalText {
     std::string operator()(const fault::ScaleFactorNotPositive&) const {
         return "error: scale factor must be positive";
     }
-    std::string operator()(const fault::TransformOnContainer&) const {
-        return "error: transform mode is only for non-containers";
-    }
     std::string operator()(const fault::TransformHasNoScope&) const {
         return "error: transform does not take cascade or restrict";
     }

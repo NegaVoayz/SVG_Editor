@@ -157,8 +157,8 @@ until every one of them names it.
 | `create text <id> <x> <y> "content"`             | a text element and the character data inside it        | the Editor, one transaction |
 | `create g <id>`                                  | a group                                                | the Editor, one transaction |
 | `delete <id>`                                    | the node and its descendants                           | the Editor, one transaction |
-| `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants | the Editor, one transaction |
-| `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a leaf's params or transform, or a container's descendants | the Editor, one transaction |
+| `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants | the Editor, one transaction |
+| `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants | the Editor, one transaction |
 | `set <id> <attr> <value>`                        | one editable attribute of that node                    | the Editor, one transaction |
 | `group <newGid> <id> <id> ...`                   | a new group, standing where the first node stood        | the Editor, one transaction |
 | `ungroup <gid>`                                  | the children, back in the group's place                | the Editor, one transaction |
@@ -216,11 +216,12 @@ the front, and the first child is the back. The tree prints children in that sam
 order, so a later line is nearer the front.
 
 `move` and `scale` take two optional selectors. `transform` prepends a step to the node's
-transform list and leaves its params alone; it is accepted only for a non-container,
-because a container's transform would also move everything below it. `params` changes values
-directly. `restrict` edits only the node itself: a leaf's params, or a container's own
-transform. `cascade` edits descendants and is refused for a leaf. With neither selector,
-a leaf is `restrict` and a container is `cascade`.
+transform list and leaves its params alone. A transform is a field of every SVG node, so
+this is accepted for containers too; the edit touches the container record and leaves its
+descendants untouched. `params` changes values directly. `restrict` edits only the node
+itself: a leaf's params, or a container's own transform. `cascade` edits descendants and
+is refused for a leaf. With neither selector, a leaf is `restrict` and a container is
+`cascade`.
 `Editor/src/Payload.cc` resolves the node kind, collects a cascade's changed payloads
 before opening a transaction, and commits them as one undo step. A cascade stops at any
 descendant that already carries a transform: writing a parent-space delta into that

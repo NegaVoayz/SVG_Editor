@@ -1,5 +1,5 @@
 // The edits that change what a node holds and nothing about where it sits: a move and a
-// scale, which may change a leaf's transform, a leaf's own values, or a container's
+// scale, which may change a node's transform, a leaf's own values, or a container's
 // descendants, and the canvas, which is the same arithmetic on the root element's values.
 //
 // Every edit is one transaction, which is what makes it one undo step: the nodes keep
@@ -26,7 +26,6 @@ std::expected<EditMode, Refusal> resolve_mode(const Node& payload, EditTarget ta
     const bool container = is_container(payload);
     if (target == EditTarget::Transform) {
         if (scope != EditScope::Default) return std::unexpected(Refusal{fault::TransformHasNoScope{}});
-        if (container) return std::unexpected(Refusal{fault::TransformOnContainer{}});
         return EditMode::Transform;
     }
 
@@ -114,7 +113,8 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
     const event::NodeName named = name_of(document_, *node);
     const fault::EmptyContainer empty{named.element, named.svg_id};
 
-    if (*mode == EditMode::ContainerTransform && document_.children(*node).empty()) {
+    if ((*mode == EditMode::Transform || *mode == EditMode::ContainerTransform) && is_container(*payload) &&
+        document_.children(*node).empty()) {
         return refused(Kind::Change, empty);
     }
 
@@ -172,7 +172,8 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
     const event::NodeName named = name_of(document_, *node);
     const fault::EmptyContainer empty{named.element, named.svg_id};
 
-    if (*mode == EditMode::ContainerTransform && document_.children(*node).empty()) {
+    if ((*mode == EditMode::Transform || *mode == EditMode::ContainerTransform) && is_container(*payload) &&
+        document_.children(*node).empty()) {
         return refused(Kind::Change, empty);
     }
 
