@@ -390,7 +390,9 @@ int main() {
     // and what it refuses, with the reason
     const Request unknown = parse("frobnicate");
     CHECK(refuses(unknown));
-    if (refuses(unknown)) CHECK(complaint(unknown).find("unknown instruction") != std::string::npos);
+    if (refuses(unknown)) {
+        CHECK(complaint(unknown) == "error: unknown instruction \"frobnicate\", try \"help\"");
+    }
 
     CHECK(refuses(parse("   ")));
     CHECK(refuses(parse("delete")));

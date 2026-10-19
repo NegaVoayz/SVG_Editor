@@ -137,6 +137,11 @@ add_test(NAME cli_set
 set_tests_properties(cli_set PROPERTIES PASS_REGULAR_EXPRESSION
     "rect#box +fill=#00ff00 stroke-width=2 x=5 y=0 w=10 h=10")
 
+add_test(NAME cli_set_result COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; set r fill red; set r class \"layer one\"")
+set_tests_properties(cli_set_result PROPERTIES PASS_REGULAR_EXPRESSION
+    "rect#r updated: fill=red\nrect#r updated: class=\"layer one\"")
+
 add_test(NAME cli_set_transform_rotate_center
     COMMAND $<TARGET_FILE:Cli>
         "init; create rect box 0 0 10 10; set box transform \"rotate(30 10 20)\"; show box")
@@ -152,6 +157,11 @@ add_test(NAME cli_set_transform_skew_y
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"skewY(15)\"; show box")
 set_tests_properties(cli_set_transform_skew_y PROPERTIES PASS_REGULAR_EXPRESSION
     "transform=skewY\\(15\\)")
+
+add_test(NAME cli_set_transform_result
+    COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"skewY(15)\"")
+set_tests_properties(cli_set_transform_result PROPERTIES PASS_REGULAR_EXPRESSION
+    "rect#box updated: transform=skewY\\(15\\)")
 
 add_test(NAME cli_set_transform_matrix
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"matrix(1 0 0 1 5 6)\"; show box")
@@ -266,7 +276,7 @@ add_test(NAME cli_no_internal_handles
         "init; create g g1; create rect r1 0 0 1 1 in g1; create circle c1 0 0 1 in g1; move r1 5 5 params restrict; set r1 fill red; front r1; back r1; addto g1 r1")
 set_tests_properties(cli_no_internal_handles PROPERTIES
     PASS_REGULAR_EXPRESSION
-        "rect#r1 moved by \\(5, 5\\)\nset fill on rect#r1\nrect#r1 moved to the front of g#g1\nrect#r1 moved to the back of g#g1\nrect#r1 moved to the end of g#g1"
+        "rect#r1 moved by \\(5, 5\\)\nrect#r1 updated: fill=red\nrect#r1 moved to the front of g#g1\nrect#r1 moved to the back of g#g1\nrect#r1 moved to the end of g#g1"
     FAIL_REGULAR_EXPRESSION "#0|#[1-9][0-9]*")
 
 add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>

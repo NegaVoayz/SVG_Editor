@@ -366,7 +366,8 @@ struct EventText {
                element_count_text(released.members) + ")";
     }
     std::string operator()(const event::AttributeSet& set) const {
-        return "set " + quote_if_needed(set.attribute) + " on " + element_label(set.node);
+        return element_label(set.node) + " updated: " + quote_if_needed(set.attribute) + "=" +
+               quote_if_needed(set.value);
     }
     std::string operator()(const event::ContentSet& set) const {
         return element_label(set.node) + " updated: text=" + quoted(set.content);

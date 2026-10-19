@@ -1187,6 +1187,7 @@ int main() {
                 CHECK(std::holds_alternative<event::AttributeSet>(*original));
                 if (std::holds_alternative<event::AttributeSet>(*original)) {
                     CHECK(std::get<event::AttributeSet>(*original).attribute == "class");
+                    CHECK(std::get<event::AttributeSet>(*original).value == "moved");
                 }
             }
         }

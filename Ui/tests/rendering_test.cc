@@ -228,7 +228,9 @@ int main() {
           "rect#r1 moved to the front of g#g1");
     CHECK(render(event::MovedToBack{{"rect", "r1"}, {"g", "g1"}}) ==
           "rect#r1 moved to the back of g#g1");
-    CHECK(render(event::AttributeSet{{"rect", "r1"}, "fill"}) == "set fill on rect#r1");
+    CHECK(render(event::AttributeSet{{"rect", "r1"}, "fill", "red"}) == "rect#r1 updated: fill=red");
+    CHECK(render(event::AttributeSet{{"rect", "r1"}, "class", "layer one"}) ==
+          "rect#r1 updated: class=\"layer one\"");
     CHECK(render(event::ContentSet{{"text", "title"}, "Hello World"}) ==
           "text#title updated: text=\"Hello World\"");
     CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "rect#box deleted");

@@ -87,6 +87,10 @@ struct Ungrouped {
 struct AttributeSet {
     NodeName node;
     std::string attribute;
+    // The value the attribute now carries, spelled the way the tree prints it. Keeping it
+    // here, rather than only in the text renderer, lets an undo or redo replay the whole
+    // answer from its history entry.
+    std::string value;
 };
 
 struct ContentSet {

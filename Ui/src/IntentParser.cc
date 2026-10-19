@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "Command.hh"
+#include "Quoting.hh"
 #include "Syntax.hh"
 
 namespace {
@@ -109,7 +110,7 @@ Request parse(std::string_view line) {
         for (const Verb& verb : verbs()) {
             if (verb.name == words.front()) return verb.read(words);
         }
-        throw ParseFailed{"unknown instruction '" + words.front() + "'; the instructions are\n" + std::string{usage()}};
+        throw ParseFailed{"error: unknown instruction " + quoted(words.front()) + ", try \"help\""};
     } catch (const ParseFailed& failure) {
         return ParseError{failure.message};
     }
