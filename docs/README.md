@@ -123,9 +123,10 @@ refused.
 `transform` adds one step to the node's transform list and is refused for a container.
 `params` changes values directly; `restrict` limits it to the node itself and is refused
 for a container, while `cascade` changes every descendant's params and is refused for a
-leaf. With no selector, a leaf is restricted and a container cascades. A cascade leaves
-nested containers' transforms alone, so it edits the values the tree holds rather than
-adding a second transform above them.
+leaf. With no selector, a leaf is restricted and a container cascades. A cascade stops
+at a descendant that already has a transform: it prepends the move or scale to that
+transform and leaves the subtree below alone, because editing those params would apply
+the operation in the child's local units instead of the parent's.
 
 `init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
 says `error: undo not allowed after io command`; once an edit has been made, undo works

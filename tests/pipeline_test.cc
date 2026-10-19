@@ -309,8 +309,8 @@ int main() {
     // modes have a descendant to reach.
     CHECK(planner.dispatch(AddTo{SvgIdRef{"layer"}, SvgIdRef{"box"}}).ok());
 
-    // A container's default is cascade: its own transform is untouched and every
-    // descendant's params change.
+    // A container's default is cascade: its own transform is untouched and untransformed
+    // descendants have their params changed.
     const Outcome first_cascade = planner.dispatch(Move{SvgIdRef{"layer"}, units(3), units(4)});
     CHECK(first_cascade.ok());
     if (happened_with<event::Moved>(first_cascade)) {
@@ -398,6 +398,77 @@ int main() {
     }
     CHECK(planner.dispatch(Undo{}).ok());
     CHECK(planner.dispatch(Undo{}).ok());
+
+    // A cascade must not write a parent-space delta into the params of a node that has
+    // its own transform. The operation becomes a step in front of that transform, so a
+    // 2x child still moves by exactly 1 parent unit.
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"box"}, {Scale{2.0F, 2.0F}}}}).ok());
+    const Outcome through_scale = planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(0)});
+    CHECK(through_scale.ok());
+    if (happened_with<event::Moved>(through_scale)) {
+        CHECK(std::get<event::Moved>(through_scale.event()).nodes == 1);
+    }
+    {
+        const Outcome child = planner.dispatch(Show{SvgIdRef{"box"}});
+        if (std::holds_alternative<NodeView>(child.view())) {
+            const NodeView& view = std::get<NodeView>(child.view());
+            const std::optional<Shape::Rect> geometry = rect_of(view.payload);
+            CHECK(geometry.has_value());
+            if (geometry) {
+                CHECK(to_text(geometry->x) == "0");
+                CHECK(to_text(geometry->y) == "0");
+            }
+            CHECK(transform_list_text(view.transforms) == "translate(1 0) scale(2 2)");
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
+    CHECK(planner.dispatch(Undo{}).ok());
+
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"box"}, {Scale{2.0F, 2.0F}}}}).ok());
+    const Outcome scale_through_scale = planner.dispatch(ScaleBy{SvgIdRef{"layer"}, 3.0F});
+    CHECK(scale_through_scale.ok());
+    {
+        const Outcome child = planner.dispatch(Show{SvgIdRef{"box"}});
+        if (std::holds_alternative<NodeView>(child.view())) {
+            const NodeView& view = std::get<NodeView>(child.view());
+            const std::optional<Shape::Rect> geometry = rect_of(view.payload);
+            CHECK(geometry.has_value());
+            if (geometry) {
+                CHECK(to_text(geometry->x) == "0");
+                CHECK(to_text(geometry->w) == "10");
+            }
+            CHECK(transform_list_text(view.transforms) == "scale(3 3) scale(2 2)");
+        }
+    }
+    CHECK(planner.dispatch(Undo{}).ok());
+    CHECK(planner.dispatch(Undo{}).ok());
+
+    // A transformed nested container is the same boundary: the operation goes on the
+    // container and the walk stops, rather than reaching its children twice.
+    CHECK(planner.dispatch(Create{CreateGroup{"outer"}}).ok());
+    CHECK(planner.dispatch(Create{CreateGroup{"inner", SvgIdRef{"outer"}}}).ok());
+    CHECK(planner.dispatch(Create{CreateRect{"deep", units(0), units(0), units(4), units(4), std::nullopt,
+                                            SvgIdRef{"inner"}}})
+              .ok());
+    CHECK(planner.dispatch(Set{SetTransform{SvgIdRef{"inner"}, {Scale{2.0F, 2.0F}}}}).ok());
+    CHECK(planner.dispatch(Move{SvgIdRef{"outer"}, units(1), units(0)}).ok());
+    {
+        const Outcome deep = planner.dispatch(Show{SvgIdRef{"deep"}});
+        if (std::holds_alternative<NodeView>(deep.view())) {
+            const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(deep.view()).payload);
+            CHECK(geometry.has_value());
+            if (geometry) {
+                CHECK(to_text(geometry->x) == "0");
+                CHECK(to_text(geometry->w) == "4");
+            }
+        }
+        const Outcome inner = planner.dispatch(Show{SvgIdRef{"inner"}});
+        if (std::holds_alternative<NodeView>(inner.view())) {
+            CHECK(transform_list_text(std::get<NodeView>(inner.view()).transforms) ==
+                  "translate(1 0) scale(2 2)");
+        }
+    }
+    for (int edit = 0; edit < 5; ++edit) CHECK(planner.dispatch(Undo{}).ok());
 
     CHECK(refused_with<fault::CascadeRequiresContainer>(
         planner.dispatch(Move{SvgIdRef{"box"}, units(1), units(1), EditTarget::Params, EditScope::Cascade})));

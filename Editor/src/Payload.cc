@@ -39,30 +39,55 @@ std::expected<EditMode, Refusal> resolve_mode(const Node& payload, EditTarget ta
     return EditMode::Params;
 }
 
-// Changes every non-container under `parent`, then walks the text children a text may
-// hold, leaving nested containers and their transforms alone. The payloads are collected
-// first, so one bad value refuses the whole cascade before a transaction is opened.
+// Whether a node already has a coordinate system of its own. A parent-space delta written
+// into the params under such a node would be read in that node's local units, which is
+// exactly how a 2x transform turns a move of 1 into 2.
+bool carries_transform(const Node& payload) {
+    return std::holds_alternative<SVGNode>(payload) &&
+           std::get<SVGNode>(payload).transform_attr.head != no_id;
+}
+
+// A cascade changes params where it safely can, and stops at every node that already has
+// a transform. At that boundary the operation is prepended to the node's transform
+// instead: the whole subtree then moves or scales in the parent's coordinate system, and
+// the values below keep the units and scale they were written with.
+struct CascadePlan {
+    std::vector<std::pair<Id, Node>> params;
+    std::vector<Id> transformed;
+};
+
+// The plan is collected before a transaction opens, so one bad param refuses the whole
+// cascade without leaving a partial edit behind.
 template<typename Apply>
-std::optional<Refusal> edit_descendants(const Document& document, Id parent, Apply apply,
-                                        std::vector<std::pair<Id, Node>>& changes) {
+std::optional<Refusal> plan_descendants(const Document& document, Id parent, Apply apply,
+                                        CascadePlan& plan) {
     for (const Id child : document.children(parent)) {
         std::optional<Node> payload = document.node(child);
         if (!payload || std::holds_alternative<PlainText>(*payload)) continue;
+
+        // Prepending here applies to this node and everything under it, so descending
+        // would apply the operation a second time in the wrong coordinate system.
+        if (carries_transform(*payload)) {
+            plan.transformed.push_back(child);
+            continue;
+        }
+
         if (!is_container(*payload)) {
             if (std::optional<Refusal> problem = apply(*payload)) return problem;
-            changes.emplace_back(child, std::move(*payload));
+            plan.params.emplace_back(child, std::move(*payload));
         }
-        if (std::optional<Refusal> problem = edit_descendants(document, child, apply, changes)) {
+        if (std::optional<Refusal> problem = plan_descendants(document, child, apply, plan)) {
             return problem;
         }
     }
     return std::nullopt;
 }
 
-void commit_changes(Document& document, std::vector<std::pair<Id, Node>>& changes) {
-    if (changes.empty()) return;
+void commit_cascade(Document& document, CascadePlan& plan, const Transform& operation) {
+    if (plan.params.empty() && plan.transformed.empty()) return;
     Transaction edit = document.transaction();
-    for (auto& [id, payload] : changes) edit.update(id, std::move(payload));
+    for (auto& [id, payload] : plan.params) edit.update(id, std::move(payload));
+    for (const Id node : plan.transformed) edit.prepend_transform(node, operation);
     edit.commit();
 }
 
@@ -108,13 +133,15 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
         return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy, EditMode::Params, 1});
     }
 
-    std::vector<std::pair<Id, Node>> changes;
-    std::optional<Refusal> problem = edit_descendants(
+    CascadePlan plan;
+    std::optional<Refusal> problem = plan_descendants(
         document_, *node,
-        [&intent](Node& child) { return Geometry::translate_params(child, intent.dx, intent.dy); }, changes);
+        [&intent](Node& child) { return Geometry::translate_params(child, intent.dx, intent.dy); }, plan);
     if (problem) return refused(Kind::Change, std::move(*problem));
-    commit_changes(document_, changes);
-    return happened(Kind::Change, event::Moved{named, intent.dx, intent.dy, EditMode::Cascade, changes.size()});
+    commit_cascade(document_, plan, Translate{intent.dx, intent.dy});
+    return happened(Kind::Change,
+                    event::Moved{named, intent.dx, intent.dy, EditMode::Cascade,
+                                 plan.params.size() + plan.transformed.size()});
 }
 
 template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
@@ -153,12 +180,14 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
         return happened(Kind::Change, event::Scaled{named, intent.factor, EditMode::Params, 1});
     }
 
-    std::vector<std::pair<Id, Node>> changes;
-    std::optional<Refusal> problem = edit_descendants(
-        document_, *node, [&intent](Node& child) { return Geometry::scale_params(child, intent.factor); }, changes);
+    CascadePlan plan;
+    std::optional<Refusal> problem = plan_descendants(
+        document_, *node, [&intent](Node& child) { return Geometry::scale_params(child, intent.factor); }, plan);
     if (problem) return refused(Kind::Change, std::move(*problem));
-    commit_changes(document_, changes);
-    return happened(Kind::Change, event::Scaled{named, intent.factor, EditMode::Cascade, changes.size()});
+    commit_cascade(document_, plan, Scale{intent.factor, intent.factor});
+    return happened(Kind::Change,
+                    event::Scaled{named, intent.factor, EditMode::Cascade,
+                                  plan.params.size() + plan.transformed.size()});
 }
 
 template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {

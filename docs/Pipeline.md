@@ -222,9 +222,13 @@ directly: `restrict` edits only the node's own values and is refused for a conta
 which has none, while `cascade` edits every non-container descendant and is refused for
 a leaf. With neither selector, a leaf is `restrict` and a container is `cascade`.
 `Editor/src/Payload.cc` resolves the node kind, collects a cascade's changed payloads
-before opening a transaction, and commits them as one undo step. A cascade leaves nested
-containers and their transforms untouched; `event::Moved`/`event::Scaled` carry the
-resolved mode and the number of nodes it edited.
+before opening a transaction, and commits them as one undo step. A cascade stops at any
+descendant that already carries a transform: writing a parent-space delta into that
+node's params would be read in its local coordinate system and move it by the wrong
+amount. The operation is prepended to the transformed node's transform instead, and its
+subtree is left alone because the new step already covers it. `event::Moved`/
+`event::Scaled` carry the resolved mode and the number of nodes whose params or transform
+the edit changed.
 
 A length is a number with an optional `px`, `pt`, `cm`, `mm`, `in`, `em`, `ex`, or a
 percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a CSS named or system colour,
