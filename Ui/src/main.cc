@@ -23,50 +23,62 @@
 
 namespace {
 
+struct InstructionResult {
+    bool ok;
+    bool stop;
+};
+
+struct SessionResult {
+    bool ok;
+    bool exited;
+};
+
 // One visitor instead of a chain of tests: the parse either produced an
 // instruction or the reason it could not.
 struct RunInstruction {
     Planner& planner;
 
-    bool operator()(const ParseError& error) const {
+    InstructionResult operator()(const ParseError& error) const {
         if (!error.message.starts_with("error:")) std::cout << "error: ";
         std::cout << error.message << "\n";
-        return false;
+        return {false, false};
     }
 
     // The one instruction the front end answers itself: what the commands are is what
     // this layer knows the syntax of, and no other layer has to.
-    bool operator()(const Help&) const {
+    InstructionResult operator()(const Help&) const {
         std::cout << usage();
-        return true;
+        return {true, false};
     }
 
-    bool operator()(const Comment&) const { return true; }
+    InstructionResult operator()(const Exit&) const { return {true, true}; }
 
-    bool operator()(const Intent& intent) const {
+    InstructionResult operator()(const Comment&) const { return {true, false}; }
+
+    InstructionResult operator()(const Intent& intent) const {
         try {
             const Outcome outcome = planner.dispatch(intent);
             // The renderer owns both directions of the boundary's wording: a view is the
             // drawing itself, an event is a sentence about what changed, and a refusal is
             // the sentence that explains why nothing did.
             std::cout << render(outcome) << "\n";
-            return outcome.ok();
+            return {outcome.ok(), false};
         } catch (const std::exception& error) {
             // The front end is the boundary: whatever a lower layer throws comes out
             // as a line here, never as a crash.
             std::cout << error.what() << "\n";
-            return false;
+            return {false, false};
         }
     }
 };
 
-bool run_instruction(Planner& planner, std::string_view instruction) {
-    if (instruction.find_first_not_of(" \t\r\n") == std::string_view::npos) return true;
+InstructionResult run_instruction(Planner& planner, std::string_view instruction) {
+    if (instruction.find_first_not_of(" \t\r\n") == std::string_view::npos) return {true, false};
     return std::visit(RunInstruction{planner}, parse(instruction));
 }
 
 // Instructions are separated by ';', so one argument can drive a whole session.
-bool run_instructions(Planner& planner, std::string_view instructions) {
+SessionResult run_instructions(Planner& planner, std::string_view instructions) {
     bool ok = true;
     std::size_t start = 0;
     while (true) {
@@ -76,11 +88,13 @@ bool run_instructions(Planner& planner, std::string_view instructions) {
         // A comment runs to the end of the line, so a semicolon inside it is text,
         // not another instruction.
         if (starts_comment(instruction)) break;
-        ok = run_instruction(planner, instruction) && ok;
+        const InstructionResult result = run_instruction(planner, instruction);
+        ok = result.ok && ok;
+        if (result.stop) return {ok, true};
         if (end == std::string_view::npos) break;
         start = end + 1;
     }
-    return ok;
+    return {ok, false};
 }
 
 }  // namespace
@@ -96,7 +110,7 @@ int main(int argc, char** argv) {
             if (index > 1) instructions += ' ';
             instructions += argv[index];
         }
-        return run_instructions(planner, instructions) ? 0 : 1;
+        return run_instructions(planner, instructions).ok ? 0 : 1;
     }
 
     std::cout << "svg-editor " SVG_EDITOR_VERSION " \xE2\x80\x94 type 'help' for commands\n";
@@ -107,8 +121,7 @@ int main(int argc, char** argv) {
         std::cout << "svg> " << std::flush;
         std::string line;
         if (!std::getline(std::cin, line)) break;
-        if (line == "quit" || line == "exit") break;
-        run_instructions(planner, line);
+        if (run_instructions(planner, line).exited) break;
     }
     return 0;
 }

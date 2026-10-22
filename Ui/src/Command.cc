@@ -193,11 +193,18 @@ Request parse_help(const Words& words) {
     return Help{};
 }
 
+Request parse_exit(const Words& words) {
+    expect(words.size(), 1, "exit takes no operand");
+    return Exit{};
+}
+
 // The vocabulary itself: one row per verb, in the order the help lists them - `canvas` is
 // the one row that answers both of the forms the help gives it. A table this size is a
 // scan, not a lookup structure.
-constexpr std::array<Verb, 21> table{{
+constexpr std::array<Verb, 23> table{{
     {"help", parse_help},
+    {"exit", parse_exit},
+    {"quit", parse_exit},
     {"tree", parse_tree},
     {"show", parse_show},
     {"history", parse_history},

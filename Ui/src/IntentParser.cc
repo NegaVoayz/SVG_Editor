@@ -81,6 +81,7 @@ std::string_view usage() {
            "           history [n]            the last n edits and their commit ids, 20 by default\n"
            "           canvas                 the document's size, which is the root's\n"
            "           help                   this list\n"
+           "           exit | quit            leave the editor\n"
            "  change   create <kind> <id> [values] [in <gid>]\n"
            "             rect <id> <x> <y> <w> <h> [fill] | circle <id> <cx> <cy> <r> [fill]\n"
            "             ellipse <id> <cx> <cy> <rx> <ry> [fill] | line <id> <x1> <y1> <x2> <y2> [stroke]\n"

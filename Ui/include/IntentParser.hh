@@ -18,13 +18,17 @@ struct ParseError {
 // front end's own business, so the front end answers this one itself.
 struct Help {};
 
+// Stop the front end without changing the document. Like help, this belongs here because
+// the lifetime of the textual session is the front end's, not the pipeline's.
+struct Exit {};
+
 // A line whose first non-space character is '#'. It is not an instruction: it documents
 // the session and asks the pipeline for nothing.
 struct Comment {};
 
 // What one line asked for: an instruction for the pipeline, the front end's own help,
-// a comment, or the reason the line could not be read.
-using Request = std::variant<Intent, Help, Comment, ParseError>;
+// an exit, a comment, or the reason the line could not be read.
+using Request = std::variant<Intent, Help, Exit, Comment, ParseError>;
 
 // The instructions this front end understands, for a usage line and for the
 // complaint an unknown word gets.

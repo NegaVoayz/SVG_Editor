@@ -157,6 +157,7 @@ until every one of them names it.
 | `history [n]`                                    | the last n edits with their commit ids, 20 by default  | the Editor's replay log |
 | `canvas`                                         | the document's size, which is the root element's       | the Planner, Model's viewing API |
 | `help`                                           | the command list                                       | the front end itself    |
+| `exit` / `quit`                                  | leave the editor without changing the document         | the front end itself    |
 | `create rect <id> <x> <y> <w> <h> [fill]`        | a rectangle                                            | the Editor, one transaction |
 | `create circle <id> <cx> <cy> <r> [fill]`        | a circle                                               | the Editor, one transaction |
 | `create ellipse <id> <cx> <cy> <rx> <ry> [fill]` | an ellipse                                             | the Editor, one transaction |

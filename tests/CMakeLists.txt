@@ -358,23 +358,30 @@ set_tests_properties(cli_undo_redo_history_outcome PROPERTIES PASS_REGULAR_EXPRE
 add_test(NAME cli_history COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; move r 5 7; history")
 set_tests_properties(cli_history PROPERTIES PASS_REGULAR_EXPRESSION
-    "2 +rect#r created\n3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)")
+    "1 +baseline\n2 +rect#r created\n3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)")
 
 add_test(NAME cli_history_limit COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; move r 5 7; history 1")
 set_tests_properties(cli_history_limit PROPERTIES
-    PASS_REGULAR_EXPRESSION "3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)"
+    PASS_REGULAR_EXPRESSION "1 +baseline\n1 commit not shown\n3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)"
     FAIL_REGULAR_EXPRESSION "2 +rect#r created")
 
 add_test(NAME cli_history_head_after_undo COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; move r 5 7; undo; history")
 set_tests_properties(cli_history_head_after_undo PROPERTIES
-    PASS_REGULAR_EXPRESSION "2 +rect#r created \\(HEAD\\)\n3 +rect#r moved by \\(5, 7\\)"
+    PASS_REGULAR_EXPRESSION "1 +baseline\n2 +rect#r created \\(HEAD\\)\n3 +rect#r moved by \\(5, 7\\)"
     FAIL_REGULAR_EXPRESSION "3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)")
 
 add_test(NAME cli_history_after_canvas COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; canvas 800 600; history")
-set_tests_properties(cli_history_after_canvas PROPERTIES PASS_REGULAR_EXPRESSION "no history")
+set_tests_properties(cli_history_after_canvas PROPERTIES PASS_REGULAR_EXPRESSION
+    "3 +baseline \\(HEAD\\)")
+
+add_test(NAME cli_history_baseline_head_after_undo COMMAND $<TARGET_FILE:Cli>
+    "init; create rect a 0 0 1 1; canvas 800 600; create rect b 0 0 1 1; undo; history")
+set_tests_properties(cli_history_baseline_head_after_undo PROPERTIES
+    PASS_REGULAR_EXPRESSION "3 +baseline \\(HEAD\\)\n4 +rect#b created"
+    FAIL_REGULAR_EXPRESSION "4 +rect#b created \\(HEAD\\)")
 
 add_test(NAME cli_checkout COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; move r 5 7; checkout 2; show r; checkout 3; show r")
@@ -493,7 +500,17 @@ set_tests_properties(cli_create_result PROPERTIES PASS_REGULAR_EXPRESSION
     "text#start-label created in g#node1")
 
 add_test(NAME cli_help COMMAND $<TARGET_FILE:Cli> "help")
-set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "create <kind> <id>")
+set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "create <kind> <id>|exit \\| quit")
+
+add_test(NAME cli_exit COMMAND $<TARGET_FILE:Cli>
+    "init; create rect before 0 0 1 1; exit; create rect after 0 0 1 1; tree")
+set_tests_properties(cli_exit PROPERTIES
+    PASS_REGULAR_EXPRESSION "rect#before"
+    FAIL_REGULAR_EXPRESSION "rect#after|rect#after created")
+
+add_test(NAME cli_exit_operand COMMAND $<TARGET_FILE:Cli> "exit now")
+set_tests_properties(cli_exit_operand PROPERTIES
+    PASS_REGULAR_EXPRESSION "exit takes no operand")
 
 add_test(NAME cli_unknown_verb COMMAND $<TARGET_FILE:Cli> "frobnicate")
 set_tests_properties(cli_unknown_verb PROPERTIES WILL_FAIL TRUE)

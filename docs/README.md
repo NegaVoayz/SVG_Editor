@@ -112,6 +112,7 @@ The instructions are:
 | `init [w] [h]`                                  | a fresh document, 800x600 by default                       |
 | `read <file.svg>`                               | read a document                                            |
 | `save [file.svg]`                               | write it, where it was read from by default                |
+| `help` / `exit`                                 | show the command list / leave the editor                   |
 
 Every `create` also takes `in <gid>`, which is where the element goes: without it, the
 element is the last child of the root. A node is named by its SVG id; `/` or `svg` names
@@ -165,14 +166,14 @@ says `error: undo not allowed after io command`; once an edit has been made, und
 until the baseline is reached again. Undo and redo report the edit outcome they move:
 `undo: rect#box moved by (5, 7)` and `redo: rect#box moved by (5, 7)`.
 
-`history [n]` lists up to the newest 20 edits since the last context change, oldest
-first, each with the commit id `checkout` takes and `(HEAD)` on the current checkout.
-`history 1` shows only the newest one; when older edits are left out, the first line says
-how many. The baseline itself is not an edit, so `init`, `read`, `save`, and `canvas` cut
-the list back to nothing. It remains visitable through its retained commit id, normally
-one less than the first edit after the context change. `checkout <commit>` moves straight
-to that commit, keeping the rest of the branch available for redo, and answers
-`checked out <commit>: <outcome>`.
+`history [n]` shows the retained baseline followed by up to the newest 20 edits since
+the last context change, oldest first. Each row carries the commit id `checkout` takes,
+and `(HEAD)` marks the current checkout, including when the checkout is the baseline.
+`history 1` shows only the newest edit; when older edits are left out between the baseline
+and the newest rows, the omitted line says how many. `init`, `read`, `save`, and `canvas`
+establish a new baseline and therefore cut the editable part of the list back to nothing.
+`checkout <commit>` moves straight to that commit, keeping the rest of the branch
+available for redo, and answers `checked out <commit>: <outcome>`.
 
 `show` prints the node's parent on its heading when it is not the root, then one
 indented line for each group of attributes:

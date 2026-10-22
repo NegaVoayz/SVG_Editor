@@ -48,8 +48,8 @@ struct NodeView {
 // The edits since the last context change, with their commit ids, in the order they
 // happened. A checkout moves to one of these, so the list is also its operand table.
 // The baseline is the state just after the context change. It is deliberately not an
-// entry because it has no edit outcome, but its id is carried here so a checkout can
-// return to it without treating the baseline as an edit.
+// edit entry because it has no edit outcome, but its id is carried here so both history
+// rendering and checkout can show and return to the first retained commit.
 struct HistoryView {
     CommitId baseline = 0;
     CommitId head = 0;

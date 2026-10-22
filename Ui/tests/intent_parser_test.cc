@@ -377,7 +377,11 @@ int main() {
     CHECK(holds<Save>(write));
     if (holds<Save>(write)) CHECK(as<Save>(write).path.has_value());
 
-    // help never leaves the front end: what the commands are is this layer's own text
+    // help and exit never leave the front end: the textual session belongs to this layer.
+    CHECK(std::holds_alternative<Help>(parse("help")));
+    CHECK(std::holds_alternative<Exit>(parse("exit")));
+    CHECK(std::holds_alternative<Exit>(parse("quit")));
+    CHECK(refuses(parse("exit now")));
     CHECK(std::holds_alternative<Help>(parse("help")));
     CHECK(refuses(parse("help me")));
     check_help_names_every_verb();
