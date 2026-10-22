@@ -8,6 +8,7 @@
 #include <variant>
 #include <vector>
 
+#include "ElementName.hh"
 #include "Quoting.hh"
 #include "SVGNode.hh"
 

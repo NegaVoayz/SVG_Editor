@@ -11,6 +11,7 @@
 
 #include "Color.hh"
 #include "Document.hh"
+#include "ElementName.hh"
 #include "TinyXml2Adapter.hh"
 
 namespace {
@@ -231,6 +232,22 @@ int main() {
     CHECK(named(document, "text1").has_value());
     CHECK(named(document, "small").has_value());
     CHECK(named(document, "along").has_value());
+
+    // Display and serialization share one exhaustive element-name mapping.
+    if (const std::optional<Id> rect1 = named(document, "rect1")) {
+        if (const std::optional<SVGNode> payload = element_at(document, *rect1)) CHECK(element_name(*payload) == "rect");
+    }
+    if (const std::optional<Id> layer_node = named(document, "layer")) {
+        if (const std::optional<SVGNode> payload = element_at(document, *layer_node)) CHECK(element_name(*payload) == "g");
+    }
+    if (const std::optional<Id> span = named(document, "small")) {
+        if (const std::optional<SVGNode> payload = element_at(document, *span)) CHECK(element_name(*payload) == "tspan");
+    }
+    if (const std::optional<Id> path = named(document, "along")) {
+        if (const std::optional<SVGNode> payload = element_at(document, *path)) {
+            CHECK(element_name(*payload) == "textPath");
+        }
+    }
 
     const std::optional<Id> text = named(document, "text1");
     CHECK(text.has_value());

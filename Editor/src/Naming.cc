@@ -1,3 +1,4 @@
+#include "ElementName.hh"
 #include "Naming.hh"
 
 #include <optional>

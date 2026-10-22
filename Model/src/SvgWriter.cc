@@ -7,34 +7,9 @@
 #include <variant>
 #include <vector>
 
+#include "ElementName.hh"
+
 namespace {
-
-struct ShapeName {
-    std::string_view operator()(const Shape::Rect&) const { return "rect"; }
-    std::string_view operator()(const Shape::Circle&) const { return "circle"; }
-    std::string_view operator()(const Shape::Ellipse&) const { return "ellipse"; }
-    std::string_view operator()(const Shape::Line&) const { return "line"; }
-};
-
-struct ContainerName {
-    std::string_view operator()(const Container::SVG&) const { return "svg"; }
-    std::string_view operator()(const Container::Group&) const { return "g"; }
-    std::string_view operator()(const Container::Defs&) const { return "defs"; }
-    std::string_view operator()(const Container::Symbol&) const { return "symbol"; }
-    std::string_view operator()(const Container::Switch&) const { return "switch"; }
-};
-
-struct ElementName {
-    std::string_view operator()(const Shape& shape) const { return std::visit(ShapeName{}, shape.specific); }
-    std::string_view operator()(const Container& container) const {
-        return std::visit(ContainerName{}, container.specific);
-    }
-    std::string_view operator()(const Text& text) const {
-        if (std::holds_alternative<Text::Wrapper>(text.specific)) return "text";
-        if (std::holds_alternative<Text::Span>(text.specific)) return "tspan";
-        return "textPath";
-    }
-};
 
 std::string escaped_text(std::string_view text) {
     std::string escaped;
@@ -169,7 +144,7 @@ void write_node(const TreeStore& store, Id id, std::size_t depth, bool inline_no
 
 void write_element(const TreeStore& store, Id id, const SVGNode& element, std::size_t depth, bool inline_node,
                    std::string& out) {
-    const std::string_view name = std::visit(ElementName{}, element.data);
+    const std::string_view name = element_name(element);
     if (!inline_node) indent(out, depth);
     out += '<';
     out += name;
