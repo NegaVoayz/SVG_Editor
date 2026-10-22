@@ -102,6 +102,11 @@ inline std::string to_text(const Container::ViewBox& box) {
            number_text(box.height);
 }
 
+inline std::string svg_text(const Container::ViewBox& box) {
+    return exact_number_text(box.min_x) + " " + exact_number_text(box.min_y) + " " +
+           exact_number_text(box.width) + " " + exact_number_text(box.height);
+}
+
 // The SVG element that can be a parent of shapes and other containers. A text also has
 // child storage, for its character data, but it is not a container a user can put an
 // element inside.

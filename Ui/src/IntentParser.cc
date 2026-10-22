@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "Command.hh"
+#include "Create.hh"
 #include "Quoting.hh"
 #include "Syntax.hh"
 
@@ -76,33 +77,41 @@ bool starts_comment(std::string_view line) {
 }
 
 std::string_view usage() {
-    return "  view     tree [id]              the tree, the whole document by default\n"
-           "           show <id>              one element's attributes and parent\n"
-           "           history [n]            edits around HEAD, capped at 20 by default\n"
-           "           canvas                 the document's size, which is the root's\n"
-           "           help                   this list\n"
-           "           exit | quit            leave the editor\n"
-           "  change   create <kind> <id> [values] [in <gid>]\n"
-           "             rect <id> <x> <y> <w> <h> [fill] | circle <id> <cx> <cy> <r> [fill]\n"
-           "             ellipse <id> <cx> <cy> <rx> <ry> [fill] | line <id> <x1> <y1> <x2> <y2> [stroke]\n"
-           "             text <id> <x> <y> \"content\" | g <id>\n"
-           "           delete <id>            the node and its descendants\n"
-           "           move <id> <dx> <dy> [transform|params] [cascade|restrict]\n"
-           "           scale <id> <factor> [transform|params] [cascade|restrict]\n"
-           "             params changes values directly; transform changes the node's transform\n"
-           "             defaults are params + cascade; a node with a transform uses its transform\n"
-           "             a leaf's cascade changes that leaf\n"
-           "           set <id> <attr> <value>   one attribute; id, parent and children are not attributes\n"
-           "           group <newGid> <id> <id> ... | ungroup <gid> | addto <gid> <id>\n"
-           "           front <id> | back <id>   the ends of the child order, last child in front\n"
-           "           canvas <w> [h]         a new size, and the history starts over\n"
-           "           undo | redo            one edit back or forward\n"
-           "           checkout <commit> [n]  move to a commit and show its timeline, 20 by default\n"
-           "  context  init [w] [h]           a fresh document, 800x600 by default\n"
-           "           read <file.svg>        read a document, naming what it left unnamed\n"
-           "           save [file.svg]        write it, and the history starts over\n"
-           "  a node is an SVG id; '/' or the reserved word 'svg' names the root\n"
-           "  a line starting with '#' is a comment; quoted text accepts \\\" and \\\\\n";
+    static const std::string text = [] {
+        std::string kinds;
+        for (const std::string_view kind : element_kind_names()) {
+            if (!kinds.empty()) kinds += " | ";
+            kinds += kind;
+        }
+        return "  view     tree [id]              the tree, the whole document by default\n"
+               "           show <id>              one element's attributes and parent\n"
+               "           history [n]            edits around HEAD, capped at 20 by default\n"
+               "           canvas                 the document's size, which is the root's\n"
+               "           help                   this list\n"
+               "           exit | quit            leave the editor\n"
+               "  change   create <kind> <id> [values] [in <gid>]\n"
+               "             " +
+               kinds +
+               "\n"
+               "           delete <id>            the node and its descendants\n"
+               "           move <id> <dx> <dy> [transform|params] [cascade|restrict]\n"
+               "           scale <id> <factor> [transform|params] [cascade|restrict]\n"
+               "             params changes values directly; transform changes the node's transform\n"
+               "             defaults are params + cascade; a node with a transform uses its transform\n"
+               "             a leaf's cascade changes that leaf\n"
+               "           set <id> <attr> <value>   one attribute; id, parent and children are not attributes\n"
+               "           group <newGid> <id> <id> ... | ungroup <gid> | addto <gid> <id>\n"
+               "           front <id> | back <id>   the ends of the child order, last child in front\n"
+               "           canvas <w> [h]         a new size, and the history starts over\n"
+               "           undo | redo            one edit back or forward\n"
+               "           checkout <commit> [n]  move to a commit and show its timeline, 20 by default\n"
+               "  context  init [w] [h]           a fresh document, 800x600 by default\n"
+               "           read <file.svg>        read a document, naming what it left unnamed\n"
+               "           save [file.svg]        write it, and the history starts over\n"
+               "  a node is an SVG id; '/' or the reserved word 'svg' names the root\n"
+               "  a line starting with '#' is a comment; quoted text accepts \\\" and \\\\\n";
+    }();
+    return text;
 }
 
 Request parse(std::string_view line) {

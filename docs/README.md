@@ -121,8 +121,10 @@ the root. `svg` is reserved for the root: `create` and `group` refuse it as an i
 The hive's internal handle is not part of the command language.
 
 Quotes group words that contain spaces, which is how text content and file paths are
-written. They do not make an SVG id valid: an id is an XML name, so `create g "a b"` is
-refused.
+written. A quote or backslash inside one is written `\"` or `\\`, and the same escaping
+is used when the front end prints a value, so the displayed field can be pasted back
+unchanged. Quotes do not make an SVG id valid: an id is an XML name, so
+`create g "a b"` is refused.
 
 `transform` applies the move or scale to the node's transform matrix. Every SVG node has
 that field, so it works for a shape, a text, a group and the root alike. `params` changes values
@@ -154,10 +156,11 @@ matrix in TRS+skew form - `translate(...) rotate(...) scale(...) skewX(...)` or
 `skewY(...)` - leaving out identity steps. Both skew decompositions are exact, so the
 shorter rendering is printed; a tie prefers the smaller absolute skew angle. A plain
 `skewX(15)` or `skewY(15)` therefore reads back unchanged, while `rotate(30 10 20)` reads
-back as `translate(11.3397 -2.32051) rotate(30)`.
+back as `translate(11.339746 -2.320507) rotate(30)`.
 
 Moving or scaling an empty container is refused with
-`error: cannot move or scale an empty container: g#node2`. Such an edit would be
+`error: cannot move or scale an empty group: g#node2`; a loaded-only container kind
+names its element in the same sentence. Such an edit would be
 invisible, but a shape inserted into that container later would inherit the displaced
 coordinate system.
 
@@ -181,6 +184,11 @@ timeline uses the same default cap of 20 neighboring commits as `history`; `n` o
 it. Checking out the commit that is already HEAD answers
 `checked out <commit> (no effect)` before the timeline.
 
+Checkpoints reuse the checkout id they preserve, while `init`, `canvas`, and a `read`
+chunk create real commits. A read creates its root in the first load commit rather than
+creating and then replacing a throwaway root, so a one-chunk read advances the visible
+sequence by one.
+
 `show` prints the node's parent on its heading when it is not the root, then one
 indented line for each group of attributes:
 
@@ -198,7 +206,9 @@ systems were written. The refusal names the two sides, so `1in` against `1cm` sa
 which of them is imperial.
 
 Canvas sides must be positive. Shape dimensions and radii may be zero, but not
-negative. Printed floats use at most six significant figures.
+negative. Display text uses up to six decimal places and suppresses negative zero.
+Files use the shortest spelling that reads back as the same `float`, so a sub-micro
+geometry value is not rounded away and float32 noise does not become a long decimal.
 
 `read` parses the SVG subset the model represents and assigns ids to unnamed
 non-root elements, printing one `warning:` line for each generated id. `save` writes

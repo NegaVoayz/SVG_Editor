@@ -47,6 +47,14 @@ explicitly with one shared id, so every participating hive's native checkout rep
 that same value. The Editor keeps one entry per history position in a `std::deque`,
 with the commit id stored beside the outcome and checked when the outcome is replayed.
 
+A view is a projection, not a checkout record. `ElementShape` carries the identity,
+paint, and an `ElementData` projected from the model; `ContainerShape` and `TextShape`
+drop their child-list endpoints, and `CharacterView` carries plain character data.
+Neither a node's parent/sibling ids nor a container's first/last-child links cross the
+Model boundary, and a view adds only the public node handle and display facts around
+that projection. Model storage can therefore change without making those internal
+links part of the front-end contract.
+
 ## How an intent is dispatched
 
 The `variant + visit + handle<T>` shape described in [Structure.md](Structure.md) is the
@@ -118,6 +126,10 @@ template<> Outcome handle<Create>(const Create& intent) {
 - The Editor is typed to `ChangeIntent`, so a view or a context instruction reaching
   the write path is not something it has to refuse at runtime - it is not a type it
   accepts.
+- If Model throws after a transaction is open, the transaction rolls back and the
+  protocol returns the bounded `InternalError` refusal. Setting `SVG_EDITOR_DEBUG`
+  also writes the exception message to `stderr`, so a violated Model invariant remains
+  diagnosable without changing the user-facing outcome.
 - A create is answered in two levels. `Create` is one alternative of `ChangeIntent`, so
   level one routes it like any other change and the Planner never learns which element a
   line named; level two is a translation of its own, `handle<Create>` in
@@ -145,8 +157,8 @@ template<> Outcome handle<Create>(const Create& intent) {
   sets, so a new kind in the model is a build error until it is named too.
 
 The `switch`es that are left are all over an enum the model declares (`Length::Unit`,
-`Kind`), where `-Wswitch` is what keeps them honest: a new enum value is a warning
-until every one of them names it.
+`Kind`), where `-Wswitch` and `-Werror` / `/WX` make a missing enum case a build
+failure rather than a warning that a normal test run can miss.
 
 ## The instructions
 
@@ -193,13 +205,13 @@ reader per verb - the words of a line in, the instruction out - and the table of
 whole vocabulary of the front end. The first word of a line picks a row, so a new instruction
 is a row and a reader and nothing else, and a word that is in no row is refused in the one
 place that knows the table. `create`'s element kinds are a second table of that same shape in
-`Ui/src/Create.cc`, and it is what builds the list in "create can build rect, circle, ellipse,
-line, text or g, not 'poly'": the sentence is read out of the table, so it cannot fall behind
-the kinds it names. The rest of the front end is one source per question it answers -
+`Ui/src/Create.cc`, and it also builds the help's create-kind line: the sentence is
+read out of the table, so it cannot fall behind the kinds it names. The rest of the
+front end is one source per question it answers -
 `IntentParser.cc` is the boundary and the command list, `Syntax.cc` is the shape a reader is
 written in and what one word spells, `Rendering.cc` is the other direction of the boundary -
-and the one pair that can still drift is the table and the help, so a test reads the table and
-fails if the help does not name a verb in it.
+and the test reads both the verb table and the element-kind table and fails if the
+help omits either complete list.
 
 `set` is the one instruction whose *attribute* is a runtime name, and it is typed in two
 places so no layer below the front end parses a string. `Intent.hh` holds one struct per
@@ -263,7 +275,8 @@ line, including any semicolons in it.
 
 A canvas side must be positive: `init -5 -5` and `canvas 0` are refused. A shape
 dimension or radius may be zero, as SVG allows, but a negative value is refused.
-Printed floats use at most six significant figures.
+Printed floats use up to six decimal places; file values use a separate shortest
+round-trip spelling, so display rounding cannot alter saved geometry.
 
 `read` reports the successful load first, then one exact warning line for each id it
 had to invent:

@@ -13,9 +13,9 @@ include(CTest)
 add_library(SvgEditorWarnings INTERFACE)
 add_library(SvgEditor::Warnings ALIAS SvgEditorWarnings)
 if(MSVC)
-    target_compile_options(SvgEditorWarnings INTERFACE /W4 /permissive-)
+    target_compile_options(SvgEditorWarnings INTERFACE /W4 /permissive- /WX)
 else()
-    target_compile_options(SvgEditorWarnings INTERFACE -Wall -Wextra -Wpedantic)
+    target_compile_options(SvgEditorWarnings INTERFACE -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 # The tree of targets, bottom up:

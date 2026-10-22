@@ -117,11 +117,14 @@ fabricated `<removed />` element.
 
 Which types can do what remains a compile-time fact, checked without listing the
 kinds. `Linked<T>` requires the three link members themselves, and
-`all_linked()` folds over the alternatives of `Node`, so an alternative that
-forgets one is a build error. `ChildHolder<T>` requires both ends of the child
-list; a type that only claims the capability, or stores a different type there,
-does not satisfy it. The store's one runtime question - what is this payload? -
-is still a `std::visit`, and the alternatives answer with `if constexpr`.
+`all_linked()` folds over the top-level alternatives of `Node`, so a new node
+shape that forgets a link is a build error. The nested `Shape`, `Container`, and
+`Text` alternatives are payload kinds rather than node records; their
+exhaustiveness is enforced by the asserted visitors that name, render, serialize,
+and edit them. `ChildHolder<T>` requires both ends of the child list; a type that
+only claims the capability, or stores a different type there, does not satisfy it.
+The store's one runtime question - what is this payload? - is still a
+`std::visit`, and the alternatives answer with `if constexpr`.
 
 One user intent is one MVCCHive transaction, and therefore one commit. A move
 rewrites the moved node's links and the links of its old and new neighbours; a
@@ -235,7 +238,9 @@ from that checkout.
 prune the history around the checkout, and makes that checkout the baseline.
 `reset()` is stronger: it drops the whole hive generation and builds a new root.
 A document that holds that hive by value cannot be moved, which is why
-`Document` is non-copyable and non-movable.
+`Document` is non-copyable and non-movable because the hive is a direct member.
+One process can therefore hold a document without moving its arena, but a
+document manager cannot use a growing `std::vector<Document>` as its storage.
 
 The number of user edits is `depth()`; `position()` is where the checkout stands.
 Undo and redo return `TouchedNodes`: one entry per changed virtual id with a
@@ -253,11 +258,14 @@ MVCCHive can publish a caller-supplied commit id, and the editor uses one
 process-wide sequence to hand that id to every hive taking part in an edit. The
 native commit id is therefore the shared checkout id; there is no second mapping
 to keep in step. A branch after undo gets a fresh id (explicit ids are never
-reused), and a checkpoint keeps the id of the checkout it preserves. The editor
-allocates after the hives have their baselines, because `reset`, `read` and the
-loader also take ids from the same sequence. An automatic `commit()` still exists
-for internal no-op checks, and the coordinator observes any automatic id so a
-later explicit commit cannot collide with it.
+reused), and a checkpoint reuses the id of the checkout it preserves. `init`
+creates one real root commit, `canvas` creates the commit that becomes its
+baseline, and `save` consumes no id because it changes no tree. The loader clears
+the arena without committing a placeholder, then creates the real root in its
+first bounded chunk; a small file therefore advances the visible sequence by
+exactly one. Larger files may use additional internal chunk commits, with the last
+one becoming the baseline. The coordinator observes automatic ids so a later
+explicit commit cannot collide with one.
 
 ## The transform
 
@@ -352,10 +360,18 @@ The Planner turns these into `event::Opened`; the front end prints
 `warning: id "svg" is reserved for the root, renamed <rect> to rect2`.
 
 The loader commits at most 1024 nodes per transaction and then clears history, making
-the loaded tree the baseline. `SvgWriter` walks the current checkout in document order
+the loaded tree the baseline. The first chunk also creates the root, so no empty root
+commit precedes the document. `SvgWriter` walks the current checkout in document order
 and writes deterministic UTF-8 SVG: declaration, the root namespace, fixed attribute
-order, escaped attributes and text, structural indentation, and inline mixed text. A
-save clears history only after the file write succeeds.
+order, escaped attributes and text, structural indentation, and inline mixed text.
+Numbers are serialized with the shortest `std::to_chars` form that round-trips the
+stored `float`, separately from the rounded display form. A save clears history only
+after the file write succeeds.
+
+The full reader/writer fixture is saved and read again without a diagnostic, and the
+sub-micro regression is checked by opening, saving, and reopening a rectangle. Those
+round trips are the guard between the reader's attribute allowlist and the attributes
+the writer emits.
 
 ## What is not there yet
 

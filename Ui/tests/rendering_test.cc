@@ -23,25 +23,23 @@ void check(bool condition, const char* expression, int line) {
 
 LengthPercentage units(float value) { return Length{value, Length::Unit::UserUnit}; }
 
-Node element(std::string id, std::variant<Shape, Container, Text> body) {
-    SVGNode node;
-    node.identity_attr = IdentityAttr{std::move(id), ""};
-    node.data = std::move(body);
-    return Node{std::move(node)};
+ElementShape element(std::string id, ElementData body) {
+    return ElementShape{IdentityAttr{std::move(id), ""}, {}, std::move(body)};
 }
 
-Node rect(std::string id, float x, float y, float w, float h, std::optional<Color> fill) {
-    SVGNode node = std::get<SVGNode>(element(std::move(id), Shape{Shape::Rect{units(x), units(y), units(w), units(h)}}));
+ElementShape rect(std::string id, float x, float y, float w, float h, std::optional<Color> fill) {
+    ElementShape node =
+        element(std::move(id), Shape{Shape::Rect{units(x), units(y), units(w), units(h)}});
     if (fill) node.paint_attr.fill = Paint{*fill};
-    return Node{std::move(node)};
+    return node;
 }
 
-Node circle(std::string id, float cx, float cy, float r) {
+ElementShape circle(std::string id, float cx, float cy, float r) {
     return element(std::move(id), Shape{Shape::Circle{units(cx), units(cy), units(r)}});
 }
 
-Node group(std::string id) {
-    return element(std::move(id), Container{ChildAttr{}, Container::Group{}});
+ElementShape group(std::string id) {
+    return element(std::move(id), ContainerShape{Container::Group{}});
 }
 
 Transform composed_transform(std::initializer_list<Transform> steps) {
@@ -51,28 +49,28 @@ Transform composed_transform(std::initializer_list<Transform> steps) {
 }
 
 // The root element, which is where the canvas of the document lives.
-Node root_with(LengthPercentage width, LengthPercentage height) {
-    return element("", Container{ChildAttr{}, Container::SVG{width, height}});
+ElementShape root_with(LengthPercentage width, LengthPercentage height) {
+    return element("", ContainerShape{Container::SVG{width, height}});
 }
 
-Node unsized_root_with(Container::ViewBox view_box) {
+ElementShape unsized_root_with(Container::ViewBox view_box) {
     Container::SVG canvas{std::nullopt, std::nullopt};
     canvas.view_box = view_box;
-    return element("", Container{ChildAttr{}, std::move(canvas)});
+    return element("", ContainerShape{std::move(canvas)});
 }
 
-Node text_element(std::string id, float x, float y) {
-    Text text;
+ElementShape text_element(std::string id, float x, float y) {
+    TextShape text;
     text.common.x = units(x);
     text.common.y = units(y);
-    text.child_attr = ChildAttr{};
+    text.specific = Text::Wrapper{};
     return element(std::move(id), std::move(text));
 }
 
 // One row of the view, as the Planner would hand it over: the depth, whether the node is
 // its parent's last child, and the words of a text when there are any.
-TreeRow row(std::size_t depth, bool last, Node payload, std::string text = {}) {
-    return TreeRow{depth, last, 0, std::move(payload), std::move(text)};
+TreeRow row(std::size_t depth, bool last, ElementShape shape, std::string text = {}) {
+    return TreeRow{depth, last, 0, std::move(shape), std::move(text)};
 }
 
 std::string join(const std::vector<std::string>& lines) {
@@ -146,8 +144,8 @@ int main() {
     // with a parent says where it hangs on the heading line.
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {}}) ==
           "rect#box\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
-    Node classified = rect("tagged", 0, 0, 1, 1, std::nullopt);
-    std::get<SVGNode>(classified).identity_attr.class_ = "a b";
+    ElementShape classified = rect("tagged", 0, 0, 1, 1, std::nullopt);
+    classified.identity_attr.class_ = "a b";
     CHECK(render(NodeView{3, std::move(classified), {}}) ==
           "rect#tagged\n  class=\"a b\"\n  x=0 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("red", 0, 0, 1, 1, Color{Color::Named{Color::NamedColorId::RebeccaPurple}}), {}}) ==
@@ -172,8 +170,8 @@ int main() {
           "text#title  parent=g#markers\n  (20,40)\n  text=\"My Diagram\"");
 
     // The character data is the last thing a text prints, after the paint attributes.
-    Node filled_text = text_element("title", 20, 40);
-    std::get<SVGNode>(filled_text).paint_attr.fill = Paint{Color{Color::Named{Color::NamedColorId::Red}}};
+    ElementShape filled_text = text_element("title", 20, 40);
+    filled_text.paint_attr.fill = Paint{Color{Color::Named{Color::NamedColorId::Red}}};
     CHECK(render(NodeView{4, filled_text, "My Diagram"}) ==
           "text#title\n  (20,40)\n  fill=red\n  text=\"My Diagram\"");
     CHECK(render(TreeView{{row(0, true, filled_text, "My Diagram")}}) ==
@@ -189,8 +187,8 @@ int main() {
 
     // xmlns comes before the canvas and viewBox, as SvgWriter writes it before width,
     // height and viewBox.
-    Node namespaced = unsized_root_with(Container::ViewBox{0.0F, 0.0F, 100.0F, 50.0F});
-    std::get<Container::SVG>(std::get<Container>(std::get<SVGNode>(namespaced).data).specific).xmlns =
+    ElementShape namespaced = unsized_root_with(Container::ViewBox{0.0F, 0.0F, 100.0F, 50.0F});
+    std::get<Container::SVG>(std::get<ContainerShape>(namespaced.data).specific).xmlns =
         "urn:example:svg";
     CHECK(render(NodeView{0, namespaced, {}}) ==
           "svg xmlns=\"urn:example:svg\" (unsized) viewBox=\"0 0 100 50\"");
@@ -202,15 +200,15 @@ int main() {
     CHECK(render(NodeView{0, root_with(Length{2.0F, Length::Unit::Cm}, Length{3.0F, Length::Unit::Mm}), {}}) ==
           "svg (2cm x 3mm)");
     CHECK(render(NodeView{0,
-                          element("", Container{ChildAttr{}, Container::SVG{units(300), std::nullopt}}),
+                          element("", ContainerShape{Container::SVG{units(300), std::nullopt}}),
                           {}}) == "svg (300 user units x unset)");
     CHECK(render(NodeView{0,
-                          element("", Container{ChildAttr{}, Container::SVG{std::nullopt, units(300)}}),
+                          element("", ContainerShape{Container::SVG{std::nullopt, units(300)}}),
                           {}}) == "svg (unset x 300 user units)");
 
     // Character data asked for by handle has no id and no kind of its own: it is the
     // labelled words it is made of.
-    CHECK(render(NodeView{7, Node{PlainText{"hello"}}, "hello"}) == "<text-node> text=\"hello\"");
+    CHECK(render(NodeView{7, CharacterView{"hello"}, "hello"}) == "<text-node> text=\"hello\"");
 
     // The history is shown newest first, with the baseline last. Entries stay
     // chronological in the view; rendering reverses them for the terminal.
@@ -289,6 +287,8 @@ int main() {
           "rect#r1 updated: class=\"layer one\"");
     CHECK(render(event::ContentSet{{"text", "title"}, "Hello World"}) ==
           "text#title updated: text=\"Hello World\"");
+    CHECK(render(event::ContentSet{{"text", "title"}, "a \"q\" b\\c"}) ==
+          "text#title updated: text=\"a \\\"q\\\" b\\\\c\"");
     CHECK(render(event::CanvasSet{units(300), std::nullopt}) ==
           "the canvas is now 300 x unset, and the history starts from here");
     CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "rect#box deleted");
@@ -336,6 +336,8 @@ int main() {
     CHECK(render(fault::TransformHasNoScope{}) == "error: transform does not take cascade or restrict");
     CHECK(render(fault::EmptyContainer{"g", "node2"}) ==
           "error: cannot move or scale an empty group: g#node2");
+    CHECK(render(fault::EmptyContainer{"defs", "resources"}) ==
+          "error: cannot move or scale an empty <defs> container: defs#resources");
     CHECK(render(fault::NoDirectParams{}) == "error: this node has no direct params");
     CHECK(render(fault::UndoAfterIo{}) == "error: undo not allowed after io command");
     CHECK(render(fault::IncompatibleLengths{Length{1.0F, Length::Unit::In}, Length{1.0F, Length::Unit::Cm}}) ==

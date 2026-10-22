@@ -425,6 +425,29 @@ int main() {
     CHECK(ok(skew_document.save(skew_path.string())));
     CHECK(read_text(skew_path).find("transform=\"skewY(15)\"") != std::string::npos);
 
+    // Serialization keeps a sub-micro value instead of rounding it to zero.
+    const std::filesystem::path tiny_path = file_named("svg_io_tiny_number.svg");
+    CHECK(write_text(tiny_path, R"(<svg><rect id="tiny" x="0.0000004" y="-0" width="1" height="1"/></svg>)"));
+    Document tiny_document;
+    CHECK(ok(tiny_document.open(tiny_path.string())));
+    CHECK(ok(tiny_document.save(tiny_path.string())));
+    const std::string tiny_svg = read_text(tiny_path);
+    CHECK(tiny_svg.find("x=\"" + exact_number_text(4.0e-7F) + "\"") != std::string::npos);
+    CHECK(tiny_svg.find("y=\"0\"") != std::string::npos);
+    Document tiny_reread;
+    CHECK(ok(tiny_reread.open(tiny_path.string())));
+    const std::optional<Id> tiny = named(tiny_reread, "tiny");
+    CHECK(tiny.has_value());
+    if (tiny) {
+        const std::optional<SVGNode> tiny_element = element_at(tiny_reread, *tiny);
+        CHECK(tiny_element.has_value());
+        if (tiny_element && std::holds_alternative<Shape>(tiny_element->data)) {
+            const Shape::Rect& rect = std::get<Shape::Rect>(std::get<Shape>(tiny_element->data).specific);
+            CHECK(std::get<Length>(rect.x).value == 4.0e-7F);
+            CHECK(std::get<Length>(rect.y).value == 0.0F);
+        }
+    }
+
     if (failures != 0) {
         std::printf("svg_io: %d check(s) failed\n", failures);
         return 1;

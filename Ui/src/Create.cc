@@ -73,17 +73,26 @@ Create build_text(const std::string& id, const Words& values, const NodeRef& par
     return intent;
 }
 
-// The kinds a `create` may name, in the order the help lists them.
-constexpr std::array<ElementKind, 6> kinds{{
+// The kinds a `create` may name, in the order the help lists them. The array size is
+// deduced from the rows, so adding an initializer cannot leave an empty lookup row.
+constexpr auto kinds = std::to_array<ElementKind>({
     {"rect", build_rect},
     {"circle", build_circle},
     {"ellipse", build_ellipse},
     {"line", build_line},
     {"text", build_text},
     {"g", build_group},
-}};
+});
+
+constexpr auto kind_names = [] {
+    std::array<std::string_view, kinds.size()> names;
+    for (std::size_t index = 0; index < kinds.size(); ++index) names[index] = kinds[index].name;
+    return names;
+}();
 
 }  // namespace
+
+std::span<const std::string_view> element_kind_names() { return kind_names; }
 
 // create <kind> <id> [values] [in <gid>]
 Request parse_create(const Words& words) {

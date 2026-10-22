@@ -23,14 +23,14 @@ void load_parsed(TreeStore& store, const ParsedSvg& parsed) {
         throw std::invalid_argument("load_parsed: the parsed document has no root");
     }
 
-    store.reset(std::nullopt, std::nullopt);
+    store.reset_empty();
 
     std::vector<Pending> pending{{parsed.root, no_id}};
     std::size_t loaded = 0;
 
     while (loaded < parsed.nodes.size()) {
         if (pending.empty()) throw std::invalid_argument("load_parsed: the parsed tree is disconnected");
-        auto edit = store.begin();
+        auto edit = store.begin_load();
         std::size_t batch = 0;
 
         while (!pending.empty() && batch < nodes_per_commit) {
@@ -40,8 +40,7 @@ void load_parsed(TreeStore& store, const ParsedSvg& parsed) {
             Node payload = parsed.nodes[item.index].payload;
             Id handle = no_id;
             if (item.index == parsed.root) {
-                handle = store.root();
-                store.update(edit, handle, payload);
+                handle = store.create_root(edit, std::move(payload));
             } else {
                 handle = store.append_child(edit, item.parent, payload);
             }

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -113,13 +114,13 @@ struct ContainerText {
 
 // A text's position reads as a point: SVG writes its two values apart, and that is what
 // they are together.
-std::string position_text(const Text& text) {
+std::string position_text(const TextShape& text) {
     if (!text.common.x) return {};
     if (!text.common.y) return "x=" + to_text(*text.common.x);
     return "(" + to_text(*text.common.x) + "," + to_text(*text.common.y) + ")";
 }
 
-std::string text_details(const Text& text) {
+std::string text_details(const TextShape& text) {
     std::string out = position_text(text);
     if (text.common.text_anchor) {
         if (!out.empty()) out += ' ';
@@ -135,12 +136,28 @@ std::string text_details(const Text& text) {
 
 struct AttrsText {
     std::string operator()(const Shape& shape) const { return std::visit(GeometryText{}, shape.specific); }
-    std::string operator()(const Container& container) const { return std::visit(ContainerText{}, container.specific); }
-    std::string operator()(const Text& text) const { return text_details(text); }
+    std::string operator()(const ContainerShape& container) const {
+        return std::visit(ContainerText{}, container.specific);
+    }
+    std::string operator()(const TextShape& text) const { return text_details(text); }
     template <class T>
     std::string operator()(const T&) const {
         static_assert(always_false<T>, "no text for this element payload");
         return {};
+    }
+};
+
+struct ElementDataName {
+    template <class T>
+    std::string_view operator()(const T& payload) const {
+        using Payload = std::remove_cvref_t<T>;
+        if constexpr (std::is_same_v<Payload, Shape> || std::is_same_v<Payload, ContainerShape> ||
+                      std::is_same_v<Payload, TextShape>) {
+            return std::visit([](const auto& specific) { return element_name(specific); }, payload.specific);
+        } else {
+            static_assert(always_false<Payload>, "no element name for this view payload");
+            return {};
+        }
     }
 };
 
@@ -168,9 +185,9 @@ std::string joined_details(const Words& words) {
     return out;
 }
 
-Words element_words(const SVGNode& element, const Transform& transform, const std::string& text) {
+Words element_words(const ElementShape& element, const Transform& transform, const std::string& text) {
     Words words;
-    const std::string_view kind = element_name(element);
+    const std::string_view kind = std::visit(ElementDataName{}, element.data);
     // The kind and the id the user wrote: the handle is not part of the drawing, because
     // it is the hive's virtual id, which is never reused for another node.
     words.name = element.identity_attr.id.empty()
@@ -202,21 +219,21 @@ Words element_words(const SVGNode& element, const Transform& transform, const st
     if (!is_identity(transform)) append_detail(words, "transform=" + transform_text(transform));
 
     // A text's character data is a child node, so its words follow every attribute.
-    if (std::holds_alternative<Text>(element.data) && !text.empty()) {
+    if (std::holds_alternative<TextShape>(element.data) && !text.empty()) {
         append_detail(words, "text=" + quoted(text));
     }
     return words;
 }
 
-Words words_of(const Node& payload, const Transform& transform, const std::string& text) {
-    if (std::holds_alternative<SVGNode>(payload)) {
-        return element_words(std::get<SVGNode>(payload), transform, text);
+Words words_of(const NodeShape& shape, const Transform& transform, const std::string& text) {
+    if (std::holds_alternative<ElementShape>(shape)) {
+        return element_words(std::get<ElementShape>(shape), transform, text);
     }
 
     // Character data reaches a view on its own only when something asked for it by
     // handle: it has no id to be named by.
     Words words{"<text-node>", {}};
-    append_detail(words, "text=" + quoted(text));
+    append_detail(words, "text=" + quoted(std::get<CharacterView>(shape).content));
     return words;
 }
 
@@ -250,7 +267,7 @@ std::string render(const TreeView& view) {
     std::vector<bool> followed(1, false);
     for (std::size_t index = 0; index < view.rows.size(); ++index) {
         const TreeRow& row = view.rows[index];
-        const Words words = words_of(row.payload, row.transform, row.text);
+        const Words words = words_of(NodeShape{row.shape}, row.transform, row.text);
 
         std::string prefix;
         if (index > 0) {  // the first row is what the view is rooted at, and it hangs from nothing
@@ -288,10 +305,10 @@ std::string render(const TreeView& view) {
 }
 
 std::string render(const NodeView& view) {
-    const Words words = words_of(view.payload, view.transform, view.text);
+    const Words words = words_of(view.shape, view.transform, view.text);
     std::string out = words.name;
     if (view.parent) {
-        const Words parent = words_of(view.parent->payload, Transform{}, {});
+        const Words parent = words_of(NodeShape{view.parent->shape}, Transform{}, {});
         out += "  parent=" + parent.name;
     }
 
@@ -334,6 +351,14 @@ std::string element_count_text(std::size_t count) {
 
 std::string element_count_suffix(std::size_t count) {
     return " (" + element_count_text(count) + ")";
+}
+
+std::string_view empty_container_noun(std::string_view element) {
+    if (element == "g") return "group";
+    if (element == "defs" || element == "symbol" || element == "switch") {
+        return "container";
+    }
+    return "container";
 }
 
 std::string_view system_name(Length::Unit unit) {
@@ -521,9 +546,10 @@ struct RefusalText {
         return "error: transform does not take cascade or restrict";
     }
     std::string operator()(const fault::EmptyContainer& empty) const {
-        const std::string_view kind = empty.element == "g" ? "group" : "container";
-        return "error: cannot move or scale an empty " + std::string{kind} + ": " +
-               element_label(empty.element, empty.svg_id);
+        std::string message = "error: cannot move or scale an empty " +
+                              std::string{empty_container_noun(empty.element)};
+        if (empty.element != "g") message = "error: cannot move or scale an empty <" + empty.element + "> container";
+        return message + ": " + element_label(empty.element, empty.svg_id);
     }
     std::string operator()(const fault::NoDirectParams&) const {
         return "error: this node has no direct params";

@@ -138,13 +138,23 @@ void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<Lengt
     require_checkout_matches_view();
 }
 
+void TreeStore::reset_empty() {
+    view_.reset();
+    nodes_.clear();
+    checkouts_.clear();
+    position_ = 0;
+    root_ = no_id;
+}
+
 TreeStore::Edit TreeStore::begin() {
     if (!view_) throw std::logic_error("TreeStore: no document");
     return nodes_.begin_transaction();
 }
 
+TreeStore::Edit TreeStore::begin_load() { return nodes_.begin_transaction(); }
+
 void TreeStore::commit(Edit& edit, CommitId commit) {
-    const Hive::CommitId before = view_->commit_id();
+    const Hive::CommitId before = view_ ? view_->commit_id() : 0;
     const Snapshot next = commit == 0 ? edit.commit() : edit.commit(commit);
     view_ = next;
     if (next.commit_id() == before) return;  // an edit that wrote nothing is no block
@@ -152,6 +162,12 @@ void TreeStore::commit(Edit& edit, CommitId commit) {
     observe_commit_id(next.commit_id());
 
     // The new edit replaces whatever redo tail the checkout had left.
+    if (checkouts_.empty()) {
+        checkouts_.push_back(next.commit_id());
+        position_ = 0;
+        require_checkout_matches_view();
+        return;
+    }
     checkouts_.resize(position_ + 1);
     checkouts_.push_back(next.commit_id());
     position_ = checkouts_.size() - 1;
@@ -315,6 +331,12 @@ std::vector<Id> TreeStore::children(Id parent) const {
         child = links_of(node->get()).next;
     }
     return result;
+}
+
+Id TreeStore::create_root(Edit& edit, Node payload) {
+    if (root_ != no_id) throw std::logic_error("TreeStore: the document already has a root");
+    root_ = edit.emplace(std::move(payload));
+    return root_;
 }
 
 Id TreeStore::append_child(Edit& edit, Id parent, Node payload) {

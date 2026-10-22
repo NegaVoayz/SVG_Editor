@@ -55,23 +55,23 @@ void append_attribute(std::string& out, std::string_view name, std::string_view 
 
 struct GeometryAttributes {
     std::string operator()(const Shape::Rect& rect) const {
-        return "x=\"" + escaped_attribute(to_text(rect.x)) + "\" y=\"" + escaped_attribute(to_text(rect.y)) +
-               "\" width=\"" + escaped_attribute(to_text(rect.w)) + "\" height=\"" +
-               escaped_attribute(to_text(rect.h)) + "\"";
+        return "x=\"" + escaped_attribute(svg_text(rect.x)) + "\" y=\"" + escaped_attribute(svg_text(rect.y)) +
+               "\" width=\"" + escaped_attribute(svg_text(rect.w)) + "\" height=\"" +
+               escaped_attribute(svg_text(rect.h)) + "\"";
     }
     std::string operator()(const Shape::Circle& circle) const {
-        return "cx=\"" + escaped_attribute(to_text(circle.cx)) + "\" cy=\"" +
-               escaped_attribute(to_text(circle.cy)) + "\" r=\"" + escaped_attribute(to_text(circle.r)) + "\"";
+        return "cx=\"" + escaped_attribute(svg_text(circle.cx)) + "\" cy=\"" +
+               escaped_attribute(svg_text(circle.cy)) + "\" r=\"" + escaped_attribute(svg_text(circle.r)) + "\"";
     }
     std::string operator()(const Shape::Ellipse& ellipse) const {
-        return "cx=\"" + escaped_attribute(to_text(ellipse.cx)) + "\" cy=\"" +
-               escaped_attribute(to_text(ellipse.cy)) + "\" rx=\"" + escaped_attribute(to_text(ellipse.rx)) +
-               "\" ry=\"" + escaped_attribute(to_text(ellipse.ry)) + "\"";
+        return "cx=\"" + escaped_attribute(svg_text(ellipse.cx)) + "\" cy=\"" +
+               escaped_attribute(svg_text(ellipse.cy)) + "\" rx=\"" + escaped_attribute(svg_text(ellipse.rx)) +
+               "\" ry=\"" + escaped_attribute(svg_text(ellipse.ry)) + "\"";
     }
     std::string operator()(const Shape::Line& line) const {
-        return "x1=\"" + escaped_attribute(to_text(line.x1)) + "\" y1=\"" +
-               escaped_attribute(to_text(line.y1)) + "\" x2=\"" + escaped_attribute(to_text(line.x2)) +
-               "\" y2=\"" + escaped_attribute(to_text(line.y2)) + "\"";
+        return "x1=\"" + escaped_attribute(svg_text(line.x1)) + "\" y1=\"" +
+               escaped_attribute(svg_text(line.y1)) + "\" x2=\"" + escaped_attribute(svg_text(line.x2)) +
+               "\" y2=\"" + escaped_attribute(svg_text(line.y2)) + "\"";
     }
     template <class T>
     std::string operator()(const T&) const {
@@ -82,7 +82,7 @@ struct GeometryAttributes {
 
 std::string optional_length_attribute(std::string_view name, const std::optional<LengthPercentage>& value) {
     if (!value) return {};
-    return std::string{name} + "=\"" + escaped_attribute(to_text(*value)) + "\"";
+    return std::string{name} + "=\"" + escaped_attribute(svg_text(*value)) + "\"";
 }
 
 void append_data(std::string& attributes, const std::string& data) {
@@ -97,7 +97,7 @@ struct ContainerAttributes {
         append_data(attributes, optional_length_attribute("width", canvas.width));
         append_data(attributes, optional_length_attribute("height", canvas.height));
         if (canvas.view_box) {
-            append_data(attributes, "viewBox=\"" + escaped_attribute(to_text(*canvas.view_box)) + "\"");
+            append_data(attributes, "viewBox=\"" + escaped_attribute(svg_text(*canvas.view_box)) + "\"");
         }
         return attributes;
     }
@@ -203,7 +203,7 @@ void write_element(const TreeStore& store, Id id, const SVGNode& element, std::s
         append_attribute(out, "stroke-width", to_text(*element.paint_attr.stroke_width));
     }
     if (!is_identity(element.transform_attr.transform)) {
-        append_attribute(out, "transform", transform_text(element.transform_attr.transform));
+        append_attribute(out, "transform", svg_text(element.transform_attr.transform));
     }
 
     const std::vector<Id> children = store.children(id);

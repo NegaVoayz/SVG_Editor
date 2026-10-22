@@ -376,6 +376,13 @@ add_test(NAME cli_history_after_canvas COMMAND $<TARGET_FILE:Cli>
 set_tests_properties(cli_history_after_canvas PROPERTIES PASS_REGULAR_EXPRESSION
     "3 +baseline \\(HEAD\\)")
 
+# A save adds no hidden commit, and a one-chunk read creates its root in the real load
+# commit. Context changes therefore continue the visible commit sequence without a gap.
+add_test(NAME cli_context_commit_ids COMMAND $<TARGET_FILE:Cli>
+    "init; create rect a 0 0 1 1; save ${CMAKE_CURRENT_BINARY_DIR}/context_ids.svg; create rect b 0 0 1 1; history; canvas 800 600; read ${CMAKE_CURRENT_BINARY_DIR}/context_ids.svg; history")
+set_tests_properties(cli_context_commit_ids PROPERTIES PASS_REGULAR_EXPRESSION
+    "5 +baseline \\(HEAD\\)")
+
 add_test(NAME cli_history_baseline_head_after_undo COMMAND $<TARGET_FILE:Cli>
     "init; create rect a 0 0 1 1; canvas 800 600; create rect b 0 0 1 1; undo; history")
 set_tests_properties(cli_history_baseline_head_after_undo PROPERTIES

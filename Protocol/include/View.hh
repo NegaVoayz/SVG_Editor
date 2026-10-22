@@ -15,17 +15,41 @@
 //
 // The payloads are copies. A view is a snapshot of the tree as it stands, and it has to
 // outlive the checkpoint or transaction that produced it, so nothing here can be a
-// reference into the arena.
+// reference into the arena. A view is also storage-independent: it contains no parent or
+// sibling ids, because those describe a position inside Model's hive rather than anything
+// a front end can display or act on.
 //
 // `text` is a text element's words, read out of the character data under it. SVG keeps them
 // in a child node rather than in an attribute, but a tree in which every word is a line of
 // its own is unreadable, so the two arrive together and the words are printed inside the
 // element that holds them.
+// The data variants without their tree-storage fields. `Container` and `Text` own the
+// first/last child links inside Model, so projecting only their SVG payload prevents
+// those hive ids from becoming part of the view contract.
+struct ContainerShape {
+    std::variant<Container::Group, Container::Defs, Container::SVG, Container::Symbol, Container::Switch> specific;
+};
+struct TextShape {
+    Text::Common common;
+    std::variant<Text::Wrapper, Text::Span, Text::Path> specific;
+};
+using ElementData = std::variant<Shape, ContainerShape, TextShape>;
+
+struct ElementShape {
+    IdentityAttr identity_attr;
+    PaintAttr paint_attr;
+    ElementData data;
+};
+struct CharacterView {
+    std::string content;
+};
+using NodeShape = std::variant<ElementShape, CharacterView>;
+
 struct TreeRow {
     std::size_t depth;
     bool last;  // whether this node is the last child of its parent, which is what a tree drawing branches on
     Id node;
-    Node payload;
+    ElementShape shape;
     std::string text;
     // The element's composed transform matrix; identity when it carries none.
     Transform transform = {};
@@ -35,11 +59,11 @@ struct TreeView { std::vector<TreeRow> rows; };
 // other node has one, and the front end may name it beside the node's own heading.
 struct NodeParent {
     Id node;
-    Node payload;
+    ElementShape shape;
 };
 struct NodeView {
     Id node;
-    Node payload;
+    NodeShape shape;
     std::string text;
     std::optional<NodeParent> parent = std::nullopt;
     Transform transform = {};

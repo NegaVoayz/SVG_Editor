@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "Command.hh"
+#include "Create.hh"
 #include "IntentParser.hh"
 
 namespace {
@@ -62,6 +63,16 @@ void check_help_names_every_verb() {
                     verb.name.data());
         ++failures;
     }
+
+    std::string kinds;
+    for (const std::string_view kind : element_kind_names()) {
+        if (!kinds.empty()) kinds += " | ";
+        kinds += kind;
+    }
+    const std::string line = "             " + kinds + "\n";
+    if (help.find(line) != std::string_view::npos) return;
+    std::printf("FAIL the help does not list the create table as '%s'\n", line.c_str());
+    ++failures;
 }
 
 }  // namespace

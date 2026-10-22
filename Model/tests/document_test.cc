@@ -10,6 +10,10 @@
 
 #include "Document.hh"
 
+#include <charconv>
+#include <cmath>
+#include <limits>
+
 namespace {
 
 int failures = 0;
@@ -119,6 +123,24 @@ int main() {
     CHECK(number_text(1234567.89F) == "1234567.875");
     CHECK(number_text(0.3F) == "0.3");
     CHECK(number_text(5.0F) == "5");
+    CHECK(number_text(-0.0F) == "0");
+
+    // File output is the shortest exact spelling, so small values survive a save and
+    // large values do not expose float32's exact decimal expansion.
+    const float exact_values[] = {1.0e-7F, 5.0e-7F, 1.0e-6F, -0.0F, 0.3F, 1234567.89F, 1.0e20F,
+                                  std::numeric_limits<float>::max()};
+    for (const float expected : exact_values) {
+        const std::string text = exact_number_text(expected);
+        float parsed = 0.0F;
+        const std::from_chars_result result = std::from_chars(text.data(), text.data() + text.size(), parsed);
+        CHECK(result.ec == std::errc{});
+        CHECK(result.ptr == text.data() + text.size());
+        CHECK(parsed == expected);
+    }
+    CHECK(exact_number_text(-0.0F) == "0");
+    CHECK(exact_number_text(1.0e-7F) != "0");
+    CHECK(exact_number_text(1.0e20F).size() < 16);
+    CHECK(svg_text(Length{1.0e-7F, Length::Unit::UserUnit}) == exact_number_text(1.0e-7F));
 
     Document document;
     CHECK(!document.has_document());

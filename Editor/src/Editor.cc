@@ -3,8 +3,10 @@
 // Payload.cc, History.cc - and this file is only the question of which of them answers.
 #include "Editor.hh"
 
+#include <cstdlib>
 #include <exception>
 #include <expected>
+#include <iostream>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -120,7 +122,9 @@ Outcome Editor::translate(const ChangeIntent& intent) {
         // illegal - the transaction that was open is gone and the Model rolled it back.
         // The exception text is a diagnostic, not a user-facing message: the protocol
         // only carries the refusal kind.
-        static_cast<void>(error);
+        if (const char* debug = std::getenv("SVG_EDITOR_DEBUG"); debug != nullptr && *debug != '\0') {
+            std::cerr << "internal edit failure: " << error.what() << '\n';
+        }
         outcome = refused(Kind::Change, fault::InternalError{});
     }
 

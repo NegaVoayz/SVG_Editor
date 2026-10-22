@@ -235,13 +235,16 @@ inline TransformParts decomposed_with_y(const Transform& transform) {
     return parts;
 }
 
-inline std::string transform_parts_text(const TransformParts& parts) {
+inline std::string transform_parts_text(const TransformParts& parts, bool exact = false) {
     // A matrix is stored as float after its double-precision calculation. Values this close
     // to zero or one are display noise (2^-17 is about 7.6e-6), not an edit the user made.
     constexpr double value_tolerance = 1.0e-5;
     constexpr double angle_tolerance = 1.0e-3;
 
     std::string text;
+    const auto number = [exact](float value) {
+        return exact ? exact_number_text(value) : number_text(value);
+    };
     auto append = [&text](std::string step) {
         if (!text.empty()) text += ' ';
         text += std::move(step);
@@ -251,20 +254,24 @@ inline std::string transform_parts_text(const TransformParts& parts) {
         // A zero is zero in every unit; printing the unit it happened to acquire from a
         // composed transform would only add noise.
         const std::string x =
-            transform_length_is_near_zero(parts.x, value_tolerance) ? "0" : to_text(parts.x);
+            transform_length_is_near_zero(parts.x, value_tolerance)
+                ? "0"
+                : (exact ? svg_text(parts.x) : to_text(parts.x));
         const std::string y =
-            transform_length_is_near_zero(parts.y, value_tolerance) ? "0" : to_text(parts.y);
+            transform_length_is_near_zero(parts.y, value_tolerance)
+                ? "0"
+                : (exact ? svg_text(parts.y) : to_text(parts.y));
         append("translate(" + x + " " + y + ")");
     }
     if (std::fabs(parts.rotation) > angle_tolerance) {
-        append("rotate(" + number_text(parts.rotation) + ")");
+        append("rotate(" + number(parts.rotation) + ")");
     }
     if (!transform_number_is(parts.scale_x, 1.0F, value_tolerance) ||
         !transform_number_is(parts.scale_y, 1.0F, value_tolerance)) {
-        append("scale(" + number_text(parts.scale_x) + " " + number_text(parts.scale_y) + ")");
+        append("scale(" + number(parts.scale_x) + " " + number(parts.scale_y) + ")");
     }
     if (std::fabs(parts.skew) > angle_tolerance) {
-        append(std::string{parts.skew_axis == SkewAxis::Y ? "skewY(" : "skewX("} + number_text(parts.skew) + ")");
+        append(std::string{parts.skew_axis == SkewAxis::Y ? "skewY(" : "skewX("} + number(parts.skew) + ")");
     }
     return text;
 }
@@ -283,6 +290,10 @@ inline std::string transform_text(const Transform& transform) {
 }
 
 inline std::string to_text(const Transform& transform) { return transform_text(transform); }
+
+inline std::string svg_text(const Transform& transform) {
+    return transform_parts_text(decomposed(transform), true);
+}
 
 // What an element is called. Where it sits in the tree is not part of this: a parent is a
 // link stored beside the node in the hive, not an SVG attribute.

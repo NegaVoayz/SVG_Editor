@@ -39,12 +39,20 @@ public:
     // for whichever side is missing), and no history at all.
     void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
 
+    // Clear the arena without creating the throwaway root commit that reset() needs for
+    // an interactive document. The loader uses this so its first bounded chunk can create
+    // the real root and become the visible baseline in one commit.
+    void reset_empty();
+
     // --- one user-level edit ---
 
     // The transaction is constructed by the caller, which is the one object that keeps
     // it alive for the whole edit. Direct initialization from the returned prvalue is
     // what lets a transaction hold the hive's non-movable transaction by value.
     Edit begin();
+    // Open the first transaction after reset_empty(). Only the loader uses this: every
+    // user-facing edit still has to begin from a live root.
+    Edit begin_load();
     // Zero publishes with MVCCHive's automatic id; an empty commit is then no block.
     // A nonzero id is MVCCHive's explicit commit: it must exceed the hive's high-water
     // mark, and even an empty commit advances the checkout. A coordinator passes one
@@ -101,6 +109,9 @@ public:
     std::vector<Id> children(Id parent) const;
 
     // --- edits, only inside a transaction ---
+
+    // Create the first root of a store emptied by reset_empty().
+    Id create_root(Edit& edit, Node payload);
 
     // A new node, placed last among the children of its parent.
     Id append_child(Edit& edit, Id parent, Node payload);

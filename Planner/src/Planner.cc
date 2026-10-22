@@ -19,6 +19,36 @@
 
 namespace {
 
+// Project one stored payload onto the storage-independent view vocabulary. The SVGNode
+// links stay in Model; only the element's named attributes and data cross the boundary.
+struct ShapeOf {
+    NodeShape operator()(const SVGNode& element) const {
+        ElementData data = std::visit(
+            [](const auto& payload) -> ElementData {
+                using T = std::remove_cvref_t<decltype(payload)>;
+                if constexpr (std::is_same_v<T, Shape>) {
+                    return payload;
+                } else if constexpr (std::is_same_v<T, Container>) {
+                    return ContainerShape{payload.specific};
+                } else if constexpr (std::is_same_v<T, Text>) {
+                    return TextShape{payload.common, payload.specific};
+                } else {
+                    static_assert(always_false<T>, "no view projection for this element payload");
+                }
+            },
+            element.data);
+        return ElementShape{element.identity_attr, element.paint_attr, std::move(data)};
+    }
+    NodeShape operator()(const PlainText& text) const { return CharacterView{text.content}; }
+    template <class T>
+    NodeShape operator()(const T&) const {
+        static_assert(always_false<T>, "no view shape for this node payload");
+        return CharacterView{};
+    }
+};
+
+NodeShape shape_of(const Node& payload) { return std::visit(ShapeOf{}, payload); }
+
 // The words of a text element: what the character data under it says. SVG keeps text
 // in children rather than in an attribute, and a tree in which every word is a line
 // of its own is unreadable, so the two are handed to the front end together.
@@ -42,7 +72,7 @@ std::optional<NodeParent> parent_of(const Document& document, Id node) {
 
     const std::optional<Node> payload = document.node(*parent);
     if (!payload) return std::nullopt;
-    return NodeParent{*parent, *payload};
+    return NodeParent{*parent, std::get<ElementShape>(shape_of(*payload))};
 }
 
 // The root's canvas, when it has one. `init` reports the size it actually created,
@@ -64,9 +94,11 @@ void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, 
     if (!payload) return;
     // Character data is not a node of the tree a user edits: it is part of the text
     // element that holds it, and it travels with it.
-    if (std::holds_alternative<PlainText>(*payload)) return;
+    NodeShape shape = shape_of(*payload);
+    if (std::holds_alternative<CharacterView>(shape)) return;
 
-    rows.push_back(TreeRow{depth, last, node, *payload, content_of(document, node), document.transform(node)});
+    rows.push_back(TreeRow{depth, last, node, std::get<ElementShape>(std::move(shape)), content_of(document, node),
+                           document.transform(node)});
 
     const std::vector<Id> children = document.children(node);
     for (std::size_t index = 0; index < children.size(); ++index) {
@@ -162,7 +194,7 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
 
     const std::optional<Node> payload = document_.node(*node);
     if (!payload) return refused(Kind::View, fault::InternalError{});  // cannot happen: look_up
-    return viewed(Kind::View, View{NodeView{*node, *payload, content_of(document_, *node),
+    return viewed(Kind::View, View{NodeView{*node, shape_of(*payload), content_of(document_, *node),
                                             parent_of(document_, *node), document_.transform(*node)}});
 }
 

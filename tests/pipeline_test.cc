@@ -21,6 +21,12 @@ namespace {
 
 int failures = 0;
 
+// The view vocabulary deliberately cannot expose Model's storage links.
+static_assert(!Linked<ElementShape>);
+static_assert(!Linked<ContainerShape>);
+static_assert(!Linked<TextShape>);
+static_assert(!Linked<CharacterView>);
+
 void check(bool condition, const char* expression, int line) {
     if (condition) return;
     std::printf("FAIL line %d: %s\n", line, expression);
@@ -28,6 +34,18 @@ void check(bool condition, const char* expression, int line) {
 }
 
 LengthPercentage units(float value) { return Length{value, Length::Unit::UserUnit}; }
+
+std::optional<Shape::Rect> rect_of(const ElementShape& element) {
+    if (!std::holds_alternative<Shape>(element.data)) return std::nullopt;
+    const Shape& shape = std::get<Shape>(element.data);
+    if (!std::holds_alternative<Shape::Rect>(shape.specific)) return std::nullopt;
+    return std::get<Shape::Rect>(shape.specific);
+}
+
+std::optional<Shape::Rect> rect_of(const NodeShape& shape) {
+    if (const ElementShape* element = std::get_if<ElementShape>(&shape)) return rect_of(*element);
+    return std::nullopt;
+}
 
 std::optional<Shape::Rect> rect_of(const Node& payload) {
     if (!std::holds_alternative<SVGNode>(payload)) return std::nullopt;
@@ -39,11 +57,10 @@ std::optional<Shape::Rect> rect_of(const Node& payload) {
 }
 
 // The row of one element of a tree view, found by its SVG id.
-std::optional<Node> node_in(const Outcome& outcome, std::string_view svg_id) {
+std::optional<ElementShape> node_in(const Outcome& outcome, std::string_view svg_id) {
     if (!std::holds_alternative<TreeView>(outcome.view())) return std::nullopt;
     for (const TreeRow& row : std::get<TreeView>(outcome.view()).rows) {
-        if (!std::holds_alternative<SVGNode>(row.payload)) continue;
-        if (std::get<SVGNode>(row.payload).identity_attr.id == svg_id) return row.payload;
+        if (row.shape.identity_attr.id == svg_id) return row.shape;
     }
     return std::nullopt;
 }
@@ -51,8 +68,7 @@ std::optional<Node> node_in(const Outcome& outcome, std::string_view svg_id) {
 std::optional<Transform> transform_in(const Outcome& outcome, std::string_view svg_id) {
     if (!std::holds_alternative<TreeView>(outcome.view())) return std::nullopt;
     for (const TreeRow& row : std::get<TreeView>(outcome.view()).rows) {
-        if (!std::holds_alternative<SVGNode>(row.payload)) continue;
-        if (std::get<SVGNode>(row.payload).identity_attr.id == svg_id) return row.transform;
+        if (row.shape.identity_attr.id == svg_id) return row.transform;
     }
     return std::nullopt;
 }
@@ -75,9 +91,8 @@ std::optional<TouchedKind> kind_of(const TouchedNodes& touched, Id id) {
     return std::nullopt;
 }
 
-std::optional<Color> fill_of(const Node& payload) {
-    if (!std::holds_alternative<SVGNode>(payload)) return std::nullopt;
-    const std::optional<Paint>& paint = std::get<SVGNode>(payload).paint_attr.fill;
+std::optional<Color> fill_of(const ElementShape& element) {
+    const std::optional<Paint>& paint = element.paint_attr.fill;
     if (!paint || !std::holds_alternative<Color>(*paint)) return std::nullopt;
     return std::get<Color>(*paint);
 }
@@ -211,7 +226,7 @@ int main() {
     }
     CHECK(!planner.dispatch(ShowTree{SvgIdRef{"nothing"}}).ok());
 
-    const std::optional<Node> box_row = node_in(tree, "box");
+    const std::optional<ElementShape> box_row = node_in(tree, "box");
     CHECK(box_row.has_value());
     if (box_row) {
         const std::optional<Shape::Rect> geometry = rect_of(*box_row);
@@ -331,11 +346,11 @@ int main() {
     }
     CHECK(planner.dispatch(Move{SvgIdRef{"layer"}, units(1), units(1)}).ok());
     const Outcome after_moves = planner.dispatch(ShowTree{});
-    const std::optional<Node> moved_layer = node_in(after_moves, "layer");
+    const std::optional<ElementShape> moved_layer = node_in(after_moves, "layer");
     CHECK(moved_layer.has_value());
     const std::optional<Transform> moved_layer_transform = transform_in(after_moves, "layer");
     CHECK(moved_layer_transform && is_identity(*moved_layer_transform));
-    const std::optional<Node> moved_box = node_in(after_moves, "box");
+    const std::optional<ElementShape> moved_box = node_in(after_moves, "box");
     CHECK(moved_box.has_value());
     if (moved_box) {
         const std::optional<Shape::Rect> geometry = rect_of(*moved_box);
@@ -349,7 +364,7 @@ int main() {
     CHECK(planner.dispatch(Undo{}).ok());
     CHECK(planner.dispatch(Undo{}).ok());
     const Outcome after_both = planner.dispatch(ShowTree{});
-    const std::optional<Node> never_moved = node_in(after_both, "box");
+    const std::optional<ElementShape> never_moved = node_in(after_both, "box");
     CHECK(never_moved.has_value());
     if (never_moved) {
         const std::optional<Shape::Rect> geometry = rect_of(*never_moved);
@@ -367,7 +382,7 @@ int main() {
     {
         const Outcome transformed = planner.dispatch(Show{SvgIdRef{"box"}});
         if (std::holds_alternative<NodeView>(transformed.view())) {
-            const Node& payload = std::get<NodeView>(transformed.view()).payload;
+            const NodeShape& payload = std::get<NodeView>(transformed.view()).shape;
             const std::optional<Shape::Rect> geometry = rect_of(payload);
             CHECK(geometry.has_value());
             if (geometry) {
@@ -410,7 +425,7 @@ int main() {
         const Outcome child = planner.dispatch(Show{SvgIdRef{"box"}});
         if (std::holds_alternative<NodeView>(child.view())) {
             const NodeView& view = std::get<NodeView>(child.view());
-            const std::optional<Shape::Rect> geometry = rect_of(view.payload);
+            const std::optional<Shape::Rect> geometry = rect_of(view.shape);
             CHECK(geometry.has_value());
             if (geometry) {
                 CHECK(to_text(geometry->x) == "0");
@@ -429,7 +444,7 @@ int main() {
         const Outcome child = planner.dispatch(Show{SvgIdRef{"box"}});
         if (std::holds_alternative<NodeView>(child.view())) {
             const NodeView& view = std::get<NodeView>(child.view());
-            const std::optional<Shape::Rect> geometry = rect_of(view.payload);
+            const std::optional<Shape::Rect> geometry = rect_of(view.shape);
             CHECK(geometry.has_value());
             if (geometry) {
                 CHECK(to_text(geometry->x) == "0");
@@ -453,7 +468,7 @@ int main() {
     {
         const Outcome deep = planner.dispatch(Show{SvgIdRef{"deep"}});
         if (std::holds_alternative<NodeView>(deep.view())) {
-            const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(deep.view()).payload);
+            const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(deep.view()).shape);
             CHECK(geometry.has_value());
             if (geometry) {
                 CHECK(to_text(geometry->x) == "0");
@@ -493,7 +508,7 @@ int main() {
         }
         const Outcome box = planner.dispatch(Show{SvgIdRef{"box"}});
         if (std::holds_alternative<NodeView>(box.view())) {
-            const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(box.view()).payload);
+            const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(box.view()).shape);
             CHECK(geometry.has_value());
             if (geometry) CHECK(to_text(geometry->x) == "0");
         }
@@ -545,7 +560,7 @@ int main() {
     CHECK(refused_with<fault::IncompatibleLengths>(inch_into_metric));
 
     const Outcome converted = planner.dispatch(ShowTree{});
-    const std::optional<Node> ruler_row = node_in(converted, "ruler");
+    const std::optional<ElementShape> ruler_row = node_in(converted, "ruler");
     CHECK(ruler_row.has_value());
     if (ruler_row) {
         const std::optional<Shape::Rect> geometry = rect_of(*ruler_row);
@@ -635,11 +650,11 @@ int main() {
         CHECK(result.nodes >= 1);
     }
     const Outcome after_scale = planner.dispatch(ShowTree{});
-    const std::optional<Node> grown_layer = node_in(after_scale, "layer");
+    const std::optional<ElementShape> grown_layer = node_in(after_scale, "layer");
     CHECK(grown_layer.has_value());
     const std::optional<Transform> grown_layer_transform = transform_in(after_scale, "layer");
     CHECK(grown_layer_transform && is_identity(*grown_layer_transform));
-    const std::optional<Node> grown_box = node_in(after_scale, "box");
+    const std::optional<ElementShape> grown_box = node_in(after_scale, "box");
     CHECK(grown_box.has_value());
     if (grown_box) {
         const std::optional<Shape::Rect> geometry = rect_of(*grown_box);
@@ -652,7 +667,7 @@ int main() {
     CHECK(planner.dispatch(Undo{}).ok());
     {
         const Outcome back = planner.dispatch(ShowTree{});
-        const std::optional<Node> plain_layer = node_in(back, "layer");
+        const std::optional<ElementShape> plain_layer = node_in(back, "layer");
         CHECK(plain_layer.has_value());
         const std::optional<Transform> plain_layer_transform = transform_in(back, "layer");
         CHECK(plain_layer_transform && is_identity(*plain_layer_transform));
@@ -664,7 +679,7 @@ int main() {
     {
         const Outcome grown = planner.dispatch(Show{SvgIdRef{"box"}});
         if (std::holds_alternative<NodeView>(grown.view())) {
-            const Node& payload = std::get<NodeView>(grown.view()).payload;
+            const NodeShape& payload = std::get<NodeView>(grown.view()).shape;
             const std::optional<Shape::Rect> geometry = rect_of(payload);
             CHECK(geometry.has_value());
             if (geometry) CHECK(to_text(geometry->w) == "10");
@@ -719,19 +734,19 @@ int main() {
         CHECK(planner.dispatch(Set{SetStrokeWidth{SvgIdRef{"c1"}, units(2)}}).ok());
         CHECK(planner.dispatch(ScaleBy{SvgIdRef{"c1"}, 3.0F, EditTarget::Params, EditScope::Restrict}).ok());
         const Outcome after_growth = planner.dispatch(ShowTree{});
-        const std::optional<Node> grown_dot = node_in(after_growth, "c1");
+        const std::optional<ElementShape> grown_dot = node_in(after_growth, "c1");
         CHECK(grown_dot.has_value());
-        if (grown_dot && std::holds_alternative<SVGNode>(*grown_dot)) {
-            const Shape& shape = std::get<Shape>(std::get<SVGNode>(*grown_dot).data);
+        if (grown_dot) {
+            const Shape& shape = std::get<Shape>(grown_dot->data);
             CHECK(std::holds_alternative<Shape::Circle>(shape.specific));
             if (std::holds_alternative<Shape::Circle>(shape.specific)) {
                 const Shape::Circle& geometry = std::get<Shape::Circle>(shape.specific);
                 CHECK(to_text(geometry.r) == "15");
                 CHECK(to_text(geometry.cx) == "30");
             }
-            CHECK(std::get<SVGNode>(*grown_dot).paint_attr.stroke_width.has_value());
-            if (std::get<SVGNode>(*grown_dot).paint_attr.stroke_width) {
-                CHECK(to_text(*std::get<SVGNode>(*grown_dot).paint_attr.stroke_width) == "6");
+            CHECK(grown_dot->paint_attr.stroke_width.has_value());
+            if (grown_dot->paint_attr.stroke_width) {
+                CHECK(to_text(*grown_dot->paint_attr.stroke_width) == "6");
             }
         }
         CHECK(planner.dispatch(Undo{}).ok());
@@ -819,14 +834,14 @@ int main() {
     const Outcome after_set_x = planner.dispatch(Show{SvgIdRef{"box"}});
     CHECK(std::holds_alternative<NodeView>(after_set_x.view()));
     if (std::holds_alternative<NodeView>(after_set_x.view())) {
-        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(after_set_x.view()).payload);
+        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(after_set_x.view()).shape);
         CHECK(geometry.has_value());
         if (geometry) CHECK(to_text(geometry->x) == "7");
     }
     CHECK(planner.dispatch(Undo{}).ok());
     const Outcome after_undo_set = planner.dispatch(Show{SvgIdRef{"box"}});
     if (std::holds_alternative<NodeView>(after_undo_set.view())) {
-        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(after_undo_set.view()).payload);
+        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(after_undo_set.view()).shape);
         if (geometry) CHECK(to_text(geometry->x) != "7");
     }
     CHECK(planner.dispatch(Redo{}).ok());
@@ -849,20 +864,16 @@ int main() {
     const Outcome painted = planner.dispatch(Show{SvgIdRef{"box"}});
     CHECK(std::holds_alternative<NodeView>(painted.view()));
     if (std::holds_alternative<NodeView>(painted.view())) {
-        const Node& payload = std::get<NodeView>(painted.view()).payload;
-        CHECK(std::holds_alternative<SVGNode>(payload));
-        if (std::holds_alternative<SVGNode>(payload)) {
-            const SVGNode& element = std::get<SVGNode>(payload);
-            CHECK(element.identity_attr.class_ == "highlight");
-            CHECK(element.paint_attr.fill.has_value());
-            CHECK(element.paint_attr.stroke_width.has_value());
-            if (element.paint_attr.stroke_width) CHECK(to_text(*element.paint_attr.stroke_width) == "2");
-            if (element.paint_attr.fill) {
-                CHECK(std::holds_alternative<Color>(*element.paint_attr.fill));
-                if (std::holds_alternative<Color>(*element.paint_attr.fill)) {
-                    const Color& colour = std::get<Color>(*element.paint_attr.fill);
-                    CHECK(std::holds_alternative<Color::RGB>(colour.specific));
-                }
+        const ElementShape& element = std::get<ElementShape>(std::get<NodeView>(painted.view()).shape);
+        CHECK(element.identity_attr.class_ == "highlight");
+        CHECK(element.paint_attr.fill.has_value());
+        CHECK(element.paint_attr.stroke_width.has_value());
+        if (element.paint_attr.stroke_width) CHECK(to_text(*element.paint_attr.stroke_width) == "2");
+        if (element.paint_attr.fill) {
+            CHECK(std::holds_alternative<Color>(*element.paint_attr.fill));
+            if (std::holds_alternative<Color>(*element.paint_attr.fill)) {
+                const Color& colour = std::get<Color>(*element.paint_attr.fill);
+                CHECK(std::holds_alternative<Color::RGB>(colour.specific));
             }
         }
     }
@@ -898,7 +909,7 @@ int main() {
     CHECK(planner.dispatch(Set{SetWidth{SvgIdRef{"box"}, units(11)}}).ok());
     const Outcome widened_rect = planner.dispatch(Show{SvgIdRef{"box"}});
     if (std::holds_alternative<NodeView>(widened_rect.view())) {
-        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(widened_rect.view()).payload);
+        const std::optional<Shape::Rect> geometry = rect_of(std::get<NodeView>(widened_rect.view()).shape);
         if (geometry) CHECK(to_text(geometry->w) == "11");
     }
 
@@ -1093,7 +1104,7 @@ int main() {
         if (turned_transform) {
             CHECK(transform_text(*turned_transform) == "translate(10 0) rotate(90)");
         }
-        const std::optional<Node> child = node_in(after_default, "under-turned");
+        const std::optional<ElementShape> child = node_in(after_default, "under-turned");
         CHECK(child.has_value());
         if (child) {
             const std::optional<Shape::Rect> geometry = rect_of(*child);
@@ -1134,7 +1145,7 @@ int main() {
         const Outcome leaf_view = turned_planner.dispatch(Show{SvgIdRef{"turned-leaf"}});
         if (std::holds_alternative<NodeView>(leaf_view.view())) {
             const NodeView& view = std::get<NodeView>(leaf_view.view());
-            const std::optional<Shape::Rect> geometry = rect_of(view.payload);
+            const std::optional<Shape::Rect> geometry = rect_of(view.shape);
             CHECK(geometry.has_value());
             if (geometry) {
                 CHECK(to_text(geometry->x) == "0");
