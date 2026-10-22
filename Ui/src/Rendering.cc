@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "ElementName.hh"
+#include "Exhaustive.hh"
 #include "Quoting.hh"
 #include "SVGNode.hh"
 
@@ -32,6 +33,11 @@ struct GeometryText {
     std::string operator()(const Shape::Line& line) const {
         return "x1=" + to_text(line.x1) + " y1=" + to_text(line.y1) + " x2=" + to_text(line.x2) +
                " y2=" + to_text(line.y2);
+    }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no text for this shape alternative");
+        return {};
     }
 };
 
@@ -98,6 +104,11 @@ struct ContainerText {
     std::string operator()(const Container::Defs&) const { return {}; }
     std::string operator()(const Container::Symbol&) const { return {}; }
     std::string operator()(const Container::Switch&) const { return {}; }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no text for this container alternative");
+        return {};
+    }
 };
 
 // A text's position reads as a point: SVG writes its two values apart, and that is what
@@ -126,6 +137,11 @@ struct AttrsText {
     std::string operator()(const Shape& shape) const { return std::visit(GeometryText{}, shape.specific); }
     std::string operator()(const Container& container) const { return std::visit(ContainerText{}, container.specific); }
     std::string operator()(const Text& text) const { return text_details(text); }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no text for this element payload");
+        return {};
+    }
 };
 
 // --- one line's worth of a node ---
@@ -423,6 +439,11 @@ struct EventText {
     std::string operator()(const event::Saved& saved) const {
         return "saved to " + quote_if_needed(saved.path) + " (" + element_count_text(saved.elements) + ")";
     }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no text for this event alternative");
+        return {};
+    }
 };
 
 std::string EventText::operator()(const event::Undone& undo) const {
@@ -588,12 +609,22 @@ struct RefusalText {
         return "error: a text node has no coordinates and no transform to scale";
     }
     std::string operator()(const fault::InternalError&) const { return "error: internal error"; }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no text for this refusal alternative");
+        return {};
+    }
 };
 
 struct OutcomeText {
     std::string operator()(const View& view) const { return render(view); }
     std::string operator()(const Event& event) const { return render(event); }
     std::string operator()(const Refusal& refusal) const { return render(refusal); }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no text for this outcome alternative");
+        return {};
+    }
 };
 
 }  // namespace

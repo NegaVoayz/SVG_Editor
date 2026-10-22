@@ -33,7 +33,13 @@ template<typename Payload, typename Action>
 void visit_data(Payload& payload, Action action) {
     std::visit(
         [action](auto& value) {
-            if constexpr (Element<std::remove_cvref_t<decltype(value)>>) std::visit(action, value.data);
+            using PayloadType = std::remove_cvref_t<decltype(value)>;
+            if constexpr (Element<PayloadType>) {
+                std::visit(action, value.data);
+            } else {
+                static_assert(std::is_same_v<PayloadType, PlainText>,
+                              "a non-element node payload has no data alternatives");
+            }
         },
         payload);
 }

@@ -7,6 +7,8 @@
 #include <string_view>
 #include <utility>
 
+#include "Exhaustive.hh"
+
 namespace {
 
 struct NamedColorText {
@@ -74,6 +76,11 @@ struct ColorText {
     }
     std::string operator()(const Color::FuncRGB& rgb) const {
         return "rgb(" + std::to_string(rgb.r) + "," + std::to_string(rgb.g) + "," + std::to_string(rgb.b) + ")";
+    }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no text for this colour alternative");
+        return {};
     }
 };
 

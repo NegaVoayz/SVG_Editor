@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "ElementName.hh"
+#include "Exhaustive.hh"
 
 namespace {
 
@@ -72,6 +73,11 @@ struct GeometryAttributes {
                escaped_attribute(to_text(line.y1)) + "\" x2=\"" + escaped_attribute(to_text(line.x2)) +
                "\" y2=\"" + escaped_attribute(to_text(line.y2)) + "\"";
     }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no serialization for this shape alternative");
+        return {};
+    }
 };
 
 std::string optional_length_attribute(std::string_view name, const std::optional<LengthPercentage>& value) {
@@ -99,6 +105,11 @@ struct ContainerAttributes {
     std::string operator()(const Container::Defs&) const { return {}; }
     std::string operator()(const Container::Symbol&) const { return {}; }
     std::string operator()(const Container::Switch&) const { return {}; }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no serialization for this container alternative");
+        return {};
+    }
 };
 
 struct TextAttributes {
@@ -129,6 +140,11 @@ struct DataAttributes {
         return std::visit(ContainerAttributes{}, container.specific);
     }
     std::string operator()(const Text& text) const { return TextAttributes{}(text); }
+    template <class T>
+    std::string operator()(const T&) const {
+        static_assert(always_false<T>, "no serialization for this element payload");
+        return {};
+    }
 };
 
 void indent(std::string& out, std::size_t depth) { out.append(depth * 2, ' '); }
@@ -140,7 +156,27 @@ bool has_text_child(const TreeStore& store, Id node) {
     return false;
 }
 
+void write_element(const TreeStore& store, Id id, const SVGNode& element, std::size_t depth, bool inline_node,
+                   std::string& out);
 void write_node(const TreeStore& store, Id id, std::size_t depth, bool inline_node, std::string& out);
+
+struct WriteNodePayload {
+    const TreeStore& store;
+    Id id;
+    std::size_t depth;
+    bool inline_node;
+    std::string& out;
+
+    void operator()(const SVGNode& element) const {
+        write_element(store, id, element, depth, inline_node, out);
+        if (!inline_node) out += '\n';
+    }
+    void operator()(const PlainText& text) const { out += escaped_text(text.content); }
+    template <class T>
+    void operator()(const T&) const {
+        static_assert(always_false<T>, "no serialization for this node payload");
+    }
+};
 
 void write_element(const TreeStore& store, Id id, const SVGNode& element, std::size_t depth, bool inline_node,
                    std::string& out) {
@@ -187,13 +223,7 @@ void write_element(const TreeStore& store, Id id, const SVGNode& element, std::s
 }
 
 void write_node(const TreeStore& store, Id id, std::size_t depth, bool inline_node, std::string& out) {
-    const Node& payload = store.record(id);
-    if (const SVGNode* element = std::get_if<SVGNode>(&payload)) {
-        write_element(store, id, *element, depth, inline_node, out);
-        if (!inline_node) out += '\n';
-        return;
-    }
-    out += escaped_text(std::get<PlainText>(payload).content);
+    std::visit(WriteNodePayload{store, id, depth, inline_node, out}, store.record(id));
 }
 
 }  // namespace

@@ -8,6 +8,7 @@
 #include <utility>
 #include <variant>
 
+#include "Exhaustive.hh"
 #include "Event.hh"
 #include "Intent.hh"
 #include "NodeRef.hh"
@@ -100,6 +101,11 @@ struct OpenStatus {
     Outcome operator()(const model_status::CannotWriteFile&) const {
         return refused(kind, fault::InternalError{});
     }
+    template <class T>
+    Outcome operator()(const T&) const {
+        static_assert(always_false<T>, "no Planner route for this file status");
+        return refused(kind, fault::InternalError{});
+    }
 };
 
 struct SaveStatus {
@@ -120,6 +126,11 @@ struct SaveStatus {
         return refused(kind, fault::InternalError{});
     }
     Outcome operator()(const model_status::InvalidSvg&) const {
+        return refused(kind, fault::InternalError{});
+    }
+    template <class T>
+    Outcome operator()(const T&) const {
+        static_assert(always_false<T>, "no save route for this file status");
         return refused(kind, fault::InternalError{});
     }
 };

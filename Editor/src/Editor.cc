@@ -10,6 +10,7 @@
 #include <utility>
 #include <variant>
 
+#include "Exhaustive.hh"
 #include "NodeRef.hh"
 #include "Outcome.hh"
 #include "Translations.hh"
@@ -24,6 +25,8 @@ std::optional<event::EditEvent> edit_event_of(const Event& event) {
                           std::is_same_v<T, event::CheckedOut>) {
                 return std::nullopt;
             } else {
+                static_assert(std::is_constructible_v<event::EditEvent, T>,
+                              "a non-edit event must be excluded explicitly");
                 return event::EditEvent{value};
             }
         },

@@ -12,6 +12,7 @@
 
 #include "Document.hh"
 #include "Editor.hh"
+#include "Exhaustive.hh"
 #include "IntentParser.hh"
 #include "Planner.hh"
 #include "Protocol.hh"
@@ -69,6 +70,12 @@ struct RunInstruction {
             std::cout << error.what() << "\n";
             return {false, false};
         }
+    }
+
+    template <class T>
+    InstructionResult operator()(const T&) const {
+        static_assert(always_false<T>, "no front-end handler for this request alternative");
+        return {false, false};
     }
 };
 

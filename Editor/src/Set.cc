@@ -14,6 +14,7 @@
 #include <variant>
 #include <vector>
 
+#include "Exhaustive.hh"
 #include "Naming.hh"
 #include "NodeRef.hh"
 #include "Outcome.hh"
@@ -100,6 +101,18 @@ std::string attribute_value_text(const Transform& value) {
     // The identity is the absence of a transform attribute; the word a user can paste back
     // in to ask for that absence is `none`.
     return text.empty() ? std::string{"none"} : text;
+}
+
+template <class Value>
+std::string attribute_value_text(const Value&) {
+    static_assert(always_false<Value>, "no event spelling for this attribute value");
+    return {};
+}
+
+template <class Attribute>
+Outcome apply(Document&, Id, const Attribute&) {
+    static_assert(always_false<Attribute>, "no Set handler for this attribute");
+    return refused(Kind::Change, fault::InternalError{});
 }
 
 // One attribute of one SVG element: replace the payload, keep its place in the tree, and
@@ -567,8 +580,17 @@ Outcome apply(Document& document, Id node, const SetContent& intent) {
 }  // namespace
 
 template<> Outcome Editor::handle<Set>(const Set& intent) {
-    const NodeRef& reference =
-        std::visit([](const auto& attribute) -> const NodeRef& { return attribute.node; }, intent);
+    const NodeRef reference = std::visit(
+        [](const auto& attribute) -> NodeRef {
+            if constexpr (requires { attribute.node; }) {
+                return attribute.node;
+            } else {
+                static_assert(always_false<decltype(attribute)>,
+                              "a Set attribute has no target node");
+                return RootRef{};
+            }
+        },
+        intent);
     const std::expected<Id, Refusal> node = resolve(reference);
     if (!node) return refused(Kind::Change, node.error());
     return std::visit([this, node = *node](const auto& attribute) { return apply(document_, node, attribute); }, intent);

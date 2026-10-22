@@ -135,6 +135,42 @@ Three properties make this the bone of the project:
    owns the behaviour, and overload sets answer the nested questions: which shape, which
    container, which colour, which transform.
 
+### Exhaustive dispatch is a structural rule
+
+Every dispatcher over one of the project's variants must fail through an intentional,
+dependent `static_assert` when an alternative has no answer. A missing overload that
+leaves `std::visit` to report "no matching call" does not meet that rule.
+
+There are two accepted forms:
+
+- a function template whose primary definition contains
+  `static_assert(always_false<T>, ...)`, followed by explicit specializations; or
+- a visitor object with one overload per alternative and a generic `operator()` whose
+  body contains the same assertion for an unknown alternative.
+
+`always_false` lives in `Model/include/Exhaustive.hh`. `ElementName.hh` is the model for a
+function-template mapping. The rendering, serialization, file-status and request visitors
+use the generic-operator form. `Set` has a primary `apply<Attribute>` template as well, so
+a new attribute cannot escape through an overload failure.
+
+An overload set may not be called from a generic `std::visit` without a primary template
+that carries the assertion. This was a real defect in element naming and in `Set`:
+adding an alternative produced a vague overload-resolution error instead of the project's
+exhaustiveness error.
+
+The rule also forbids runtime fallthroughs:
+
+- do not inspect some alternatives with `holds_alternative` and then treat everything
+  remaining with `std::get`; dispatch the whole variant;
+- do not use `if (holds_alternative<A>) ... else std::get<B>` on a closed variant;
+- a capability-based `if constexpr` must explicitly name the non-capability alternative;
+  it may not silently ignore an unknown alternative.
+
+In particular, shape translation uses a visitor rather than assuming the last remaining
+alternative is a line; `SvgWriter::write_node` dispatches both `Node` payloads; and
+`TreeStore::visit_data` permits only `PlainText` as a non-element payload. These replace
+runtime exceptions or silent omission with compile-time failures.
+
 The same skeleton carries the whole pipeline:
 
 | question | variant | dispatch point |
@@ -144,7 +180,7 @@ The same skeleton carries the whole pipeline:
 | Which element is being created? | `Create` | `handle<Create>` visits the element alternatives; each one reaches `new_element()` by overload |
 | Which attribute is being set? | `Set` | `handle<Set>` visits the attribute alternatives |
 | What kind of node is this? | `Node` | `std::visit` asks the payload; `if constexpr` asks whether it has child links |
-| How is this element named or printed? | `Shape`, `Container`, `Color`, `Transform` | Overload sets answer one kind at a time |
+| How is this element named or printed? | `Shape`, `Container`, `Color`, `Transform` | A template mapping or a visitor with an asserted fallback answers one kind at a time |
 
 This one structure replaces several inheritance-shaped patterns at once. A virtual
 `Command::execute()` becomes a variant alternative; a Visitor with `accept()` becomes

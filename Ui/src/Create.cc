@@ -11,6 +11,7 @@
 #include <variant>
 #include <vector>
 
+#include "Exhaustive.hh"
 #include "Quoting.hh"
 
 namespace {
@@ -104,7 +105,16 @@ Request parse_create(const Words& words) {
     for (const ElementKind& kind : kinds) {
         if (kind.name == words[1]) {
             Create made = kind.build(id, values, parent);
-            std::visit([parent_named](auto& create) { create.parent_named = parent_named; }, made);
+            std::visit(
+                [parent_named](auto& create) {
+                    using T = std::remove_cvref_t<decltype(create)>;
+                    if constexpr (requires { create.parent_named = parent_named; }) {
+                        create.parent_named = parent_named;
+                    } else {
+                        static_assert(always_false<T>, "a create intent has no parent_named field");
+                    }
+                },
+                made);
             return Intent{std::move(made)};
         }
     }

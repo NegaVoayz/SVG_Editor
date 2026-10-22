@@ -7,6 +7,7 @@
 #include <optional>
 #include <variant>
 
+#include "Exhaustive.hh"
 #include "Units.hh"
 
 namespace Geometry {
@@ -65,28 +66,42 @@ struct ScaleShape {
         if (std::optional<Refusal> problem = scale_value(line.x2, factor)) return problem;
         return scale_value(line.y2, factor);
     }
+    template <class T>
+    std::optional<Refusal> operator()(T&) const {
+        static_assert(always_false<T>, "no scaling rule for this shape alternative");
+        return std::nullopt;
+    }
+};
+
+struct TranslateShape {
+    LengthPercentage dx;
+    LengthPercentage dy;
+
+    std::optional<Refusal> operator()(Shape::Rect& rect) const {
+        return move_point(rect.x, dx, rect.y, dy);
+    }
+    std::optional<Refusal> operator()(Shape::Circle& circle) const {
+        return move_point(circle.cx, dx, circle.cy, dy);
+    }
+    std::optional<Refusal> operator()(Shape::Ellipse& ellipse) const {
+        return move_point(ellipse.cx, dx, ellipse.cy, dy);
+    }
+    std::optional<Refusal> operator()(Shape::Line& line) const {
+        if (std::optional<Refusal> problem = move_point(line.x1, dx, line.y1, dy)) return problem;
+        return move_point(line.x2, dx, line.y2, dy);
+    }
+    template <class T>
+    std::optional<Refusal> operator()(T&) const {
+        static_assert(always_false<T>, "no translation rule for this shape alternative");
+        return std::nullopt;
+    }
 };
 
 std::optional<Refusal> translate_shape(Shape& shape, LengthPercentage dx, LengthPercentage dy) {
     // Every shape moves its own coordinates and nothing else: a rect its corner, a circle
     // and an ellipse their centre, a line both of its ends. Radii and sides stay where they
     // are, because a translation is not a scale.
-    if (std::holds_alternative<Shape::Rect>(shape.specific)) {
-        Shape::Rect& rect = std::get<Shape::Rect>(shape.specific);
-        return move_point(rect.x, dx, rect.y, dy);
-    }
-    if (std::holds_alternative<Shape::Circle>(shape.specific)) {
-        Shape::Circle& circle = std::get<Shape::Circle>(shape.specific);
-        return move_point(circle.cx, dx, circle.cy, dy);
-    }
-    if (std::holds_alternative<Shape::Ellipse>(shape.specific)) {
-        Shape::Ellipse& ellipse = std::get<Shape::Ellipse>(shape.specific);
-        return move_point(ellipse.cx, dx, ellipse.cy, dy);
-    }
-
-    Shape::Line& line = std::get<Shape::Line>(shape.specific);
-    if (std::optional<Refusal> problem = move_point(line.x1, dx, line.y1, dy)) return problem;
-    return move_point(line.x2, dx, line.y2, dy);
+    return std::visit(TranslateShape{dx, dy}, shape.specific);
 }
 
 // A <text>'s x and y are its position; an absent coordinate is the SVG default of zero,
