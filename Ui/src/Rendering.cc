@@ -377,8 +377,10 @@ struct EventText {
     std::string operator()(const event::Redone& redo) const;
     std::string operator()(const event::CheckedOut& checkout) const {
         std::string message = "checked out " + std::to_string(checkout.commit);
-        if (checkout.original) message += ": " + std::visit(*this, *checkout.original);
-        return message;
+        if (checkout.no_effect) message += " (no effect)";
+        const HistoryView timeline{checkout.baseline, checkout.commit, checkout.position, checkout.depth,
+                                   checkout.timeline};
+        return message + "\n" + render(timeline);
     }
     std::string operator()(const event::NothingMoved&) const { return "the offset is zero, nothing moved"; }
     std::string operator()(const event::AlreadyFront& front) const {
@@ -411,13 +413,19 @@ struct EventText {
 };
 
 std::string EventText::operator()(const event::Undone& undo) const {
-    if (undo.original) return "undo: " + std::visit(*this, *undo.original);
-    return "undone, at " + std::to_string(undo.position) + " of " + std::to_string(undo.depth) + " edits";
+    std::string message =
+        undo.original ? "undo: " + std::visit(*this, *undo.original)
+                      : "undone, at " + std::to_string(undo.position) + " of " + std::to_string(undo.depth) + " edits";
+    message += " (HEAD " + std::to_string(undo.checkout) + ")";
+    return message;
 }
 
 std::string EventText::operator()(const event::Redone& redo) const {
-    if (redo.original) return "redo: " + std::visit(*this, *redo.original);
-    return "redone, at " + std::to_string(redo.position) + " of " + std::to_string(redo.depth) + " edits";
+    std::string message =
+        redo.original ? "redo: " + std::visit(*this, *redo.original)
+                      : "redone, at " + std::to_string(redo.position) + " of " + std::to_string(redo.depth) + " edits";
+    message += " (HEAD " + std::to_string(redo.checkout) + ")";
+    return message;
 }
 
 struct RefusalText {

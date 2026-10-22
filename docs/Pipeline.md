@@ -172,7 +172,7 @@ until every one of them names it.
 | `ungroup <gid>`                                  | the children, back in the group's place                | the Editor, one transaction |
 | `addto <gid> <id>`                               | the node, as the last child (the front) of a container  | the Editor, one transaction |
 | `front <id>` / `back <id>`                       | the two ends of the child order, last child in front    | the Editor, one transaction |
-| `undo` / `redo` / `checkout <commit>`            | one instruction back, forward again, or to a commit    | the Editor, the history |
+| `undo` / `redo` / `checkout <commit> [n]`        | one instruction back, forward again, or to a commit, with that checkout's timeline | the Editor, the history |
 | `canvas <w> [h]`                                 | a new size, and a checkpoint                           | the Editor, the history |
 | `init [w] [h]`                                   | a fresh document, 800x600 by default                   | the Planner, Model      |
 | `read <file.svg>`                                | read a document                                        | the Planner, Model/FileSystem |

@@ -160,14 +160,16 @@ struct Redone {
     CommitId checkout = 0;
 };
 
-// A history jump to a commit shown by `history`. The outcome is the edit that commit
-// introduced; a checkout of the baseline has none.
+// A history jump to a commit shown by `history`, followed by the retained timeline at the
+// new checkout. `no_effect` means the command already stood on that commit.
 struct CheckedOut {
     std::size_t position;
     std::size_t depth;
     TouchedNodes touched;
-    std::shared_ptr<const EditEvent> original;
     CommitId commit = 0;
+    CommitId baseline = 0;
+    std::vector<HistoryEntry> timeline;
+    bool no_effect = false;
 };
 
 }  // namespace event

@@ -108,7 +108,7 @@ The instructions are:
 | `ungroup <gid>`                                 | the group's children, back in its place; top-level groups are refused |
 | `addto <gid> <id>`                              | the node, as the last child (the front) of a container     |
 | `front <id>` / `back <id>`                      | the ends of the child order, the last child in front       |
-| `undo` / `redo` / `checkout <commit>`           | one instruction back, forward, or to a commit shown by `history` |
+| `undo` / `redo` / `checkout <commit> [n]`       | one instruction back, forward, or to a commit shown by `history`; checkout also prints its timeline |
 | `init [w] [h]`                                  | a fresh document, 800x600 by default                       |
 | `read <file.svg>`                               | read a document                                            |
 | `save [file.svg]`                               | write it, where it was read from by default                |
@@ -164,7 +164,8 @@ coordinate system.
 `init`, `read`, `save`, and `canvas` establish an IO baseline. At that baseline `undo`
 says `error: undo not allowed after io command`; once an edit has been made, undo works
 until the baseline is reached again. Undo and redo report the edit outcome they move:
-`undo: rect#box moved by (5, 7)` and `redo: rect#box moved by (5, 7)`.
+`undo: rect#box moved by (5, 7) (HEAD 2)` and
+`redo: rect#box moved by (5, 7) (HEAD 3)`.
 
 `history [n]` shows the retained baseline followed by up to the newest 20 edits since
 the last context change, oldest first. Each row carries the commit id `checkout` takes,
@@ -172,8 +173,10 @@ and `(HEAD)` marks the current checkout, including when the checkout is the base
 `history 1` shows only the newest edit; when older edits are left out between the baseline
 and the newest rows, the omitted line says how many. `init`, `read`, `save`, and `canvas`
 establish a new baseline and therefore cut the editable part of the list back to nothing.
-`checkout <commit>` moves straight to that commit, keeping the rest of the branch
-available for redo, and answers `checked out <commit>: <outcome>`.
+`checkout <commit> [n]` moves straight to that commit, keeping the rest of the branch
+available for redo, then prints the retained timeline with the new HEAD marked. The full
+timeline is shown by default; `n` caps the number of edit rows. Checking out the commit
+that is already HEAD answers `checked out <commit> (no effect)` before the timeline.
 
 `show` prints the node's parent on its heading when it is not the root, then one
 indented line for each group of attributes:

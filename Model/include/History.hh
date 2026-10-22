@@ -38,4 +38,6 @@ using TouchedNodes = std::vector<TouchedNode>;
 struct HistoryCheckout {
     std::size_t position;
     TouchedNodes touched;
+    // True when the requested commit was already the current checkout.
+    bool no_effect = false;
 };

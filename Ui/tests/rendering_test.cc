@@ -286,17 +286,23 @@ int main() {
     CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "g#markers deleted (2 elements)");
     CHECK(render(event::Undone{
               3, 3, {},
-              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)})}) ==
-          "undo: rect#r1 moved by (5, 7)");
+              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)}), 12}) ==
+          "undo: rect#r1 moved by (5, 7) (HEAD 12)");
     CHECK(render(event::Redone{
               3, 3, {},
-              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)})}) ==
-          "redo: rect#r1 moved by (5, 7)");
-    CHECK(render(event::CheckedOut{
-              2, 3, {},
               std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)}), 13}) ==
-          "checked out 13: rect#r1 moved by (5, 7)");
-    CHECK(render(event::CheckedOut{0, 3, {}, nullptr, 12}) == "checked out 12");
+          "redo: rect#r1 moved by (5, 7) (HEAD 13)");
+    const std::vector<event::HistoryEntry> timeline{
+        {12, std::make_shared<const event::EditEvent>(event::Created{{"rect", "r1"}, {"svg", ""}, false})},
+        {13, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)})},
+    };
+    CHECK(render(event::CheckedOut{2, 2, {}, 13, 11, timeline, false}) ==
+          "checked out 13\n11  baseline\n12  rect#r1 created\n13  rect#r1 moved by (5, 7) (HEAD)");
+    CHECK(render(event::CheckedOut{2, 2, {}, 13, 11, timeline, true}) ==
+          "checked out 13 (no effect)\n11  baseline\n12  rect#r1 created\n"
+          "13  rect#r1 moved by (5, 7) (HEAD)");
+    CHECK(render(event::CheckedOut{0, 0, {}, 11, 11, {}, true}) ==
+          "checked out 11 (no effect)\n11  baseline (HEAD)");
     CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
     CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");
     CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");

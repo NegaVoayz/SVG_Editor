@@ -44,12 +44,10 @@ template<> Outcome Editor::handle<Checkout>(const Checkout& intent) {
     const std::optional<HistoryCheckout> moved = document_.checkout(intent.commit);
     if (!moved) return refused(Kind::Change, fault::UnknownCommit{intent.commit});
 
-    std::shared_ptr<const event::EditEvent> original;
-    if (moved->position > 0) {
-        const std::optional<CommitId> commit = document_.commit_at(moved->position - 1);
-        if (commit) original = history_event(moved->position - 1, *commit);
-    }
+    // A checkout with no limit shows the complete retained branch. An explicit count is
+    // forwarded to the same capped history view that `history [n]` uses.
+    const HistoryView timeline = history(intent.limit.value_or(document_.depth()));
     return happened(Kind::Change,
-                    event::CheckedOut{moved->position, document_.depth(), moved->touched, std::move(original),
-                                      intent.commit});
+                    event::CheckedOut{moved->position, document_.depth(), moved->touched, intent.commit,
+                                      timeline.baseline, timeline.entries, moved->no_effect});
 }

@@ -1261,8 +1261,9 @@ int main() {
             const event::CheckedOut& checkout = std::get<event::CheckedOut>(jumped.event());
             CHECK(checkout.commit == moved_commit);
             CHECK(checkout.position == 2);
-            CHECK(checkout.original != nullptr);
-            if (checkout.original) CHECK(std::holds_alternative<event::Moved>(*checkout.original));
+            CHECK(checkout.baseline == baseline);
+            CHECK(checkout.timeline.size() == 3);
+            CHECK(!checkout.no_effect);
         }
         CHECK(replay_document.commit_id() == moved_commit);
         CHECK(replay_document.position() == 2);
@@ -1273,6 +1274,16 @@ int main() {
         CHECK(replay_document.commit_id() == class_commit);
         CHECK(replay_document.position() == 3);
 
+        const Outcome same_head = replay_planner.dispatch(Checkout{class_commit});
+        CHECK(happened_with<event::CheckedOut>(same_head));
+        if (happened_with<event::CheckedOut>(same_head)) {
+            const event::CheckedOut& checkout = std::get<event::CheckedOut>(same_head.event());
+            CHECK(checkout.position == 3);
+            CHECK(checkout.no_effect);
+            CHECK(checkout.touched.empty());
+            CHECK(checkout.timeline.size() == 3);
+        }
+
         // The baseline is not an edit, so it is absent from the entry list, but the view
         // exposes its id and checkout can return to it.
         const Outcome at_baseline = replay_planner.dispatch(Checkout{baseline});
@@ -1281,7 +1292,8 @@ int main() {
             const event::CheckedOut& checkout = std::get<event::CheckedOut>(at_baseline.event());
             CHECK(checkout.commit == baseline);
             CHECK(checkout.position == 0);
-            CHECK(checkout.original == nullptr);
+            CHECK(!checkout.no_effect);
+            CHECK(checkout.timeline.size() == 3);
         }
         CHECK(replay_document.commit_id() == baseline);
         CHECK(replay_document.position() == 0);

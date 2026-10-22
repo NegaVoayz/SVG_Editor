@@ -612,6 +612,14 @@ int main() {
         CHECK(document.commit_id() == after_b);
         CHECK(document.find("b") == b);
 
+        const std::optional<HistoryCheckout> same = document.checkout(after_b);
+        CHECK(same.has_value());
+        if (same) {
+            CHECK(same->position == 2);
+            CHECK(same->no_effect);
+            CHECK(same->touched.empty());
+        }
+
         const std::optional<HistoryCheckout> floor = document.checkout(baseline);
         CHECK(floor.has_value());
         if (floor) CHECK(floor->position == 0);

@@ -118,14 +118,25 @@ Request parse_redo(const Words& words) {
 }
 
 Request parse_checkout(const Words& words) {
-    expect(words.size(), 2, "checkout takes '<commit>' from history");
+    expect_between(words.size(), 2, 3, "checkout takes '<commit>' and an optional timeline count");
     CommitId commit = 0;
     const std::string& word = words[1];
     const auto [end, error] = std::from_chars(word.data(), word.data() + word.size(), commit);
     if (error != std::errc{} || end != word.data() + word.size() || commit == 0) {
         throw ParseFailed{"cannot read '" + word + "' as a commit id"};
     }
-    return Checkout{commit};
+    Checkout intent{commit, std::nullopt};
+    if (words.size() == 3) {
+        std::size_t limit = 0;
+        const std::string& count = words[2];
+        const auto [count_end, count_error] =
+            std::from_chars(count.data(), count.data() + count.size(), limit);
+        if (count_error != std::errc{} || count_end != count.data() + count.size()) {
+            throw ParseFailed{"cannot read '" + count + "' as a checkout timeline count"};
+        }
+        intent.limit = limit;
+    }
+    return intent;
 }
 
 Request parse_history(const Words& words) {

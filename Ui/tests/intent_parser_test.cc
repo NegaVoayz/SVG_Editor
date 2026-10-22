@@ -354,9 +354,19 @@ int main() {
 
     const Request checkout = parse("checkout 42");
     CHECK(holds<Checkout>(checkout));
-    if (holds<Checkout>(checkout)) CHECK(as<Checkout>(checkout).commit == 42);
+    if (holds<Checkout>(checkout)) {
+        CHECK(as<Checkout>(checkout).commit == 42);
+        CHECK(!as<Checkout>(checkout).limit.has_value());
+    }
+    const Request capped_checkout = parse("checkout 42 5");
+    CHECK(holds<Checkout>(capped_checkout));
+    if (holds<Checkout>(capped_checkout)) {
+        CHECK(as<Checkout>(capped_checkout).commit == 42);
+        CHECK(as<Checkout>(capped_checkout).limit == 5);
+    }
     CHECK(refuses(parse("checkout 0")));
     CHECK(refuses(parse("checkout")));
+    CHECK(refuses(parse("checkout 42 many")));
 
     // the context changes
     const Request fresh = parse("init");

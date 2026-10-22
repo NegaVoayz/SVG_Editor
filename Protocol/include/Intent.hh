@@ -272,6 +272,7 @@ struct Undo {};
 struct Redo {};
 struct Checkout {
     CommitId commit;
+    std::optional<std::size_t> limit = std::nullopt;
 };
 struct SetCanvas { std::optional<LengthPercentage> width, height; };
 // Back to a fresh document: an empty tree, the canvas the instruction gave (default 800x600

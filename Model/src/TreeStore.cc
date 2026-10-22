@@ -214,7 +214,7 @@ std::optional<HistoryCheckout> TreeStore::checkout(CommitId commit) {
     const auto found = std::find(checkouts_.begin(), checkouts_.end(), commit);
     if (found == checkouts_.end()) return std::nullopt;
     const std::size_t target = static_cast<std::size_t>(std::distance(checkouts_.begin(), found));
-    if (target == position_) return HistoryCheckout{position_, {}};
+    if (target == position_) return HistoryCheckout{position_, {}, true};
 
     // The hive only exposes undo/redo as ways to move its checkout, so a jump walks the
     // retained branch once. The work is the sum of the commits crossed, not a run of
@@ -251,7 +251,7 @@ std::optional<HistoryCheckout> TreeStore::checkout(CommitId commit) {
         }
     }
     require_checkout_matches_view();
-    return HistoryCheckout{position_, std::move(touched)};
+    return HistoryCheckout{position_, std::move(touched), false};
 }
 
 void TreeStore::require_checkout_matches_view() const {
