@@ -111,6 +111,13 @@ int main() {
     CHECK(transform_text(skewed_y(-5.0F)) == "skewY(-5)");
     CHECK(transform_text(skewed_y(15.0F)) == "skewY(15)");
 
+    // Coefficients at the scale of a few float ulps are calculation noise, not a visible
+    // transform. They must not become a tiny rotate, scale, or skew in the rendered form.
+    const Transform noisy = matrix_transform(1.0, 1.0 / 131072.0, 0.0, 1.0, 0.0, 0.0);
+    CHECK(transform_text(noisy).empty());
+    CHECK(is_identity(noisy));
+    CHECK(transform_text(matrix_transform(1.0, 0.0, 0.0, 1.0 + 1.0 / 131072.0, 0.0, 0.0)).empty());
+
     if (failures != 0) {
         std::printf("%d failure(s)\n", failures);
         return 1;

@@ -20,6 +20,8 @@ std::optional<LengthPercentage> sum(LengthPercentage left, LengthPercentage righ
 // One value, times the factor. A scale is a multiplication and no addition, so nothing
 // here converts anything: a percentage stays a percentage and a length stays in its own
 // unit, and no two systems can meet.
-LengthPercentage scaled(LengthPercentage value, float factor);
+// The multiplication is done at double precision; its result is stored back in the
+// model's float. Callers therefore get less rounding noise without widening the model.
+LengthPercentage scaled(LengthPercentage value, double factor);
 
 }  // namespace Geometry

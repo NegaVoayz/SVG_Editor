@@ -21,7 +21,7 @@ set_tests_properties(cli_no_document PROPERTIES PASS_REGULAR_EXPRESSION
 
 add_test(NAME cli_tree COMMAND $<TARGET_FILE:Cli> "init; tree")
 set_tests_properties(cli_tree PROPERTIES
-    PASS_REGULAR_EXPRESSION "svg .800x600."
+    PASS_REGULAR_EXPRESSION "svg .800 x 600 user units."
     FAIL_REGULAR_EXPRESSION "\\[(view|context|unknown|parse|failed|change)\\]")
 
 add_test(NAME cli_chain COMMAND $<TARGET_FILE:Cli> "init; create g layer; tree")
@@ -148,7 +148,7 @@ add_test(NAME cli_set_transform_rotate_center
     COMMAND $<TARGET_FILE:Cli>
         "init; create rect box 0 0 10 10; set box transform \"rotate(30 10 20)\"; show box")
 set_tests_properties(cli_set_transform_rotate_center PROPERTIES PASS_REGULAR_EXPRESSION
-    "transform=translate\\(11.3397 -2.32051\\) rotate\\(30\\)")
+    "transform=translate\\(11.339746 -2.320507\\) rotate\\(30\\)")
 
 add_test(NAME cli_set_transform_skew
     COMMAND $<TARGET_FILE:Cli> "init; create rect box 0 0 10 10; set box transform \"skewX(15)\"; show box")
@@ -451,7 +451,7 @@ set_tests_properties(cli_read_unsized_view_box PROPERTIES PASS_REGULAR_EXPRESSIO
 add_test(NAME cli_read_partial_canvas COMMAND $<TARGET_FILE:Cli>
     "read ${CMAKE_SOURCE_DIR}/tests/fixtures/width-only.svg; show svg")
 set_tests_properties(cli_read_partial_canvas PROPERTIES PASS_REGULAR_EXPRESSION
-    "svg \\(300 x unset\\)")
+    "svg \\(300 user units x unset\\)")
 
 add_test(NAME cli_invalid_view_box COMMAND $<TARGET_FILE:Cli>
     "init; set svg viewBox \"0 0 -1 10\"")
@@ -465,7 +465,7 @@ set_tests_properties(cli_set_text_style PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME cli_save_svg_attributes COMMAND $<TARGET_FILE:Cli>
     "init; set svg xmlns \"urn:example:svg\"; set svg viewBox \"0 0 100 50\"; create text t 1 2 \"hi\"; set t text-anchor end; set t font-size 8px; save ${CMAKE_CURRENT_BINARY_DIR}/cli_svg_attributes.svg; read ${CMAKE_CURRENT_BINARY_DIR}/cli_svg_attributes.svg; show svg")
 set_tests_properties(cli_save_svg_attributes PROPERTIES PASS_REGULAR_EXPRESSION
-    "svg xmlns=\"urn:example:svg\" \\(800x600\\) viewBox=\"0 0 100 50\"")
+    "svg xmlns=\"urn:example:svg\" \\(800 x 600 user units\\) viewBox=\"0 0 100 50\"")
 
 # File input reports the ids it had to invent, and the tree is the loaded document.
 add_test(NAME cli_read

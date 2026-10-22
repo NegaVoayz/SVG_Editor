@@ -34,8 +34,23 @@ struct GeometryText {
     }
 };
 
-// The canvas of a document, as one value: the two sides are joined by an x, the way a
-// user writes a size, and a unit the two of them share is said once.
+std::string canvas_unit_suffix(Length::Unit unit) {
+    if (unit == Length::Unit::UserUnit) return " user units";
+    return " " + std::string{unit_text(unit)};
+}
+
+std::string canvas_side_text(const std::optional<LengthPercentage>& value) {
+    if (!value) return "unset";
+    if (std::holds_alternative<Length>(*value)) {
+        const Length& length = std::get<Length>(*value);
+        if (length.unit == Length::Unit::UserUnit) return number_text(length.value) + " user units";
+    }
+    return to_text(*value);
+}
+
+// The canvas of a document, as one value. A unit shared by both sides is inside the
+// parentheses, next to the numbers it describes; a partial canvas still names the unit of
+// the side that is present.
 std::string canvas_text(const Container::SVG& canvas) {
     if (!canvas.width && !canvas.height) return "(unsized)";
     if (canvas.width && canvas.height && std::holds_alternative<Length>(*canvas.width) &&
@@ -43,14 +58,11 @@ std::string canvas_text(const Container::SVG& canvas) {
         const Length& width = std::get<Length>(*canvas.width);
         const Length& height = std::get<Length>(*canvas.height);
         if (width.unit == height.unit) {
-            return "(" + number_text(width.value) + "x" + number_text(height.value) + ")" +
-                   std::string{unit_text(width.unit)};
+            return "(" + number_text(width.value) + " x " + number_text(height.value) +
+                   canvas_unit_suffix(width.unit) + ")";
         }
     }
-    const bool complete = canvas.width && canvas.height;
-    const std::string width = canvas.width ? to_text(*canvas.width) : "unset";
-    const std::string height = canvas.height ? to_text(*canvas.height) : "unset";
-    return complete ? "(" + width + "x" + height + ")" : "(" + width + " x " + height + ")";
+    return "(" + canvas_side_text(canvas.width) + " x " + canvas_side_text(canvas.height) + ")";
 }
 
 // The size an `init` created, without the tree's parentheses. Both sides are always

@@ -35,12 +35,12 @@ struct Transform {
     LengthPercentage f = Length{0.0F, Length::Unit::UserUnit};
 };
 
-inline constexpr float transform_pi = 3.14159265358979323846F;
+inline constexpr double transform_pi = 3.141592653589793238462643383279502884;
 
-inline float radians_of(float degrees) { return degrees * (transform_pi / 180.0F); }
-inline float degrees_of(float radians_value) { return radians_value * (180.0F / transform_pi); }
+inline double radians_of(double degrees) { return degrees * (transform_pi / 180.0); }
+inline double degrees_of(double radians_value) { return radians_value * (180.0 / transform_pi); }
 
-inline bool transform_number_is(float value, float expected, float tolerance) {
+inline bool transform_number_is(double value, double expected, double tolerance) {
     return std::fabs(value - expected) <= tolerance;
 }
 
@@ -48,12 +48,16 @@ inline bool transform_length_is_zero(const LengthPercentage& value) {
     return numeric_value(value) == 0.0F;
 }
 
+inline bool transform_length_is_near_zero(const LengthPercentage& value, double tolerance) {
+    return std::fabs(static_cast<double>(numeric_value(value))) <= tolerance;
+}
+
 inline bool is_finite(const Transform& transform) {
     return std::isfinite(transform.a) && std::isfinite(transform.b) && std::isfinite(transform.c) &&
            std::isfinite(transform.d) && is_finite(transform.e) && is_finite(transform.f);
 }
 
-inline bool is_identity(const Transform& transform, float tolerance = 1.0e-6F) {
+inline bool is_identity(const Transform& transform, double tolerance = 1.0e-5) {
     return transform_number_is(transform.a, 1.0F, tolerance) &&
            transform_number_is(transform.b, 0.0F, tolerance) &&
            transform_number_is(transform.c, 0.0F, tolerance) &&
@@ -69,45 +73,45 @@ inline Transform translated(LengthPercentage x, LengthPercentage y) {
     return transform;
 }
 
-inline Transform scaled(float x, float y) {
+inline Transform scaled(double x, double y) {
     Transform transform;
-    transform.a = x;
-    transform.d = y;
+    transform.a = static_cast<float>(x);
+    transform.d = static_cast<float>(y);
     return transform;
 }
 
-inline Transform rotated(float degrees_value) {
+inline Transform rotated(double degrees_value) {
     Transform transform;
-    const float angle = radians_of(degrees_value);
-    const float cosine = std::cos(angle);
-    const float sine = std::sin(angle);
-    transform.a = cosine;
-    transform.b = sine;
-    transform.c = -sine;
-    transform.d = cosine;
+    const double angle = radians_of(degrees_value);
+    const double cosine = std::cos(angle);
+    const double sine = std::sin(angle);
+    transform.a = static_cast<float>(cosine);
+    transform.b = static_cast<float>(sine);
+    transform.c = static_cast<float>(-sine);
+    transform.d = static_cast<float>(cosine);
     return transform;
 }
 
-inline Transform skewed_x(float degrees_value) {
+inline Transform skewed_x(double degrees_value) {
     Transform transform;
-    transform.c = std::tan(radians_of(degrees_value));
+    transform.c = static_cast<float>(std::tan(radians_of(degrees_value)));
     return transform;
 }
 
-inline Transform skewed_y(float degrees_value) {
+inline Transform skewed_y(double degrees_value) {
     Transform transform;
-    transform.b = std::tan(radians_of(degrees_value));
+    transform.b = static_cast<float>(std::tan(radians_of(degrees_value)));
     return transform;
 }
 
-inline Transform matrix_transform(float a, float b, float c, float d, float e, float f) {
+inline Transform matrix_transform(double a, double b, double c, double d, double e, double f) {
     Transform transform;
-    transform.a = a;
-    transform.b = b;
-    transform.c = c;
-    transform.d = d;
-    transform.e = Length{e, Length::Unit::UserUnit};
-    transform.f = Length{f, Length::Unit::UserUnit};
+    transform.a = static_cast<float>(a);
+    transform.b = static_cast<float>(b);
+    transform.c = static_cast<float>(c);
+    transform.d = static_cast<float>(d);
+    transform.e = Length{static_cast<float>(e), Length::Unit::UserUnit};
+    transform.f = Length{static_cast<float>(f), Length::Unit::UserUnit};
     return transform;
 }
 
@@ -116,19 +120,27 @@ inline Transform matrix_transform(float a, float b, float c, float d, float e, f
 // fail rather than approximate.
 inline std::optional<Transform> compose(const Transform& outer, const Transform& inner) {
     Transform result;
-    result.a = outer.a * inner.a + outer.c * inner.b;
-    result.b = outer.b * inner.a + outer.d * inner.b;
-    result.c = outer.a * inner.c + outer.c * inner.d;
-    result.d = outer.b * inner.c + outer.d * inner.d;
+    const double oa = outer.a;
+    const double ob = outer.b;
+    const double oc = outer.c;
+    const double od = outer.d;
+    const double ia = inner.a;
+    const double ib = inner.b;
+    const double ic = inner.c;
+    const double id = inner.d;
+    result.a = static_cast<float>(oa * ia + oc * ib);
+    result.b = static_cast<float>(ob * ia + od * ib);
+    result.c = static_cast<float>(oa * ic + oc * id);
+    result.d = static_cast<float>(ob * ic + od * id);
 
-    std::optional<LengthPercentage> x = Geometry::sum(Geometry::scaled(inner.e, outer.a),
-                                                      Geometry::scaled(inner.f, outer.c));
+    std::optional<LengthPercentage> x = Geometry::sum(Geometry::scaled(inner.e, oa),
+                                                      Geometry::scaled(inner.f, oc));
     if (!x) return std::nullopt;
     x = Geometry::sum(*x, outer.e);
     if (!x) return std::nullopt;
 
-    std::optional<LengthPercentage> y = Geometry::sum(Geometry::scaled(inner.e, outer.b),
-                                                      Geometry::scaled(inner.f, outer.d));
+    std::optional<LengthPercentage> y = Geometry::sum(Geometry::scaled(inner.e, ob),
+                                                      Geometry::scaled(inner.f, od));
     if (!y) return std::nullopt;
     y = Geometry::sum(*y, outer.f);
     if (!y) return std::nullopt;
@@ -141,7 +153,7 @@ inline std::optional<Transform> compose(const Transform& outer, const Transform&
 
 inline std::optional<Transform> rotation_about(float degrees_value, LengthPercentage x, LengthPercentage y) {
     const std::optional<Transform> centered =
-        compose(rotated(degrees_value), translated(Geometry::scaled(x, -1.0F), Geometry::scaled(y, -1.0F)));
+        compose(rotated(degrees_value), translated(Geometry::scaled(x, -1.0), Geometry::scaled(y, -1.0)));
     if (!centered) return std::nullopt;
     return compose(translated(x, y), *centered);
 }
@@ -166,27 +178,31 @@ inline TransformParts decomposed_with_x(const Transform& transform) {
     parts.y = transform.f;
     parts.skew_axis = SkewAxis::X;
 
-    const float scale_x = std::hypot(transform.a, transform.b);
-    parts.scale_x = scale_x;
-    if (scale_x > 0.0F) {
-        const float cosine = transform.a / scale_x;
-        const float sine = transform.b / scale_x;
-        const float determinant = transform.a * transform.d - transform.b * transform.c;
-        parts.scale_y = determinant / scale_x;
-        parts.rotation = degrees_of(std::atan2(transform.b, transform.a));
+    const double a = transform.a;
+    const double b = transform.b;
+    const double c = transform.c;
+    const double d = transform.d;
+    const double scale_x = std::hypot(a, b);
+    parts.scale_x = static_cast<float>(scale_x);
+    if (scale_x > 0.0) {
+        const double cosine = a / scale_x;
+        const double sine = b / scale_x;
+        const double determinant = a * d - b * c;
+        parts.scale_y = static_cast<float>(determinant / scale_x);
+        parts.rotation = static_cast<float>(degrees_of(std::atan2(b, a)));
         // Solve the skew from the column that is larger, so a rotation near 90 degrees does
         // not divide by a value that is only numerical noise.
-        const float skew = std::fabs(transform.a) >= std::fabs(transform.b)
-                               ? (transform.c + sine * parts.scale_y) / transform.a
-                               : (transform.d - cosine * parts.scale_y) / transform.b;
-        parts.skew = degrees_of(std::atan(skew));
+        const double skew =
+            std::fabs(a) >= std::fabs(b) ? (c + sine * static_cast<double>(parts.scale_y)) / a
+                                        : (d - cosine * static_cast<double>(parts.scale_y)) / b;
+        parts.skew = static_cast<float>(degrees_of(std::atan(skew)));
         return parts;
     }
 
     // The first column is zero: the matrix maps every x onto the same point. A rotation and
     // a y scale can still name the remaining column, and the skew is irrelevant there.
-    parts.scale_y = std::hypot(transform.c, transform.d);
-    parts.rotation = parts.scale_y > 0.0F ? degrees_of(std::atan2(-transform.c, transform.d)) : 0.0F;
+    parts.scale_y = static_cast<float>(std::hypot(c, d));
+    parts.rotation = parts.scale_y > 0.0F ? static_cast<float>(degrees_of(std::atan2(-c, d))) : 0.0F;
     return parts;
 }
 
@@ -196,39 +212,48 @@ inline TransformParts decomposed_with_y(const Transform& transform) {
     parts.y = transform.f;
     parts.skew_axis = SkewAxis::Y;
 
-    const float scale_y = std::hypot(transform.c, transform.d);
-    parts.scale_y = scale_y;
-    if (scale_y > 0.0F) {
-        const float cosine = transform.d / scale_y;
-        const float sine = -transform.c / scale_y;
-        parts.rotation = degrees_of(std::atan2(-transform.c, transform.d));
-        parts.scale_x = transform.a * cosine + transform.b * sine;
-        const float skew = (transform.b * cosine - transform.a * sine) / scale_y;
-        parts.skew = degrees_of(std::atan(skew));
+    const double a = transform.a;
+    const double b = transform.b;
+    const double c = transform.c;
+    const double d = transform.d;
+    const double scale_y = std::hypot(c, d);
+    parts.scale_y = static_cast<float>(scale_y);
+    if (scale_y > 0.0) {
+        const double cosine = d / scale_y;
+        const double sine = -c / scale_y;
+        parts.rotation = static_cast<float>(degrees_of(std::atan2(-c, d)));
+        parts.scale_x = static_cast<float>(a * cosine + b * sine);
+        const double skew = (b * cosine - a * sine) / scale_y;
+        parts.skew = static_cast<float>(degrees_of(std::atan(skew)));
         return parts;
     }
 
     // The second column is zero. The first column still names a rotation and an x scale,
     // and the skew is irrelevant because it multiplies that zero column.
-    parts.scale_x = std::hypot(transform.a, transform.b);
-    parts.rotation = parts.scale_x > 0.0F ? degrees_of(std::atan2(transform.b, transform.a)) : 0.0F;
+    parts.scale_x = static_cast<float>(std::hypot(a, b));
+    parts.rotation = parts.scale_x > 0.0F ? static_cast<float>(degrees_of(std::atan2(b, a))) : 0.0F;
     return parts;
 }
 
 inline std::string transform_parts_text(const TransformParts& parts) {
-    constexpr float value_tolerance = 1.0e-6F;
-    constexpr float angle_tolerance = 1.0e-5F;
+    // A matrix is stored as float after its double-precision calculation. Values this close
+    // to zero or one are display noise (2^-17 is about 7.6e-6), not an edit the user made.
+    constexpr double value_tolerance = 1.0e-5;
+    constexpr double angle_tolerance = 1.0e-3;
 
     std::string text;
     auto append = [&text](std::string step) {
         if (!text.empty()) text += ' ';
         text += std::move(step);
     };
-    if (!transform_length_is_zero(parts.x) || !transform_length_is_zero(parts.y)) {
+    if (!transform_length_is_near_zero(parts.x, value_tolerance) ||
+        !transform_length_is_near_zero(parts.y, value_tolerance)) {
         // A zero is zero in every unit; printing the unit it happened to acquire from a
         // composed transform would only add noise.
-        const std::string x = transform_length_is_zero(parts.x) ? "0" : to_text(parts.x);
-        const std::string y = transform_length_is_zero(parts.y) ? "0" : to_text(parts.y);
+        const std::string x =
+            transform_length_is_near_zero(parts.x, value_tolerance) ? "0" : to_text(parts.x);
+        const std::string y =
+            transform_length_is_near_zero(parts.y, value_tolerance) ? "0" : to_text(parts.y);
         append("translate(" + x + " " + y + ")");
     }
     if (std::fabs(parts.rotation) > angle_tolerance) {

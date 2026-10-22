@@ -112,10 +112,12 @@ static_assert(Linked<PlainText>);
 static_assert(!Linked<Unheld>);
 
 int main() {
-    // A float is printed for a reader, not as a round-trip dump: six significant
-    // figures is enough to see the value and keeps matrix noise out of the prompt.
+    // A float is printed in fixed notation with at most six decimal places: large values
+    // stay readable and values such as 0.3 do not become a long binary approximation.
     CHECK(number_text(1.0F / 3.0F) == "0.333333");
-    CHECK(number_text(1.234567F) == "1.23457");
+    CHECK(number_text(1.234567F) == "1.234567");
+    CHECK(number_text(1234567.89F) == "1234567.875");
+    CHECK(number_text(0.3F) == "0.3");
     CHECK(number_text(5.0F) == "5");
 
     Document document;

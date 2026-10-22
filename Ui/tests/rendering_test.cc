@@ -102,7 +102,7 @@ int main() {
     rows.push_back(row(2, true, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}})));
 
     const std::string expected = join({
-        "svg (800x600)",
+        "svg (800 x 600 user units)",
         "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 rect#bg        x=0 y=0 w=800 h=600 fill=#ffffff",
         "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 text#title     (20,40) text=\"My Diagram\"",
         "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 g#markers",
@@ -135,7 +135,7 @@ int main() {
     under_a_bar.push_back(row(2, true, rect("box", 0, 0, 10, 10, Color{Color::RGB{255, 0, 0}})));
     under_a_bar.push_back(row(1, true, text_element("title", 20, 40), "My Diagram"));
     CHECK(render(TreeView{under_a_bar}) == join({
-                                                   "svg (800x600)",
+                                                   "svg (800 x 600 user units)",
                                                    "\xE2\x94\x9C\xE2\x94\x80\xE2\x94\x80 g#markers",
                                                    "\xE2\x94\x82   \xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 rect#box  x=0 y=0 w=10 h=10 fill=#ff0000",
                                                    "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80 text#title    (20,40) "
@@ -153,13 +153,13 @@ int main() {
     CHECK(render(NodeView{3, rect("red", 0, 0, 1, 1, Color{Color::Named{Color::NamedColorId::RebeccaPurple}}), {}}) ==
           "rect#red\n  x=0 y=0 w=1 h=1\n  fill=rebeccapurple");
     CHECK(render(NodeView{3, rect("float", 1.234567F, 0, 1, 1, std::nullopt), {}}) ==
-          "rect#float x=1.23457 y=0 w=1 h=1");
+          "rect#float x=1.234567 y=0 w=1 h=1");
     CHECK(render(NodeView{3, rect("turned", 0, 0, 1, 1, std::nullopt), {}, std::nullopt,
                           composed_transform(
                               {scaled(2.0F, 2.0F), *rotation_about(30.0F, units(10), units(20)),
                                skewed_x(15.0F), skewed_y(-5.0F)})}) ==
-          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=translate(22.6795 -4.64101) rotate(15) "
-          "scale(1.93185 2.07055) skewY(9.23052)");
+          "rect#turned\n  x=0 y=0 w=1 h=1\n  transform=translate(22.679493 -4.641014) rotate(15) "
+          "scale(1.931852 2.070552) skewY(9.23052)");
     CHECK(render(NodeView{3, rect("box", 200, 80, 60, 60, Color{Color::RGB{0x33, 0x66, 0xff}}), {},
                            NodeParent{1, group("markers")}}) ==
           "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
@@ -181,7 +181,7 @@ int main() {
 
     // An element with no id of its own is named by its kind alone, which is what the root
     // of an empty document is
-    CHECK(render(NodeView{0, root_with(units(800), units(600)), {}}) == "svg (800x600)");
+    CHECK(render(NodeView{0, root_with(units(800), units(600)), {}}) == "svg (800 x 600 user units)");
 
     // A root that describes only its user-coordinate rectangle has no explicit size.
     CHECK(render(NodeView{0, unsized_root_with(Container::ViewBox{0.0F, 0.0F, 100.0F, 50.0F}), {}}) ==
@@ -195,18 +195,18 @@ int main() {
     CHECK(render(NodeView{0, namespaced, {}}) ==
           "svg xmlns=\"urn:example:svg\" (unsized) viewBox=\"0 0 100 50\"");
 
-    // A unit both sides of the canvas share is said once, and a canvas that is not a plain
-    // number keeps its own text: what a length is, is what to_text says it is.
+    // A unit both sides share stays inside the parentheses. A partial canvas names the
+    // unit on the side that is present.
     CHECK(render(NodeView{0, root_with(Length{1024.0F, Length::Unit::Px}, Length{768.0F, Length::Unit::Px}), {}}) ==
-          "svg (1024x768)px");
+          "svg (1024 x 768 px)");
     CHECK(render(NodeView{0, root_with(Length{2.0F, Length::Unit::Cm}, Length{3.0F, Length::Unit::Mm}), {}}) ==
-          "svg (2cmx3mm)");
+          "svg (2cm x 3mm)");
     CHECK(render(NodeView{0,
                           element("", Container{ChildAttr{}, Container::SVG{units(300), std::nullopt}}),
-                          {}}) == "svg (300 x unset)");
+                          {}}) == "svg (300 user units x unset)");
     CHECK(render(NodeView{0,
                           element("", Container{ChildAttr{}, Container::SVG{std::nullopt, units(300)}}),
-                          {}}) == "svg (unset x 300)");
+                          {}}) == "svg (unset x 300 user units)");
 
     // Character data asked for by handle has no id and no kind of its own: it is the
     // labelled words it is made of.

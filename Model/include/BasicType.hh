@@ -36,20 +36,26 @@ inline float numeric_value(const LengthPercentage& value) {
 // definition, and a value that overflows its float has no representation to write back.
 inline bool is_finite(const LengthPercentage& value) { return std::isfinite(numeric_value(value)); }
 
-// The shortest text a float has, capped at six significant figures: "5" rather than
-// "5.000000", and "0.333333" rather than a round-trip's worth of noise. SVG source and
-// a status line both read this form.
+// Up to six decimal places, without an exponent: large values stay in ordinary notation
+// and trailing zeros are omitted. Six places are enough to read the value while keeping
+// float arithmetic noise out of SVG source and a status line.
 inline std::string number_text(float value) {
-    char buffer[32];
+    char buffer[64];
     const std::to_chars_result written =
-        std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::general, 6);
+        std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::fixed, 6);
     if (written.ec != std::errc{}) return std::to_string(value);
-    return std::string(buffer, written.ptr);
+    std::string text(buffer, written.ptr);
+    const std::size_t decimal = text.find('.');
+    if (decimal != std::string::npos) {
+        while (text.back() == '0') text.pop_back();
+        if (text.back() == '.') text.pop_back();
+    }
+    return text;
 }
 
 // The text a unit is written with, and nothing at all for a user unit: SVG writes that
-// one as the bare number. A value needs it, and so does a pair of values that share one
-// unit - a canvas of 800x600 pixels is "(800x600)px" and not "800pxx600px".
+// one as the bare number. A value needs it; a place that displays two values together may
+// put one suffix inside that display, as the canvas does with "(600 x 480 px)".
 inline std::string_view unit_text(Length::Unit unit) {
     switch (unit) {
         case Length::Unit::UserUnit: return "";
