@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <deque>
 #include <expected>
 #include <memory>
@@ -31,6 +32,8 @@
 // before the point where std::visit asks for it is not a specialization at all.
 class Editor {
 public:
+    static constexpr std::size_t default_history_limit = 20;
+
     explicit Editor(Document& document);
 
     // One change intent, one transaction. The dispatch is on the type of the
@@ -38,8 +41,8 @@ public:
     // branch that quietly does nothing.
     Outcome translate(const ChangeIntent& intent);
 
-    // The last `limit` edits of the current context, oldest first. The view carries the
-    // commit ids `checkout` takes.
+    // The last `limit` edits of the current context, oldest first, defaulting to 20. The
+    // view carries the commit ids `checkout` takes, plus the baseline and current checkout.
     HistoryView history(std::optional<std::size_t> limit);
 
 private:

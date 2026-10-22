@@ -39,9 +39,12 @@ HistoryView Editor::history(std::optional<std::size_t> limit) {
 
     const std::size_t depth = document_.depth();
     HistoryView view;
+    view.baseline = document_.baseline_commit();
+    view.head = document_.commit_id();
     view.position = document_.position();
     view.depth = depth;
-    const std::size_t first = limit && *limit < depth ? depth - *limit : 0;
+    const std::size_t cap = limit.value_or(default_history_limit);
+    const std::size_t first = cap < depth ? depth - cap : 0;
     for (std::size_t position = first; position < depth; ++position) {
         const std::optional<CommitId> commit = document_.commit_at(position);
         if (!commit) continue;

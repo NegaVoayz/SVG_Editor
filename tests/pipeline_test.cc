@@ -1234,6 +1234,8 @@ int main() {
         CHECK(std::holds_alternative<HistoryView>(listed.view()));
         if (std::holds_alternative<HistoryView>(listed.view())) {
             const HistoryView& history = std::get<HistoryView>(listed.view());
+            CHECK(history.baseline == baseline);
+            CHECK(history.head == class_commit);
             CHECK(history.position == 3);
             CHECK(history.depth == 3);
             CHECK(history.entries.size() == 3);
@@ -1271,6 +1273,20 @@ int main() {
         CHECK(replay_document.commit_id() == class_commit);
         CHECK(replay_document.position() == 3);
 
+        // The baseline is not an edit, so it is absent from the entry list, but the view
+        // exposes its id and checkout can return to it.
+        const Outcome at_baseline = replay_planner.dispatch(Checkout{baseline});
+        CHECK(happened_with<event::CheckedOut>(at_baseline));
+        if (happened_with<event::CheckedOut>(at_baseline)) {
+            const event::CheckedOut& checkout = std::get<event::CheckedOut>(at_baseline.event());
+            CHECK(checkout.commit == baseline);
+            CHECK(checkout.position == 0);
+            CHECK(checkout.original == nullptr);
+        }
+        CHECK(replay_document.commit_id() == baseline);
+        CHECK(replay_document.position() == 0);
+        CHECK(replay_planner.dispatch(Checkout{class_commit}).ok());
+
         CHECK(replay_planner.dispatch(Undo{}).ok());
         CHECK(replay_planner.dispatch(Create{CreateCircle{"c", units(1), units(1), units(1), std::nullopt}}).ok());
         const CommitId branch_commit = replay_document.commit_id();
@@ -1306,6 +1322,35 @@ int main() {
                 std::get<event::Undone>(undo_after_branch.event()).original;
             CHECK(original != nullptr);
             if (original) CHECK(std::holds_alternative<event::Moved>(*original));
+        }
+    }
+
+    // `history` has a screen-sized default cap while still reporting the total depth and
+    // exposing the baseline/head ids needed to navigate the full branch.
+    {
+        Document capped_document;
+        Editor capped_editor(capped_document);
+        Planner capped_planner(capped_document, capped_editor);
+        CHECK(capped_planner.dispatch(Init{}).ok());
+        const CommitId baseline = capped_document.commit_id();
+        CHECK(capped_planner
+                  .dispatch(Create{CreateRect{"r", units(0), units(0), units(1), units(1), std::nullopt}})
+                  .ok());
+        for (std::size_t step = 1; step <= Editor::default_history_limit + 5; ++step) {
+            CHECK(capped_planner
+                      .dispatch(Move{SvgIdRef{"r"}, units(static_cast<float>(step)), units(0)})
+                      .ok());
+        }
+
+        const Outcome capped = capped_planner.dispatch(ShowHistory{});
+        CHECK(capped.ok());
+        if (std::holds_alternative<HistoryView>(capped.view())) {
+            const HistoryView& history = std::get<HistoryView>(capped.view());
+            CHECK(history.baseline == baseline);
+            CHECK(history.head == capped_document.commit_id());
+            CHECK(history.depth == Editor::default_history_limit + 6);
+            CHECK(history.entries.size() == Editor::default_history_limit);
+            CHECK(history.depth - history.entries.size() == 6);
         }
     }
 

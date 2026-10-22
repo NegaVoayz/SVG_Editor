@@ -214,13 +214,31 @@ int main() {
 
     // The history is the current context branch, oldest first, with the ids checkout takes.
     HistoryView history;
+    history.baseline = 11;
+    history.head = 13;
     history.position = 1;
     history.depth = 2;
     history.entries.push_back(event::HistoryEntry{
         12, std::make_shared<const event::EditEvent>(event::Created{{"rect", "r"}, {"svg", ""}, false})});
     history.entries.push_back(event::HistoryEntry{
         13, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r"}, units(5), units(7)})});
-    CHECK(render(history) == "12  rect#r created\n13  rect#r moved by (5, 7)");
+    CHECK(render(history) == "12  rect#r created\n13  rect#r moved by (5, 7) (HEAD)");
+
+    // Commit ids line up by their widest value, and a cap reports what it left out. The
+    // baseline stays hidden because it is a context state, not an edit.
+    HistoryView capped;
+    capped.baseline = 8;
+    capped.head = 10;
+    capped.depth = 3;
+    capped.entries.push_back(event::HistoryEntry{
+        9, std::make_shared<const event::EditEvent>(event::Created{{"rect", "a"}, {"svg", ""}, false})});
+    capped.entries.push_back(event::HistoryEntry{
+        10, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "a"}, units(1), units(2)})});
+    CHECK(render(capped) == "1 commit not shown\n 9  rect#a created\n10  rect#a moved by (1, 2) (HEAD)");
+
+    HistoryView all_capped;
+    all_capped.depth = 2;
+    CHECK(render(all_capped) == "2 commits not shown");
     CHECK(render(HistoryView{}) == "no history");
 
     // The other half of the boundary: an event and a refusal are data until this file

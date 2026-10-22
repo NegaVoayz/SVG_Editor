@@ -32,6 +32,7 @@ void commit(CommitId = 0);  void rollback();
 TouchedNodes undo();  TouchedNodes redo();
 bool can_undo() const;  bool can_redo() const;
 bool undo_barred_by_io() const;
+CommitId baseline_commit() const;                                // retained context floor
 std::optional<CommitId> commit_at(std::size_t position) const;  // one edit's checkout
 
 // the context: which document this is, rather than what is in it

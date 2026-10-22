@@ -358,13 +358,19 @@ set_tests_properties(cli_undo_redo_history_outcome PROPERTIES PASS_REGULAR_EXPRE
 add_test(NAME cli_history COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; move r 5 7; history")
 set_tests_properties(cli_history PROPERTIES PASS_REGULAR_EXPRESSION
-    "2 +rect#r created\n3 +rect#r moved by \\(5, 7\\)")
+    "2 +rect#r created\n3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)")
 
 add_test(NAME cli_history_limit COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; move r 5 7; history 1")
 set_tests_properties(cli_history_limit PROPERTIES
-    PASS_REGULAR_EXPRESSION "3 +rect#r moved by \\(5, 7\\)"
+    PASS_REGULAR_EXPRESSION "3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)"
     FAIL_REGULAR_EXPRESSION "2 +rect#r created")
+
+add_test(NAME cli_history_head_after_undo COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; move r 5 7; undo; history")
+set_tests_properties(cli_history_head_after_undo PROPERTIES
+    PASS_REGULAR_EXPRESSION "2 +rect#r created \\(HEAD\\)\n3 +rect#r moved by \\(5, 7\\)"
+    FAIL_REGULAR_EXPRESSION "3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)")
 
 add_test(NAME cli_history_after_canvas COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; canvas 800 600; history")
@@ -379,6 +385,11 @@ add_test(NAME cli_checkout_unknown COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; checkout 999")
 set_tests_properties(cli_checkout_unknown PROPERTIES PASS_REGULAR_EXPRESSION
     "error: no such commit: 999")
+
+add_test(NAME cli_checkout_baseline COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; checkout 1; show r")
+set_tests_properties(cli_checkout_baseline PROPERTIES PASS_REGULAR_EXPRESSION
+    "checked out 1\nerror: no such shape: r")
 
 # A parameter with a space is one word when it is quoted, and the answer prints it back
 # the same way so the reader can copy it into another instruction.

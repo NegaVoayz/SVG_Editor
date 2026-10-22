@@ -78,7 +78,7 @@ bool starts_comment(std::string_view line) {
 std::string_view usage() {
     return "  view     tree [id]              the tree, the whole document by default\n"
            "           show <id>              one element's attributes and parent\n"
-           "           history [n]            the last n edits and their commit ids, all by default\n"
+           "           history [n]            the last n edits and their commit ids, 20 by default\n"
            "           canvas                 the document's size, which is the root's\n"
            "           help                   this list\n"
            "  change   create <kind> <id> [values] [in <gid>]\n"

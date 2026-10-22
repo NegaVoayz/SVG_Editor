@@ -68,6 +68,10 @@ public:
     // under. Zero before a reset or a successful open has made a document.
     CommitId commit_id() const;
 
+    // The commit at position zero, the floor established by a context command. It is
+    // retained for checkout even though it is not one of the editable history entries.
+    CommitId baseline_commit() const;
+
     // The commit at a zero-based history position. A coordinator uses the same value
     // for every hive that took part in that edit.
     std::optional<CommitId> commit_at(std::size_t position) const;

@@ -84,6 +84,7 @@ TouchedNodes Document::redo() { return store_.redo(); }
 std::size_t Document::depth() const { return store_.depth(); }
 std::size_t Document::position() const { return store_.position(); }
 CommitId Document::commit_id() const { return store_.commit_id(); }
+CommitId Document::baseline_commit() const { return store_.baseline_commit(); }
 std::optional<CommitId> Document::commit_at(std::size_t position) const { return store_.commit_at(position); }
 
 std::optional<HistoryCheckout> Document::checkout(CommitId commit) { return store_.checkout(commit); }

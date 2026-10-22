@@ -582,14 +582,27 @@ std::string render(const Event& event) { return std::visit(EventText{}, event); 
 std::string render(const Refusal& refusal) { return std::visit(RefusalText{}, refusal); }
 
 std::string render(const HistoryView& view) {
-    if (view.entries.empty()) return "no history";
     std::string out;
+    const std::size_t shown = std::min(view.entries.size(), view.depth);
+    const std::size_t not_shown = view.depth - shown;
+    if (not_shown != 0) {
+        out += std::to_string(not_shown);
+        out += not_shown == 1 ? " commit not shown" : " commits not shown";
+    }
+
+    std::size_t commit_width = 0;
+    for (const event::HistoryEntry& entry : view.entries) {
+        commit_width = std::max(commit_width, std::to_string(entry.commit).size());
+    }
     for (const event::HistoryEntry& entry : view.entries) {
         if (!out.empty()) out += '\n';
-        out += std::to_string(entry.commit);
+        const std::string commit = std::to_string(entry.commit);
+        out.append(commit_width - commit.size(), ' ');
+        out += commit;
         if (entry.outcome) out += "  " + std::visit(EventText{}, *entry.outcome);
+        if (entry.commit == view.head) out += " (HEAD)";
     }
-    return out;
+    return out.empty() ? "no history" : out;
 }
 
 std::string render(const Outcome& outcome) { return std::visit(OutcomeText{}, outcome.result); }

@@ -103,6 +103,9 @@ public:
     // shared checkout id every participating hive reports.
     CommitId commit_id() const;
 
+    // The retained state immediately after the last context change.
+    CommitId baseline_commit() const;
+
     // The commit at a zero-based history position. A coordinator uses the same value
     // for every hive that took part in that edit.
     std::optional<CommitId> commit_at(std::size_t position) const;

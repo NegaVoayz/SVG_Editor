@@ -202,6 +202,7 @@ std::size_t TreeStore::depth() const { return checkouts_.empty() ? 0 : checkouts
 std::size_t TreeStore::position() const { return position_; }
 
 CommitId TreeStore::commit_id() const { return view_ ? view_->commit_id() : 0; }
+CommitId TreeStore::baseline_commit() const { return checkouts_.empty() ? 0 : checkouts_.front(); }
 
 std::optional<CommitId> TreeStore::commit_at(std::size_t position) const {
     if (checkouts_.size() < 2 || position >= checkouts_.size() - 1) return std::nullopt;
