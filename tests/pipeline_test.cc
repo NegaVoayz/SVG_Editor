@@ -1403,6 +1403,13 @@ int main() {
                 CHECK(history.entries.back().position == 26);
             }
         }
+
+        const Outcome checkout_default = capped_planner.dispatch(Checkout{baseline});
+        CHECK(happened_with<event::CheckedOut>(checkout_default));
+        if (happened_with<event::CheckedOut>(checkout_default)) {
+            const event::CheckedOut& checkout = std::get<event::CheckedOut>(checkout_default.event());
+            CHECK(checkout.timeline.size() == Editor::default_history_limit + 1);
+        }
     }
 
     if (failures != 0) {

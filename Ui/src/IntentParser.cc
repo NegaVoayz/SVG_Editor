@@ -97,7 +97,7 @@ std::string_view usage() {
            "           front <id> | back <id>   the ends of the child order, last child in front\n"
            "           canvas <w> [h]         a new size, and the history starts over\n"
            "           undo | redo            one edit back or forward\n"
-           "           checkout <commit> [n]  move to a commit and show its timeline, all by default\n"
+           "           checkout <commit> [n]  move to a commit and show its timeline, 20 by default\n"
            "  context  init [w] [h]           a fresh document, 800x600 by default\n"
            "           read <file.svg>        read a document, naming what it left unnamed\n"
            "           save [file.svg]        write it, and the history starts over\n"

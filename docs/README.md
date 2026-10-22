@@ -176,9 +176,10 @@ omitted when that range is empty.
 `init`, `read`, `save`, and `canvas` establish a new baseline and therefore cut the
 editable part of the list back to nothing.
 `checkout <commit> [n]` moves straight to that commit, keeping the rest of the branch
-available for redo, then prints the retained timeline with the new HEAD marked. The full
-timeline is shown by default; `n` caps the number of edit rows. Checking out the commit
-that is already HEAD answers `checked out <commit> (no effect)` before the timeline.
+available for redo, then prints the retained timeline with the new HEAD marked. The
+timeline uses the same default cap of 20 neighboring commits as `history`; `n` overrides
+it. Checking out the commit that is already HEAD answers
+`checked out <commit> (no effect)` before the timeline.
 
 `show` prints the node's parent on its heading when it is not the root, then one
 indented line for each group of attributes:
