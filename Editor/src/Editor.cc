@@ -38,17 +38,48 @@ HistoryView Editor::history(std::optional<std::size_t> limit) {
     sync_history_events();
 
     const std::size_t depth = document_.depth();
+    const std::size_t head = document_.position();
     HistoryView view;
     view.baseline = document_.baseline_commit();
     view.head = document_.commit_id();
-    view.position = document_.position();
+    view.position = head;
     view.depth = depth;
     const std::size_t cap = limit.value_or(default_history_limit);
-    const std::size_t first = cap < depth ? depth - cap : 0;
-    for (std::size_t position = first; position < depth; ++position) {
-        const std::optional<CommitId> commit = document_.commit_at(position);
+    const std::size_t checkpoints = depth + 1;
+
+    // Select `cap` neighboring checkpoints around HEAD, split as evenly as possible. If
+    // one side reaches an end of the branch, the other side grows to keep that neighbor
+    // count full. HEAD itself is the center row. The baseline, latest commit, and HEAD
+    // are anchors and stay visible even when they fall outside the ordinary window.
+    std::vector<bool> selected(checkpoints, cap >= checkpoints - 1);
+    if (cap < checkpoints - 1 && cap != 0) {
+        selected[head] = true;
+        const std::size_t above_target = cap / 2;
+        std::size_t above = std::min(above_target, depth - head);
+        std::size_t below = std::min(cap - above, head);
+        std::size_t remaining = cap - above - below;
+
+        const std::size_t extra_below = std::min(remaining, head - below);
+        below += extra_below;
+        remaining -= extra_below;
+        const std::size_t extra_above = std::min(remaining, depth - head - above);
+        above += extra_above;
+
+        for (std::size_t offset = 1; offset <= above; ++offset) selected[head + offset] = true;
+        for (std::size_t offset = 1; offset <= below; ++offset) selected[head - offset] = true;
+    }
+    if (cap < checkpoints - 1) {
+        selected[0] = true;
+        selected[head] = true;
+        selected[depth] = true;
+    }
+
+    for (std::size_t position = 1; position <= depth; ++position) {
+        if (!selected[position]) continue;
+        const std::optional<CommitId> commit = document_.commit_at(position - 1);
         if (!commit) continue;
-        view.entries.push_back(event::HistoryEntry{*commit, history_event(position, *commit)});
+        view.entries.push_back(
+            event::HistoryEntry{*commit, history_event(position - 1, *commit), position});
     }
     return view;
 }

@@ -154,7 +154,7 @@ until every one of them names it.
 | ------------------------------------------------ | ------------------------------------------------------ | ----------------------- |
 | `tree [id]`                                      | the tree, the whole document by default                | the Planner, Model's viewing API |
 | `show <id>`                                      | one element's attributes and its parent                | the Planner, Model's viewing API |
-| `history [n]`                                    | the last n edits with their commit ids, 20 by default  | the Editor's replay log |
+| `history [n]`                                    | edits around HEAD, newest first, 20 by default         | the Editor's replay log |
 | `canvas`                                         | the document's size, which is the root element's       | the Planner, Model's viewing API |
 | `help`                                           | the command list                                       | the front end itself    |
 | `exit` / `quit`                                  | leave the editor without changing the document         | the front end itself    |

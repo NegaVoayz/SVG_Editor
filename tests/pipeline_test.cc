@@ -1241,8 +1241,11 @@ int main() {
             CHECK(history.entries.size() == 3);
             if (history.entries.size() == 3) {
                 CHECK(history.entries[0].commit == created_commit);
+                CHECK(history.entries[0].position == 1);
                 CHECK(history.entries[1].commit == moved_commit);
+                CHECK(history.entries[1].position == 2);
                 CHECK(history.entries[2].commit == class_commit);
+                CHECK(history.entries[2].position == 3);
                 CHECK(history.entries[2].outcome != nullptr);
             }
         }
@@ -1251,8 +1254,11 @@ int main() {
         CHECK(recent.ok());
         if (std::holds_alternative<HistoryView>(recent.view())) {
             const HistoryView& history = std::get<HistoryView>(recent.view());
-            CHECK(history.entries.size() == 1);
-            if (history.entries.size() == 1) CHECK(history.entries[0].commit == class_commit);
+            CHECK(history.entries.size() == 2);
+            if (history.entries.size() == 2) {
+                CHECK(history.entries[0].commit == moved_commit);
+                CHECK(history.entries[1].commit == class_commit);
+            }
         }
 
         const Outcome jumped = replay_planner.dispatch(Checkout{moved_commit});
@@ -1268,6 +1274,35 @@ int main() {
         CHECK(replay_document.commit_id() == moved_commit);
         CHECK(replay_document.position() == 2);
         CHECK(replay_document.can_redo());
+
+        // A cap of two keeps one neighboring commit on each side of HEAD.
+        const Outcome centered = replay_planner.dispatch(ShowHistory{std::size_t{2}});
+        CHECK(centered.ok());
+        if (std::holds_alternative<HistoryView>(centered.view())) {
+            const HistoryView& history = std::get<HistoryView>(centered.view());
+            CHECK(history.baseline == baseline);
+            CHECK(history.head == moved_commit);
+            CHECK(history.entries.size() == 3);
+            if (history.entries.size() == 3) {
+                CHECK(history.entries[0].position == 1);
+                CHECK(history.entries[1].position == 2);
+                CHECK(history.entries[2].position == 3);
+            }
+        }
+
+        // A cap too small to include all anchors still returns HEAD, the baseline, and
+        // the newest edit; the renderer fills the folded ranges between them.
+        const Outcome anchored = replay_planner.dispatch(ShowHistory{std::size_t{1}});
+        CHECK(anchored.ok());
+        if (std::holds_alternative<HistoryView>(anchored.view())) {
+            const HistoryView& history = std::get<HistoryView>(anchored.view());
+            CHECK(history.entries.size() == 3);
+            if (history.entries.size() == 3) {
+                CHECK(history.entries[0].position == 1);
+                CHECK(history.entries[1].position == 2);
+                CHECK(history.entries[2].position == 3);
+            }
+        }
 
         const Outcome returned = replay_planner.dispatch(Checkout{class_commit});
         CHECK(happened_with<event::CheckedOut>(returned));
@@ -1361,8 +1396,12 @@ int main() {
             CHECK(history.baseline == baseline);
             CHECK(history.head == capped_document.commit_id());
             CHECK(history.depth == Editor::default_history_limit + 6);
-            CHECK(history.entries.size() == Editor::default_history_limit);
-            CHECK(history.depth - history.entries.size() == 6);
+            CHECK(history.entries.size() == Editor::default_history_limit + 1);
+            CHECK(history.depth - history.entries.size() == 5);
+            if (!history.entries.empty()) {
+                CHECK(history.entries.front().position == 6);
+                CHECK(history.entries.back().position == 26);
+            }
         }
     }
 

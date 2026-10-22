@@ -590,38 +590,53 @@ std::string render(const Event& event) { return std::visit(EventText{}, event); 
 std::string render(const Refusal& refusal) { return std::visit(RefusalText{}, refusal); }
 
 std::string render(const HistoryView& view) {
-    std::string out;
-    const std::size_t shown = std::min(view.entries.size(), view.depth);
-    const std::size_t not_shown = view.depth - shown;
-    std::size_t commit_width = 0;
-    if (view.baseline != 0) {
-        commit_width = std::to_string(view.baseline).size();
-    }
+    struct HistoryRow {
+        std::size_t position;
+        CommitId commit;
+        std::shared_ptr<const event::EditEvent> outcome;
+        bool baseline;
+    };
+
+    std::vector<HistoryRow> rows;
+    if (view.baseline != 0) rows.push_back({0, view.baseline, nullptr, true});
     for (const event::HistoryEntry& entry : view.entries) {
-        commit_width = std::max(commit_width, std::to_string(entry.commit).size());
+        rows.push_back({entry.position, entry.commit, entry.outcome, false});
+    }
+    std::stable_sort(rows.begin(), rows.end(), [](const HistoryRow& left, const HistoryRow& right) {
+        return left.position > right.position;
+    });
+
+    std::size_t commit_width = 0;
+    for (const HistoryRow& row : rows) {
+        commit_width = std::max(commit_width, std::to_string(row.commit).size());
     }
 
+    std::string out;
     auto append_commit = [&out, commit_width](CommitId commit) {
         const std::string text = std::to_string(commit);
         out.append(commit_width - text.size(), ' ');
         out += text;
     };
 
-    if (view.baseline != 0) {
-        append_commit(view.baseline);
-        out += "  baseline";
-        if (view.baseline == view.head) out += " (HEAD)";
-    }
-    if (not_shown != 0) {
+    for (std::size_t index = 0; index < rows.size(); ++index) {
+        const HistoryRow& row = rows[index];
+        if (index > 0) {
+            const std::size_t folded = rows[index - 1].position > row.position
+                                           ? rows[index - 1].position - row.position - 1
+                                           : 0;
+            if (folded != 0) {
+                out += "\n... " + std::to_string(folded);
+                out += folded == 1 ? " commit folded ..." : " commits folded ...";
+            }
+        }
         if (!out.empty()) out += '\n';
-        out += std::to_string(not_shown);
-        out += not_shown == 1 ? " commit not shown" : " commits not shown";
-    }
-    for (const event::HistoryEntry& entry : view.entries) {
-        if (!out.empty()) out += '\n';
-        append_commit(entry.commit);
-        if (entry.outcome) out += "  " + std::visit(EventText{}, *entry.outcome);
-        if (entry.commit == view.head) out += " (HEAD)";
+        append_commit(row.commit);
+        if (row.baseline) {
+            out += "  baseline";
+        } else if (row.outcome) {
+            out += "  " + std::visit(EventText{}, *row.outcome);
+        }
+        if (row.commit == view.head) out += " (HEAD)";
     }
     return out.empty() ? "no history" : out;
 }

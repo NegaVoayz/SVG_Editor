@@ -46,7 +46,7 @@ template<> Outcome Editor::handle<Checkout>(const Checkout& intent) {
 
     // A checkout with no limit shows the complete retained branch. An explicit count is
     // forwarded to the same capped history view that `history [n]` uses.
-    const HistoryView timeline = history(intent.limit.value_or(document_.depth()));
+    const HistoryView timeline = history(intent.limit.value_or(document_.depth() + 1));
     return happened(Kind::Change,
                     event::CheckedOut{moved->position, document_.depth(), moved->touched, intent.commit,
                                       timeline.baseline, timeline.entries, moved->no_effect});

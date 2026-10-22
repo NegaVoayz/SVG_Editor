@@ -92,7 +92,7 @@ The instructions are:
 | ----------------------------------------------- | --------------------------------------------------------- |
 | `tree [id]`                                     | the tree, the whole document by default                    |
 | `show <id>`                                     | one element's attributes, and the parent it hangs from     |
-| `history [n]`                                   | the last n edits of this context, with commit ids; 20 by default |
+| `history [n]`                                   | edits around HEAD, newest first; 20 by default |
 | `canvas` / `canvas <w> [h]`                     | read the document's size / set it, and start the history over |
 | `create rect <id> <x> <y> <w> <h> [fill]`       | a rectangle                                                |
 | `create circle <id> <cx> <cy> <r> [fill]`       | a circle                                                   |
@@ -167,12 +167,14 @@ until the baseline is reached again. Undo and redo report the edit outcome they 
 `undo: rect#box moved by (5, 7) (HEAD 2)` and
 `redo: rect#box moved by (5, 7) (HEAD 3)`.
 
-`history [n]` shows the retained baseline followed by up to the newest 20 edits since
-the last context change, oldest first. Each row carries the commit id `checkout` takes,
-and `(HEAD)` marks the current checkout, including when the checkout is the baseline.
-`history 1` shows only the newest edit; when older edits are left out between the baseline
-and the newest rows, the omitted line says how many. `init`, `read`, `save`, and `canvas`
-establish a new baseline and therefore cut the editable part of the list back to nothing.
+`history [n]` shows newest commits first and the baseline last. `n` counts neighboring
+checkpoints, split between the future above HEAD and the past below it; when one side
+reaches an end, the other side grows. Baseline, HEAD, and the newest commit remain visible
+as anchors even when they fall outside that window. A line such as
+`... 7 commits folded ...` reports an omitted range between visible checkpoints, and is
+omitted when that range is empty.
+`init`, `read`, `save`, and `canvas` establish a new baseline and therefore cut the
+editable part of the list back to nothing.
 `checkout <commit> [n]` moves straight to that commit, keeping the rest of the branch
 available for redo, then prints the retained timeline with the new HEAD marked. The full
 timeline is shown by default; `n` caps the number of edit rows. Checking out the commit

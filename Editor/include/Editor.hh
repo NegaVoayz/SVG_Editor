@@ -41,8 +41,8 @@ public:
     // branch that quietly does nothing.
     Outcome translate(const ChangeIntent& intent);
 
-    // The last `limit` edits of the current context, oldest first, defaulting to 20. The
-    // view carries the commit ids `checkout` takes, plus the baseline and current checkout.
+    // A window of up to `limit` checkpoints centered on the current checkout, defaulting
+    // to 20. Entries stay chronological; the view also carries the baseline and checkout.
     HistoryView history(std::optional<std::size_t> limit);
 
 private:

@@ -140,6 +140,8 @@ using EditEvent = std::variant<Created, Deleted, Moved, Scaled, AddedTo, MovedTo
 struct HistoryEntry {
     CommitId commit = 0;
     std::shared_ptr<const EditEvent> outcome;
+    // Zero is the context baseline; editable history starts at position one.
+    std::size_t position = 0;
 };
 
 struct Undone {

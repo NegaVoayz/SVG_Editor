@@ -45,8 +45,9 @@ struct NodeView {
     Transform transform = {};
 };
 
-// The edits since the last context change, with their commit ids, in the order they
-// happened. A checkout moves to one of these, so the list is also its operand table.
+// A window of the edits since the last context change. Entries stay in chronological
+// order; a front end showing the newest first reverses them. A checkout moves to one of
+// these, so the list is also its operand table.
 // The baseline is the state just after the context change. It is deliberately not an
 // edit entry because it has no edit outcome, but its id is carried here so both history
 // rendering and checkout can show and return to the first retained commit.
