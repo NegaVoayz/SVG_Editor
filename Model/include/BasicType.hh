@@ -36,33 +36,32 @@ inline float numeric_value(const LengthPercentage& value) {
 // definition, and a value that overflows its float has no representation to write back.
 inline bool is_finite(const LengthPercentage& value) { return std::isfinite(numeric_value(value)); }
 
-// Display formatting keeps the ordinary notation the command line has always shown:
-// up to six decimal places, with trailing zeros omitted. Serialization has a different
-// job below and must preserve the exact float value.
-inline std::string number_text(float value) {
-    if (value == 0.0F) value = 0.0F;  // normalize negative zero
-    char buffer[64];
-    const std::to_chars_result written =
-        std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::fixed, 6);
-    if (written.ec != std::errc{}) return std::to_string(value);
-    std::string text(buffer, written.ptr);
-    const std::size_t decimal = text.find('.');
-    if (decimal != std::string::npos) {
-        while (text.back() == '0') text.pop_back();
-        if (text.back() == '.') text.pop_back();
-    }
-    return text;
-}
-
-// The shortest spelling that reads back as the same float. Unlike number_text, it does
-// not round small values to zero, and it uses an exponent when that is the compact exact
-// form (for example, 1e-07 and 1e+20).
+// The shortest spelling that reads back as the same float. This is the serialization
+// policy: unlike display formatting, it never rounds a non-zero geometry value to zero.
 inline std::string exact_number_text(float value) {
     if (value == 0.0F) value = 0.0F;  // normalize negative zero
     char buffer[64];
     const std::to_chars_result written = std::to_chars(buffer, buffer + sizeof(buffer), value);
     if (written.ec != std::errc{}) return std::to_string(value);
     return std::string(buffer, written.ptr);
+}
+
+// Display formatting keeps ordinary notation and up to six decimal places. If that
+// would turn a present value into "0", the exact spelling is used instead.
+inline std::string number_text(float value) {
+    if (value == 0.0F) value = 0.0F;  // normalize negative zero
+    char buffer[64];
+    const std::to_chars_result written =
+        std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::fixed, 6);
+    if (written.ec != std::errc{}) return exact_number_text(value);
+    std::string text(buffer, written.ptr);
+    const std::size_t decimal = text.find('.');
+    if (decimal != std::string::npos) {
+        while (text.back() == '0') text.pop_back();
+        if (text.back() == '.') text.pop_back();
+    }
+    if (value != 0.0F && (text == "0" || text == "-0")) return exact_number_text(value);
+    return text;
 }
 
 // The text a unit is written with, and nothing at all for a user unit: SVG writes that

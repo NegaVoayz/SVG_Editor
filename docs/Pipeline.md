@@ -261,7 +261,7 @@ the stroke through the transform instead.
 
 A container with no descendants is refused for both `restrict` and `cascade`:
 `fault::EmptyContainer` becomes
-`error: cannot move or scale an empty container: g#node2`. The edit would change nothing
+`error: cannot move or scale an empty group: g#node2`. The edit would change nothing
 visible now but would move future children, which is exactly the confusing state the
 refusal prevents.
 
@@ -275,7 +275,8 @@ line, including any semicolons in it.
 
 A canvas side must be positive: `init -5 -5` and `canvas 0` are refused. A shape
 dimension or radius may be zero, as SVG allows, but a negative value is refused.
-Printed floats use up to six decimal places; file values use a separate shortest
+Printed floats use up to six decimal places, with the exact spelling used when rounding
+would print `0` for a non-zero value. File values always use a separate shortest
 round-trip spelling, so display rounding cannot alter saved geometry.
 
 `read` reports the successful load first, then one exact warning line for each id it

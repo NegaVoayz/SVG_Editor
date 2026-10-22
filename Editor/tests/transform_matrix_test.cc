@@ -111,12 +111,21 @@ int main() {
     CHECK(transform_text(skewed_y(-5.0F)) == "skewY(-5)");
     CHECK(transform_text(skewed_y(15.0F)) == "skewY(15)");
 
-    // Coefficients at the scale of a few float ulps are calculation noise, not a visible
-    // transform. They must not become a tiny rotate, scale, or skew in the rendered form.
-    const Transform noisy = matrix_transform(1.0, 1.0 / 131072.0, 0.0, 1.0, 0.0, 0.0);
-    CHECK(transform_text(noisy).empty());
-    CHECK(is_identity(noisy));
-    CHECK(transform_text(matrix_transform(1.0, 0.0, 0.0, 1.0 + 1.0 / 131072.0, 0.0, 0.0)).empty());
+    // Suppression is relative to the matrix scale. A component at a few float ulps is
+    // noise and is omitted, while a genuinely small transform remains visible.
+    const float one_ulp = std::nextafter(1.0F, 2.0F);
+    CHECK(transform_text(matrix_transform(1.0, 0.0, 0.0, static_cast<double>(one_ulp), 0.0, 0.0)).empty());
+    const Transform noisy_translation = translated(user_units(200.0F), user_units(1.0F / 131072.0F));
+    CHECK(transform_text(noisy_translation) == "translate(200 0)");
+    CHECK(svg_text(noisy_translation) == "translate(200 0)");
+
+    const Transform micro_translation = translated(user_units(0.000001F), user_units(0.0F));
+    CHECK(!is_identity(micro_translation));
+    CHECK(transform_text(micro_translation) == "translate(0.000001 0)");
+    CHECK(svg_text(micro_translation) == "translate(1e-06 0)");
+    CHECK(transform_text(translated(user_units(1.0F), user_units(0.000001F))) == "translate(1 0.000001)");
+    CHECK(transform_text(rotated(0.0005F)) == "rotate(0.0005)");
+    CHECK(svg_text(rotated(0.0005F)).starts_with("rotate("));
 
     if (failures != 0) {
         std::printf("%d failure(s)\n", failures);

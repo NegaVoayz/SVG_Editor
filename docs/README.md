@@ -206,7 +206,8 @@ systems were written. The refusal names the two sides, so `1in` against `1cm` sa
 which of them is imperial.
 
 Canvas sides must be positive. Shape dimensions and radii may be zero, but not
-negative. Display text uses up to six decimal places and suppresses negative zero.
+negative. Display text uses up to six decimal places, falls back to the exact spelling
+when rounding would show a present value as zero, and suppresses negative zero.
 Files use the shortest spelling that reads back as the same `float`, so a sub-micro
 geometry value is not rounded away and float32 noise does not become a long decimal.
 

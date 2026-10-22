@@ -11,6 +11,7 @@
 #include <variant>
 #include <vector>
 
+#include "SvgSchema.hh"
 #include "SvgValueReader.hh"
 
 namespace {
@@ -28,28 +29,6 @@ bool whitespace_only(std::string_view text) {
 
 bool namespace_declaration(std::string_view name) {
     return name == "xmlns" || name.starts_with("xmlns:");
-}
-
-bool common_attribute(std::string_view name) {
-    return name == "id" || name == "class" || name == "fill" || name == "stroke" || name == "stroke-width" ||
-           name == "transform";
-}
-
-bool element_attribute(std::string_view element, std::string_view name) {
-    if (common_attribute(name)) return true;
-    if (element == "svg") return name == "width" || name == "height" || name == "viewBox";
-    if (element == "rect") return name == "x" || name == "y" || name == "width" || name == "height";
-    if (element == "circle") return name == "cx" || name == "cy" || name == "r";
-    if (element == "ellipse") return name == "cx" || name == "cy" || name == "rx" || name == "ry";
-    if (element == "line") return name == "x1" || name == "y1" || name == "x2" || name == "y2";
-    if (element == "text" || element == "tspan" || element == "textPath") {
-        if (name == "x" || name == "y" || name == "dx" || name == "dy" || name == "text-anchor" ||
-            name == "font-size") {
-            return true;
-        }
-    }
-    if (element == "textPath") return name == "startOffset" || name == "href" || name == "xlink:href";
-    return false;
 }
 
 enum class Content {
@@ -259,15 +238,13 @@ private:
     std::size_t read_element(const std::size_t xml_index) {
         const XmlNode& xml_node = xml_.nodes[xml_index];
         const std::string_view element = Xml::local_name(xml_node.name);
-        if (element != "svg" && element != "g" && element != "defs" && element != "symbol" &&
-            element != "switch" && element != "rect" && element != "circle" && element != "ellipse" &&
-            element != "line" && element != "text" && element != "tspan" && element != "textPath") {
+        if (!svg_schema::is_element(element)) {
             fail(SvgProblem::UnsupportedElement, xml_node, {}, {}, std::string{element});
         }
 
         for (const XmlAttribute& attribute : xml_node.attributes) {
             if (namespace_declaration(attribute.name)) continue;
-            if (!element_attribute(element, attribute.name)) {
+            if (!svg_schema::accepts_attribute(element, attribute.name)) {
                 fail(SvgProblem::UnsupportedAttribute, xml_node, attribute.name, attribute.value);
             }
         }

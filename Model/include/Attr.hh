@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <optional>
@@ -40,16 +41,8 @@ inline constexpr double transform_pi = 3.141592653589793238462643383279502884;
 inline double radians_of(double degrees) { return degrees * (transform_pi / 180.0); }
 inline double degrees_of(double radians_value) { return radians_value * (180.0 / transform_pi); }
 
-inline bool transform_number_is(double value, double expected, double tolerance) {
-    return std::fabs(value - expected) <= tolerance;
-}
-
 inline bool transform_length_is_zero(const LengthPercentage& value) {
     return numeric_value(value) == 0.0F;
-}
-
-inline bool transform_length_is_near_zero(const LengthPercentage& value, double tolerance) {
-    return std::fabs(static_cast<double>(numeric_value(value))) <= tolerance;
 }
 
 inline bool is_finite(const Transform& transform) {
@@ -57,13 +50,9 @@ inline bool is_finite(const Transform& transform) {
            std::isfinite(transform.d) && is_finite(transform.e) && is_finite(transform.f);
 }
 
-inline bool is_identity(const Transform& transform, double tolerance = 1.0e-5) {
-    return transform_number_is(transform.a, 1.0F, tolerance) &&
-           transform_number_is(transform.b, 0.0F, tolerance) &&
-           transform_number_is(transform.c, 0.0F, tolerance) &&
-           transform_number_is(transform.d, 1.0F, tolerance) &&
-           std::fabs(numeric_value(transform.e)) <= tolerance &&
-           std::fabs(numeric_value(transform.f)) <= tolerance;
+inline bool is_identity(const Transform& transform) {
+    return transform.a == 1.0F && transform.b == 0.0F && transform.c == 0.0F && transform.d == 1.0F &&
+           transform_length_is_zero(transform.e) && transform_length_is_zero(transform.f);
 }
 
 inline Transform translated(LengthPercentage x, LengthPercentage y) {
@@ -235,11 +224,34 @@ inline TransformParts decomposed_with_y(const Transform& transform) {
     return parts;
 }
 
+inline constexpr double transform_suppression_ulps = 8.0;
+inline constexpr double transform_degrees_per_radian = 57.295779513082320876;
+
+inline double transform_linear_tolerance(double scale_x, double scale_y) {
+    return transform_suppression_ulps * std::numeric_limits<float>::epsilon() *
+           std::max(std::fabs(scale_x), std::fabs(scale_y));
+}
+
+inline double transform_translation_tolerance(const LengthPercentage& x, const LengthPercentage& y) {
+    return transform_suppression_ulps * std::numeric_limits<float>::epsilon() *
+           std::max(std::fabs(static_cast<double>(numeric_value(x))),
+                    std::fabs(static_cast<double>(numeric_value(y))));
+}
+
+inline double transform_angle_tolerance(double scale_x, double scale_y) {
+    const double scale = std::max(std::fabs(scale_x), std::fabs(scale_y));
+    if (scale == 0.0) return 0.0;
+    return transform_suppression_ulps * std::numeric_limits<float>::epsilon() *
+           transform_degrees_per_radian / scale;
+}
+
 inline std::string transform_parts_text(const TransformParts& parts, bool exact = false) {
-    // A matrix is stored as float after its double-precision calculation. Values this close
-    // to zero or one are display noise (2^-17 is about 7.6e-6), not an edit the user made.
-    constexpr double value_tolerance = 1.0e-5;
-    constexpr double angle_tolerance = 1.0e-3;
+    // Rounding noise in float arithmetic is relative to the matrix's scale. Translation
+    // uses the larger translation as that scale, so a small real offset is not judged
+    // against itself.
+    const double linear_tolerance = transform_linear_tolerance(parts.scale_x, parts.scale_y);
+    const double translation_tolerance = transform_translation_tolerance(parts.x, parts.y);
+    const double angle_tolerance = transform_angle_tolerance(parts.scale_x, parts.scale_y);
 
     std::string text;
     const auto number = [exact](float value) {
@@ -249,25 +261,20 @@ inline std::string transform_parts_text(const TransformParts& parts, bool exact 
         if (!text.empty()) text += ' ';
         text += std::move(step);
     };
-    if (!transform_length_is_near_zero(parts.x, value_tolerance) ||
-        !transform_length_is_near_zero(parts.y, value_tolerance)) {
+    const bool x_is_zero = std::fabs(static_cast<double>(numeric_value(parts.x))) <= translation_tolerance;
+    const bool y_is_zero = std::fabs(static_cast<double>(numeric_value(parts.y))) <= translation_tolerance;
+    if (!x_is_zero || !y_is_zero) {
         // A zero is zero in every unit; printing the unit it happened to acquire from a
         // composed transform would only add noise.
-        const std::string x =
-            transform_length_is_near_zero(parts.x, value_tolerance)
-                ? "0"
-                : (exact ? svg_text(parts.x) : to_text(parts.x));
-        const std::string y =
-            transform_length_is_near_zero(parts.y, value_tolerance)
-                ? "0"
-                : (exact ? svg_text(parts.y) : to_text(parts.y));
+        const std::string x = x_is_zero ? "0" : (exact ? svg_text(parts.x) : to_text(parts.x));
+        const std::string y = y_is_zero ? "0" : (exact ? svg_text(parts.y) : to_text(parts.y));
         append("translate(" + x + " " + y + ")");
     }
     if (std::fabs(parts.rotation) > angle_tolerance) {
         append("rotate(" + number(parts.rotation) + ")");
     }
-    if (!transform_number_is(parts.scale_x, 1.0F, value_tolerance) ||
-        !transform_number_is(parts.scale_y, 1.0F, value_tolerance)) {
+    if (std::fabs(static_cast<double>(parts.scale_x) - 1.0) > linear_tolerance ||
+        std::fabs(static_cast<double>(parts.scale_y) - 1.0) > linear_tolerance) {
         append("scale(" + number(parts.scale_x) + " " + number(parts.scale_y) + ")");
     }
     if (std::fabs(parts.skew) > angle_tolerance) {

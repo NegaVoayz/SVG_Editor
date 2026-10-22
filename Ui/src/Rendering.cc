@@ -216,7 +216,8 @@ Words element_words(const ElementShape& element, const Transform& transform, con
         append_detail(words, "stroke-width=" + to_text(*element.paint_attr.stroke_width));
     }
 
-    if (!is_identity(transform)) append_detail(words, "transform=" + transform_text(transform));
+    const std::string transform_text_value = transform_text(transform);
+    if (!transform_text_value.empty()) append_detail(words, "transform=" + transform_text_value);
 
     // A text's character data is a child node, so its words follow every attribute.
     if (std::holds_alternative<TextShape>(element.data) && !text.empty()) {

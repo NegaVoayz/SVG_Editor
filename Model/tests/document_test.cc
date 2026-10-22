@@ -124,6 +124,8 @@ int main() {
     CHECK(number_text(0.3F) == "0.3");
     CHECK(number_text(5.0F) == "5");
     CHECK(number_text(-0.0F) == "0");
+    CHECK(number_text(1.0e-7F) == exact_number_text(1.0e-7F));
+    CHECK(number_text(-5.0e-7F) == exact_number_text(-5.0e-7F));
 
     // File output is the shortest exact spelling, so small values survive a save and
     // large values do not expose float32's exact decimal expansion.

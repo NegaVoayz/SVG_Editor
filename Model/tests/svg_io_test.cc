@@ -12,6 +12,7 @@
 #include "Color.hh"
 #include "Document.hh"
 #include "ElementName.hh"
+#include "SvgSchema.hh"
 #include "TinyXml2Adapter.hh"
 
 namespace {
@@ -85,6 +86,15 @@ constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"
 #define CHECK(condition) check((condition), #condition, __LINE__)
 
 int main() {
+    // The reader and writer validate attributes through the same table.
+    CHECK(svg_schema::is_element("rect"));
+    CHECK(!svg_schema::is_element("path"));
+    CHECK(svg_schema::accepts_attribute("rect", "x"));
+    CHECK(svg_schema::accepts_attribute("rect", "fill"));
+    CHECK(!svg_schema::accepts_attribute("rect", "viewBox"));
+    CHECK(svg_schema::accepts_attribute("textPath", "startOffset"));
+    CHECK(!svg_schema::accepts_attribute("textPath", "transform-origin"));
+
     // The enum and its spelling table are generated from the same definition list, and
     // every canonical spelling reads back as the same enum value.
     CHECK(named_color_count == 148);
@@ -425,15 +435,36 @@ int main() {
     CHECK(ok(skew_document.save(skew_path.string())));
     CHECK(read_text(skew_path).find("transform=\"skewY(15)\"") != std::string::npos);
 
+    // Small non-zero components are real geometry, not identity noise.
+    const std::filesystem::path micro_transform_path = file_named("svg_io_micro_transform.svg");
+    CHECK(write_text(micro_transform_path,
+                     R"SVG(<svg><rect id="moved" width="1" height="1" transform="translate(0.000001 0)"/><rect id="turned" width="1" height="1" transform="rotate(0.0005)"/></svg>)SVG"));
+    Document micro_transform_document;
+    CHECK(ok(micro_transform_document.open(micro_transform_path.string())));
+    CHECK(ok(micro_transform_document.save(micro_transform_path.string())));
+    const std::string micro_transform_svg = read_text(micro_transform_path);
+    CHECK(micro_transform_svg.find("transform=\"translate(1e-06 0)\"") != std::string::npos);
+    CHECK(micro_transform_svg.find("transform=\"rotate(") != std::string::npos);
+    Document micro_transform_reread;
+    CHECK(ok(micro_transform_reread.open(micro_transform_path.string())));
+    const std::optional<Id> moved = named(micro_transform_reread, "moved");
+    const std::optional<Id> turned = named(micro_transform_reread, "turned");
+    CHECK(moved.has_value() && turned.has_value());
+    if (moved) CHECK(std::get<Length>(micro_transform_reread.transform(*moved).e).value == 1.0e-6F);
+    if (turned) CHECK(micro_transform_reread.transform(*turned).b != 0.0F);
+
     // Serialization keeps a sub-micro value instead of rounding it to zero.
     const std::filesystem::path tiny_path = file_named("svg_io_tiny_number.svg");
-    CHECK(write_text(tiny_path, R"(<svg><rect id="tiny" x="0.0000004" y="-0" width="1" height="1"/></svg>)"));
+    CHECK(write_text(
+        tiny_path,
+        R"(<svg><rect id="tiny" x="0.0000004" y="-0" width="1" height="1" stroke-width="0.00000045"/></svg>)"));
     Document tiny_document;
     CHECK(ok(tiny_document.open(tiny_path.string())));
     CHECK(ok(tiny_document.save(tiny_path.string())));
     const std::string tiny_svg = read_text(tiny_path);
     CHECK(tiny_svg.find("x=\"" + exact_number_text(4.0e-7F) + "\"") != std::string::npos);
     CHECK(tiny_svg.find("y=\"0\"") != std::string::npos);
+    CHECK(tiny_svg.find("stroke-width=\"" + exact_number_text(4.5e-7F) + "\"") != std::string::npos);
     Document tiny_reread;
     CHECK(ok(tiny_reread.open(tiny_path.string())));
     const std::optional<Id> tiny = named(tiny_reread, "tiny");
@@ -445,6 +476,10 @@ int main() {
             const Shape::Rect& rect = std::get<Shape::Rect>(std::get<Shape>(tiny_element->data).specific);
             CHECK(std::get<Length>(rect.x).value == 4.0e-7F);
             CHECK(std::get<Length>(rect.y).value == 0.0F);
+            CHECK(tiny_element->paint_attr.stroke_width.has_value());
+            if (tiny_element->paint_attr.stroke_width) {
+                CHECK(std::get<Length>(*tiny_element->paint_attr.stroke_width).value == 4.5e-7F);
+            }
         }
     }
 

@@ -288,8 +288,9 @@ y' = b*x + d*y + f
 The four linear entries are plain numbers. The translation is a vector of lengths, so a
 transform can keep `1mm` in a document whose user units mean something else. Composition
 uses the same unit table as a coordinate edit: a unit sum that has no exact value makes
-the edit fail instead of approximating. The identity matrix means the node carries no
-transform.
+the edit fail instead of approximating. Identity is the exact matrix
+`a=1, b=c=0, d=1, e=f=0`; the editor does not classify a small non-zero matrix as
+identity merely because of scale-dependent rounding.
 
 A transform list is composed into this matrix when a file or a command is read. The order
 is SVG's order: `translate(10 0) rotate(90)` becomes `T * R`, so points are rotated first
@@ -309,6 +310,12 @@ rotate/scale/skewY form. Identity components are omitted. The decomposition is e
 every finite matrix; a mirror appears as a negative scale, and a singular matrix as a zero
 scale. `matrix(...)` is still accepted as input, but the output is the decomposition so a
 reader can see what the transform does rather than multiplying six numbers in their head.
+Composition noise is suppressed relative to the matrix magnitude - eight float epsilons
+times the larger linear scale, translation extent, or reciprocal angle scale. A fixed
+absolute cutoff would erase real small transforms; this rule keeps `translate(1e-6 0)`
+and `rotate(0.0005)` while still folding an offset of a few float ulps beside a magnitude
+in the hundreds back to zero. Serialization uses the same relative rule with exact number
+spelling, so the file and display describe the same matrix.
 
 A shape without a transform moves its own coordinates instead, since it has them:
 `move r 1 2` changes `x` and `y` and leaves the transform alone. That keeps a shape's
@@ -348,6 +355,11 @@ alpha, `transparent`, `style` and element kinds such as `path` remain outside th
 An empty or whitespace-only `transform` attribute is accepted as the identity, just
 like `transform="none"`.
 
+`SvgSchema.hh` is the shared source for that element/attribute list. The reader rejects
+anything it does not name, and the writer validates every attribute against it before
+emission. A future writer attribute that skips the table therefore fails at the write,
+rather than producing a file that the same binary cannot reopen.
+
 Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,
 in document order. The root may stay unnamed. A non-root element whose id is `svg` is
 renamed the same way, because `svg` names the root and would leave that element
@@ -368,10 +380,9 @@ Numbers are serialized with the shortest `std::to_chars` form that round-trips t
 stored `float`, separately from the rounded display form. A save clears history only
 after the file write succeeds.
 
-The full reader/writer fixture is saved and read again without a diagnostic, and the
-sub-micro regression is checked by opening, saving, and reopening a rectangle. Those
-round trips are the guard between the reader's attribute allowlist and the attributes
-the writer emits.
+The full reader/writer fixture is saved and read again without a diagnostic. The
+sub-micro regression covers geometry and `stroke-width`, so every length-bearing writer
+path is checked rather than only relying on the fixture's current attributes.
 
 ## What is not there yet
 
