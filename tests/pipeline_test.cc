@@ -345,6 +345,30 @@ int main() {
         }
     }
 
+    // The node marker remains in the structured view rather than being lost at the
+    // projection boundary.
+    {
+        Document box_document;
+        Editor box_editor{box_document};
+        Planner box_planner{box_document, box_editor};
+        CHECK(box_planner.dispatch(Init{}).ok());
+        CHECK(box_planner.dispatch(Create{CreateGroup{"layer"}}).ok());
+        CHECK(box_planner
+                  .dispatch(Create{CreateBox{"status", units(10), units(20), units(120), units(40), "Ready",
+                                            std::nullopt, SvgIdRef{"layer"}, true}})
+                  .ok());
+        const Outcome marked = box_planner.dispatch(Show{SvgIdRef{"status"}});
+        if (std::holds_alternative<NodeView>(marked.view())) {
+            const NodeShape& shape = std::get<NodeView>(marked.view()).shape;
+            const ElementShape& element = std::get<ElementShape>(shape);
+            const ContainerShape& container = std::get<ContainerShape>(element.data);
+            CHECK(std::holds_alternative<Container::Group>(container.specific));
+            if (std::holds_alternative<Container::Group>(container.specific)) {
+                CHECK(std::get<Container::Group>(container.specific).data_kind == "box");
+            }
+        }
+    }
+
     // Ungrouping cannot dismantle a marked composite into unrelated siblings.
     {
         Document box_document;

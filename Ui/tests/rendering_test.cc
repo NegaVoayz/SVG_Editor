@@ -42,6 +42,10 @@ ElementShape group(std::string id) {
     return element(std::move(id), ContainerShape{Container::Group{}});
 }
 
+ElementShape box_group(std::string id) {
+    return element(std::move(id), ContainerShape{Container::Group{"box"}});
+}
+
 Transform composed_transform(std::initializer_list<Transform> steps) {
     Transform result;
     for (const Transform& step : steps) result = *compose(result, step);
@@ -162,6 +166,8 @@ int main() {
                            NodeParent{1, group("markers")}}) ==
           "rect#box  parent=g#markers\n  x=200 y=80 w=60 h=60\n  fill=#3366ff");
     CHECK(render(NodeView{1, group("markers"), {}}) == "g#markers");
+    CHECK(render(NodeView{1, box_group("status"), {}}) == "g#status (box)");
+    CHECK(render(TreeView{{row(0, true, box_group("status"))}}) == "g#status (box)");
     CHECK(render(NodeView{1, group("markers"), {}, NodeParent{0, root_with(units(800), units(600))}}) ==
           "g#markers  parent=svg");
     CHECK(render(NodeView{4, text_element("title", 20, 40), "My Diagram"}) ==

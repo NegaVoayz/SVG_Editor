@@ -193,6 +193,13 @@ Words element_words(const ElementShape& element, const Transform& transform, con
     words.name = element.identity_attr.id.empty()
                      ? std::string{kind}
                      : std::string{kind} + "#" + quote_if_needed(element.identity_attr.id);
+    if (std::holds_alternative<ContainerShape>(element.data)) {
+        const ContainerShape& container = std::get<ContainerShape>(element.data);
+        if (std::holds_alternative<Container::Group>(container.specific)) {
+            const std::string& data_kind = std::get<Container::Group>(container.specific).data_kind;
+            if (!data_kind.empty()) words.name += " (" + data_kind + ")";
+        }
+    }
 
     // Details follow the order SvgWriter writes an element: identity, class, data, paint,
     // transform, then the character data inside it. `class` is a list of names, so it is
