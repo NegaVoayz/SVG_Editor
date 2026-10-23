@@ -316,6 +316,35 @@ int main() {
     CHECK(!cannot_ungroup_top.ok());
     CHECK(refused_with<fault::CannotUngroupTopLevelContainer>(cannot_ungroup_top));
 
+    // A marked composite keeps one user-facing identity for its label.
+    {
+        Document box_document;
+        Editor box_editor{box_document};
+        Planner box_planner{box_document, box_editor};
+        CHECK(box_planner.dispatch(Init{}).ok());
+        CHECK(box_planner.dispatch(Create{CreateGroup{"layer"}}).ok());
+        CHECK(box_planner
+                  .dispatch(Create{CreateBox{"status", units(10), units(20), units(120), units(40), "Ready",
+                                            std::nullopt, SvgIdRef{"layer"}, true}})
+                  .ok());
+
+        const Outcome label_set =
+            box_planner.dispatch(Set{SetText{SvgIdRef{"status"}, "Changed"}});
+        CHECK(happened_with<event::ContentSet>(label_set));
+        if (happened_with<event::ContentSet>(label_set)) {
+            const event::ContentSet& changed = std::get<event::ContentSet>(label_set.event());
+            CHECK(changed.node.element == "g");
+            CHECK(changed.node.svg_id == "status");
+            CHECK(changed.content == "Changed");
+        }
+        const Outcome label_view =
+            box_planner.dispatch(Show{SvgIdRef{"status-label"}});
+        CHECK(std::holds_alternative<NodeView>(label_view.view()));
+        if (std::holds_alternative<NodeView>(label_view.view())) {
+            CHECK(std::get<NodeView>(label_view.view()).text == "Changed");
+        }
+    }
+
     const Outcome zero_scale = planner.dispatch(ScaleBy{SvgIdRef{"box"}, 0.0F});
     CHECK(!zero_scale.ok());
     CHECK(refused_with<fault::ScaleFactorNotPositive>(zero_scale));

@@ -492,9 +492,10 @@ Outcome apply(Document& document, Id node, const SetClass& intent) {
     });
 }
 
-// A composite box keeps its kind in the group and the visible outline in its derived
-// rect. Setting the box's fill therefore updates both in one transaction.
-std::optional<Id> box_outline(Document& document, Id node) {
+// A composite box keeps its kind in the group and its derived parts below it. Routing
+// through the box id asks the same node for the outline or the label, rather than making
+// the user remember which derived id an attribute happens to live on.
+std::optional<Id> box_child(Document& document, Id node, std::string_view suffix) {
     const std::optional<Node> payload = document.node(node);
     if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
     const SVGNode& element = std::get<SVGNode>(*payload);
@@ -503,8 +504,12 @@ std::optional<Id> box_outline(Document& document, Id node) {
     if (!std::holds_alternative<Container::Group>(container.specific)) return std::nullopt;
     const std::string& kind = std::get<Container::Group>(container.specific).data_kind;
     if (kind != "box") return std::nullopt;
-    return document.find(element.identity_attr.id + "-rect");
+    return document.find(element.identity_attr.id + std::string{suffix});
 }
+
+std::optional<Id> box_outline(Document& document, Id node) { return box_child(document, node, "-rect"); }
+
+std::optional<Id> box_label(Document& document, Id node) { return box_child(document, node, "-label"); }
 
 Outcome apply(Document& document, Id node, const SetFill& intent) {
     const std::optional<Id> outline = box_outline(document, node);
@@ -560,6 +565,17 @@ Outcome apply(Document& document, Id node, const SetHref& intent) {
 // document may have, keeps its first and drops the rest so the words are said once. A
 // PlainText handle names the character data directly and needs no walk.
 Outcome set_text(Document& document, Id node, const std::string& value, std::string_view attribute) {
+    if (const std::optional<Id> label = box_label(document, node)) {
+        Outcome result = set_text(document, *label, value, attribute);
+        if (result.ok() && std::holds_alternative<Event>(result.result)) {
+            if (event::ContentSet* changed =
+                    std::get_if<event::ContentSet>(&std::get<Event>(result.result))) {
+                changed->node = name_of(document, node);
+            }
+        }
+        return result;
+    }
+
     std::optional<Node> payload = document.node(node);
     if (!payload) return refused(Kind::Change, fault::InternalError{});
 
