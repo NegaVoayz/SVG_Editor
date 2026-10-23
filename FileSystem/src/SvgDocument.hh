@@ -5,9 +5,6 @@
 #include <variant>
 #include <vector>
 
-// The file layer under Model. It moves bytes and owns the XML line format: escaping,
-// indentation, self-closing elements and inline character data. Model supplies a tree of
-// already interpreted SvgNode values; FileSystem decides how those values become text.
 struct FileBytes {
     std::string bytes;
 };
@@ -49,10 +46,10 @@ private:
     std::vector<SvgNode> children_;
 };
 
-namespace FileSystem {
+namespace file_system_detail {
 
 FileResult read(std::string_view path);
 FileResult write(std::string_view path, std::string_view text);
 std::string svg_document(const SvgNode& root);
 
-}  // namespace FileSystem
+}  // namespace file_system_detail

@@ -9,15 +9,13 @@
 
 #include "History.hh"
 #include "StagedTree.hh"
-#include "Status.hh"
 #include "SVGNode.hh"
 #include "TreeStore.hh"
 
 class Editor;
 class Transaction;
 
-// The document is the tree, its history, and the file it came from. It has two
-// faces on purpose:
+// The document is the tree and its history. It has two faces on purpose:
 //
 //   - the viewing API below never moves the history: root(), node(), children()
 //     and find() read the tree the way it currently stands;
@@ -32,9 +30,10 @@ class Transaction;
 // looks up.
 class Document {
 public:
-    // No document yet: there is no root until reset() makes a fresh one or open()
-    // reads one. This is the state the front end starts in, and the reason every
-    // command but `init` and `read` can be refused before either has happened.
+    // No document yet: there is no root until reset() makes a fresh one or replace()
+    // installs a staged tree. This is the state the front end starts in, and the
+    // reason every command but `init` and `read` can be refused before either has
+    // happened.
     Document() = default;
 
     Document(const Document&) = delete;
@@ -119,11 +118,6 @@ public:
     // into this model-owned value, so no parser type has to enter Model.
     void replace(StagedTree tree);
 
-    // --- legacy file boundary, removed when FileSystem becomes top-level ---
-    const std::string& source_path() const;
-    Status open(std::string_view path);
-    Status save(std::optional<std::string_view> path);
-
     // --- the context ---
 
     // Back to a fresh document: an empty tree, the canvas it is given (default 800x600
@@ -148,7 +142,6 @@ private:
     // the tree it holds are built and destroyed as one object. The hive owns its
     // storage and cannot be moved, so neither can the document that holds it.
     TreeStore store_;
-    std::string source_path_;  // the file open() read, if it read one
     bool io_barrier_ = false;
 
     // The Editor brackets one instruction with these. A translation may request one

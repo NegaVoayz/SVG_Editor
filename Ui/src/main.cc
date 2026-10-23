@@ -1,7 +1,7 @@
 // The text front end, and the composition root: it owns the document and hands it to the
-// Editor and the Planner. It gathers a line at the `svg> ` prompt, asks the parser for
-// one structured instruction, hands that to the Planner and prints what comes back. It
-// never decides what an instruction means, and it never reaches for Model.
+// Editor and FileSystem, then gives both write paths to the Planner. It gathers a line at
+// the `svg> ` prompt, asks the parser for one structured instruction, hands that to the
+// Planner and prints what comes back.
 #include <cstddef>
 #include <exception>
 #include <iostream>
@@ -13,6 +13,7 @@
 #include "Document.hh"
 #include "Editor.hh"
 #include "Exhaustive.hh"
+#include "FileSystem.hh"
 #include "IntentParser.hh"
 #include "Planner.hh"
 #include "Protocol.hh"
@@ -109,7 +110,8 @@ SessionResult run_instructions(Planner& planner, std::string_view instructions) 
 int main(int argc, char** argv) {
     Document document;
     Editor editor{document};
-    Planner planner{document, editor};
+    FileSystem file_system{document};
+    Planner planner{document, editor, file_system};
 
     if (argc > 1) {
         std::string instructions;

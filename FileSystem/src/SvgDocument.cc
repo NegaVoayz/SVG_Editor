@@ -1,4 +1,4 @@
-#include "FileSystem.hh"
+#include "SvgDocument.hh"
 
 #include <cstddef>
 #include <fstream>
@@ -123,7 +123,7 @@ void append_element(const SvgNode& node, std::size_t depth, bool inline_node, st
 
 }  // namespace
 
-namespace FileSystem {
+namespace file_system_detail {
 
 FileResult read(std::string_view path) {
     std::ifstream file{std::string(path), std::ios::binary};
@@ -152,4 +152,4 @@ std::string svg_document(const SvgNode& root) {
     return out;
 }
 
-}  // namespace FileSystem
+}  // namespace file_system_detail

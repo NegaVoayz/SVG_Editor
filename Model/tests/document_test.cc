@@ -157,10 +157,6 @@ int main() {
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
     CHECK(throws([&] { auto edit = document.transaction(); }));
-    const Status early_save = document.save(std::nullopt);
-    CHECK(!ok(early_save));
-    CHECK(std::holds_alternative<model_status::NoDocument>(early_save));
-
     // `init` is what makes the first root; before it there is no document to edit.
     document.reset(std::nullopt, std::nullopt);
     const Id root = document.root();
@@ -176,7 +172,6 @@ int main() {
     CHECK(!document.has_node(no_id));
     CHECK(document.children(root).empty());
     CHECK(!document.can_undo());
-    CHECK(document.source_path().empty());
     CHECK(document.element_count() == 0);
 
     // the canvas belongs to the root element, and a fresh document has one
@@ -513,7 +508,6 @@ int main() {
     CHECK(document.position() == 0);
     CHECK(!document.can_undo());
     CHECK(!document.can_redo());
-    CHECK(document.source_path().empty());
     {
         const std::optional<Container::SVG> canvas = canvas_of(document);
         CHECK(canvas.has_value());
@@ -538,15 +532,6 @@ int main() {
     CHECK(document.undo_barred_by_io());
     document.redo();
     CHECK(document.find("after-reset") == kept);
-
-    // A checkpoint drops the way back and keeps the tree. A save is one, and until
-    // the serializer exists the other half of that seam is what can be checked: a
-    // document with no file behind it has no path to write to, and a save that
-    // failed is not a checkpoint.
-    CHECK(!ok(document.save(std::nullopt)));
-    CHECK(!ok(document.save("no-such-directory/out.svg")));
-    CHECK(document.source_path().empty());
-    CHECK(document.can_undo());
 
     {
         Transaction edit = document.transaction();

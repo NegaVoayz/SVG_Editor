@@ -35,6 +35,7 @@ target_link_libraries(Cli
     PRIVATE
         SvgEditor::Ui
         SvgEditor::Planner
+        SvgEditor::FileSystem
         SvgEditor::Model
         SvgEditor::Warnings)
 

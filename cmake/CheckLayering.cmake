@@ -5,7 +5,7 @@
 #
 # Run by ctest as: cmake -DSOURCE_DIR=<project> -P cmake/CheckLayering.cmake
 
-set(modules Editor Planner Ui Protocol tests)
+set(modules Editor FileSystem Planner Ui Protocol tests)
 set(offenders "")
 
 foreach(module IN LISTS modules)
@@ -23,7 +23,8 @@ foreach(module IN LISTS modules)
             if(line MATCHES "^[ \t]*//")  # naming it in a comment is not using it
                 continue()
             endif()
-            if(line MATCHES "MVCCHive|mvcc_hive|tinyxml2")
+            if(line MATCHES "MVCCHive|mvcc_hive" OR
+               (NOT module STREQUAL "FileSystem" AND line MATCHES "tinyxml2"))
                 string(APPEND offenders "  ${source}: ${line}\n")
             endif()
         endforeach()
@@ -32,16 +33,16 @@ endforeach()
 
 if(offenders)
     message(FATAL_ERROR
-        "MVCCHive and tinyxml2 belong to Model/, and these lines reach for them:\n${offenders}"
-        "An edit goes through Document::transaction(), a read through Document's view API.")
+        "MVCCHive belongs to Model and tinyxml2 belongs to FileSystem; these lines reach for them:\n${offenders}"
+        "An edit goes through Editor, file I/O through FileSystem, and reads through Document.")
 endif()
 
-# Inside Model, tinyxml2's pointer-based DOM is confined to the adapter. Every other
-# Model source works with the pointer-free XmlSnapshot values instead.
-file(GLOB_RECURSE model_sources
-    "${SOURCE_DIR}/Model/*.cc"
-    "${SOURCE_DIR}/Model/*.hh")
-foreach(source IN LISTS model_sources)
+# Inside FileSystem, tinyxml2's pointer-based DOM is confined to the adapter. Every
+# other source works with the pointer-free XmlSnapshot values instead.
+file(GLOB_RECURSE filesystem_sources
+    "${SOURCE_DIR}/FileSystem/*.cc"
+    "${SOURCE_DIR}/FileSystem/*.hh")
+foreach(source IN LISTS filesystem_sources)
     if(source MATCHES "TinyXml2Adapter\\.cc$")
         continue()
     endif()
@@ -51,9 +52,9 @@ foreach(source IN LISTS model_sources)
             continue()
         endif()
         if(line MATCHES "tinyxml2")
-            message(FATAL_ERROR "tinyxml2 must stay inside Model/src/TinyXml2Adapter.cc: ${source}: ${line}")
+            message(FATAL_ERROR "tinyxml2 must stay inside FileSystem/src/TinyXml2Adapter.cc: ${source}: ${line}")
         endif()
     endforeach()
 endforeach()
 
-message(STATUS "layering: MVCCHive and tinyxml2 are Model dependencies, with tinyxml2 behind one adapter")
+message(STATUS "layering: MVCCHive belongs to Model and tinyxml2 to FileSystem, behind one adapter")

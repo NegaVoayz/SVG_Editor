@@ -14,7 +14,6 @@
 #include "NodeRef.hh"
 #include "Outcome.hh"
 #include "Refusal.hh"
-#include "Status.hh"
 #include "View.hh"
 
 namespace {
@@ -88,18 +87,6 @@ std::optional<NodeParent> parent_of(const Document& document, Id node) {
     return NodeParent{*parent, std::get<ElementShape>(shape_of(*payload))};
 }
 
-// The root's canvas, when it has one. `init` reports the size it actually created,
-// including the side it filled in with the default.
-std::optional<Container::SVG> canvas_of(const Document& document) {
-    const std::optional<Node> payload = document.node(document.root());
-    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
-    const SVGNode& element = std::get<SVGNode>(*payload);
-    if (!std::holds_alternative<Container>(element.data)) return std::nullopt;
-    const Container& container = std::get<Container>(element.data);
-    if (!std::holds_alternative<Container::SVG>(container.specific)) return std::nullopt;
-    return std::get<Container::SVG>(container.specific);
-}
-
 // Reading the tree is the Planner's half of a view: the walk that turns the document
 // into the rows a front end can render. The words around them are not its business.
 void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, std::size_t depth, bool last) {
@@ -119,70 +106,10 @@ void append_rows(std::vector<TreeRow>& rows, const Document& document, Id node, 
     }
 }
 
-// The file layer's structured status, translated into the same result vocabulary every
-// other route uses. The translation is a visitor rather than a chain over codes: a new
-// status is a build error here until it has an answer.
-struct OpenStatus {
-    Kind kind;
-    std::string path;
-    std::size_t elements;
-
-    Outcome operator()(const model_status::Ok&) const {
-        return happened(kind, event::Opened{path, {}, elements});
-    }
-    Outcome operator()(const model_status::Opened& opened) const {
-        return happened(kind, event::Opened{path, opened.assigned_ids, elements});
-    }
-    Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
-    Outcome operator()(const model_status::CannotReadFile& problem) const {
-        return refused(kind, fault::CannotReadFile{problem.path});
-    }
-    Outcome operator()(const model_status::InvalidSvg& problem) const {
-        return refused(kind, fault::InvalidSvg{problem.diagnostic});
-    }
-    Outcome operator()(const model_status::MissingSourcePath&) const {
-        return refused(kind, fault::InternalError{});
-    }
-    Outcome operator()(const model_status::CannotWriteFile&) const {
-        return refused(kind, fault::InternalError{});
-    }
-    template <class T>
-    Outcome operator()(const T&) const {
-        static_assert(always_false<T>, "no Planner route for this file status");
-        return refused(kind, fault::InternalError{});
-    }
-};
-
-struct SaveStatus {
-    Kind kind;
-    std::string path;
-    std::size_t elements;
-
-    Outcome operator()(const model_status::Ok&) const { return happened(kind, event::Saved{path, elements}); }
-    Outcome operator()(const model_status::NoDocument&) const { return refused(kind, fault::NoDocument{}); }
-    Outcome operator()(const model_status::Opened&) const { return refused(kind, fault::InternalError{}); }
-    Outcome operator()(const model_status::MissingSourcePath&) const {
-        return refused(kind, fault::MissingSourcePath{});
-    }
-    Outcome operator()(const model_status::CannotWriteFile& problem) const {
-        return refused(kind, fault::CannotWriteFile{problem.path});
-    }
-    Outcome operator()(const model_status::CannotReadFile&) const {
-        return refused(kind, fault::InternalError{});
-    }
-    Outcome operator()(const model_status::InvalidSvg&) const {
-        return refused(kind, fault::InternalError{});
-    }
-    template <class T>
-    Outcome operator()(const T&) const {
-        static_assert(always_false<T>, "no save route for this file status");
-        return refused(kind, fault::InternalError{});
-    }
-};
-
 }  // namespace
 
-Planner::Planner(Document& document, Editor& editor) : document_(document), editor_(editor) {}
+Planner::Planner(Document& document, Editor& editor, FileSystem& filesystem)
+    : document_(document), editor_(editor), filesystem_(filesystem) {}
 
 // The routes that are not the Editor's: the primary template in the header sends every
 // change instruction there, so what is left is what the Planner itself answers - the
@@ -214,43 +141,6 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
 template<> Outcome Planner::handle<ShowHistory>(const ShowHistory& intent) {
     if (!document_.has_document()) return no_document(Kind::View);
     return viewed(Kind::View, View{editor_.history(intent.limit)});
-}
-
-// `init` replaces the document, file and all, rather than editing the tree in it: the
-// canvas an instruction may carry comes with the new root, and there is nothing left of
-// the old document to undo back into.
-template<> Outcome Planner::handle<Init>(const Init& intent) {
-    if (intent.width && !is_finite(*intent.width)) {
-        return refused(Kind::Context, fault::NonFiniteValue{"width"});
-    }
-    if (intent.height && !is_finite(*intent.height)) {
-        return refused(Kind::Context, fault::NonFiniteValue{"height"});
-    }
-    if (intent.width && numeric_value(*intent.width) <= 0.0F) {
-        return refused(Kind::Context, fault::NonPositiveCanvas{"width"});
-    }
-    if (intent.height && numeric_value(*intent.height) <= 0.0F) {
-        return refused(Kind::Context, fault::NonPositiveCanvas{"height"});
-    }
-
-    document_.reset(intent.width, intent.height);
-    const std::optional<Container::SVG> canvas = canvas_of(document_);
-    if (!canvas) return refused(Kind::Context, fault::InternalError{});
-    return happened(Kind::Context, event::Initialized{canvas->width, canvas->height});
-}
-
-template<> Outcome Planner::handle<Read>(const Read& intent) {
-    const Status status = document_.open(intent.path);
-    return std::visit(OpenStatus{Kind::Context, intent.path, document_.element_count()}, status);
-}
-
-// A save with no path writes where the document was read from, which is the Model's to
-// remember: the front end never sees a path it did not write itself.
-template<> Outcome Planner::handle<Save>(const Save& intent) {
-    if (!document_.has_document()) return no_document(Kind::Context);
-    const Status status = document_.save(intent.path);
-    const std::string target = intent.path ? *intent.path : document_.source_path();
-    return std::visit(SaveStatus{Kind::Context, target, document_.element_count()}, status);
 }
 
 Outcome Planner::dispatch(const Intent& intent) {

@@ -4,11 +4,6 @@
 #include <utility>
 #include <variant>
 
-#include "FileSystem.hh"
-#include "LoadDocument.hh"
-#include "SvgReader.hh"
-#include "SvgWriter.hh"
-#include "TinyXml2Adapter.hh"
 #include "TreeStore.hh"
 
 Id Document::root() const { return store_.root(); }
@@ -94,54 +89,8 @@ void Document::replace(StagedTree tree) {
     io_barrier_ = true;
 }
 
-Status Document::open(std::string_view path) {
-    const FileResult file = FileSystem::read(path);
-    if (!std::holds_alternative<FileBytes>(file)) return model_status::CannotReadFile{std::string{path}};
-    const FileBytes& bytes = std::get<FileBytes>(file);
-
-    const XmlReadResult xml = read_xml(bytes.bytes);
-    if (const XmlReadError* error = std::get_if<XmlReadError>(&xml)) {
-        const SvgProblem problem =
-            error->kind == XmlReadError::Kind::NoRoot ? SvgProblem::NoRootElement : SvgProblem::MalformedXml;
-        return model_status::InvalidSvg{SvgDiagnostic{problem, error->line, {}, {}, {}, error->detail}};
-    }
-
-    const SvgReadResult parsed = read_svg(std::get<XmlSnapshot>(xml));
-    if (const SvgDiagnostic* diagnostic = std::get_if<SvgDiagnostic>(&parsed)) {
-        return model_status::InvalidSvg{*diagnostic};
-    }
-
-    const ParsedSvg& document = std::get<ParsedSvg>(parsed);
-    load_parsed(store_, document);
-    source_path_ = std::string{path};
-    io_barrier_ = true;
-    return model_status::Opened{document.assigned_ids};
-}
-
-const std::string& Document::source_path() const { return source_path_; }
-
-Status Document::save(std::optional<std::string_view> path) {
-    if (!has_document()) {
-        return model_status::NoDocument{};
-    }
-
-    const std::string target = path ? std::string{*path} : source_path_;
-    if (target.empty()) {
-        return model_status::MissingSourcePath{};
-    }
-
-    const std::string svg = write_svg(store_);
-    const FileResult file = FileSystem::write(target, svg);
-    if (!std::holds_alternative<FileWritten>(file)) return model_status::CannotWriteFile{target};
-    // What was written is what the file says from here on, so the way back to the
-    // state before it goes with the history that remembered it.
-    clear_history(true);
-    return model_status::Ok{};
-}
-
 void Document::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
     store_.reset(std::move(width), std::move(height));
-    source_path_.clear();
     io_barrier_ = true;
 }
 

@@ -20,15 +20,16 @@ endif()
 
 # The tree of targets, bottom up:
 #
-#   Cli -> Planner -> Editor -> Model -> MVCCHive
+#   Cli -> Planner -> Editor -----> Model -> MVCCHive
+#                 \-> FileSystem --> Model
 #
 # MVCCHive is Model's dependency: Model/ is the only directory that fetches it and
-# the only one that uses it. Every other module reaches the document through Model's
-# own APIs - a transaction for an edit, the view API for a read - which is what the
-# layering test guards.
+# the only one that uses it. FileSystem owns file syntax and I/O, while Editor owns
+# tree edits; both reach the document only through Model's API.
 add_subdirectory(Model)
 add_subdirectory(Protocol)
 add_subdirectory(Editor)
+add_subdirectory(FileSystem)
 add_subdirectory(Planner)
 add_subdirectory(Ui)
 

@@ -14,6 +14,7 @@
 
 #include "Document.hh"
 #include "Editor.hh"
+#include "FileSystem.hh"
 #include "Planner.hh"
 #include "Protocol.hh"
 
@@ -104,7 +105,8 @@ std::optional<Color> fill_of(const ElementShape& element) {
 int main() {
     Document document;
     Editor editor{document};
-    Planner planner{document, editor};
+    FileSystem file_system{document};
+    Planner planner{document, editor, file_system};
 
     // Before `init` or `read` there is no root, so every route that needs a document
     // refuses with the same sentence.
@@ -320,7 +322,8 @@ int main() {
     {
         Document box_document;
         Editor box_editor{box_document};
-        Planner box_planner{box_document, box_editor};
+        FileSystem box_file_system{box_document};
+        Planner box_planner{box_document, box_editor, box_file_system};
         CHECK(box_planner.dispatch(Init{}).ok());
         CHECK(box_planner.dispatch(Create{CreateGroup{"layer"}}).ok());
         CHECK(box_planner
@@ -350,7 +353,8 @@ int main() {
     {
         Document box_document;
         Editor box_editor{box_document};
-        Planner box_planner{box_document, box_editor};
+        FileSystem box_file_system{box_document};
+        Planner box_planner{box_document, box_editor, box_file_system};
         CHECK(box_planner.dispatch(Init{}).ok());
         CHECK(box_planner.dispatch(Create{CreateGroup{"layer"}}).ok());
         CHECK(box_planner
@@ -373,7 +377,8 @@ int main() {
     {
         Document box_document;
         Editor box_editor{box_document};
-        Planner box_planner{box_document, box_editor};
+        FileSystem box_file_system{box_document};
+        Planner box_planner{box_document, box_editor, box_file_system};
         CHECK(box_planner.dispatch(Init{}).ok());
         CHECK(box_planner.dispatch(Create{CreateGroup{"layer"}}).ok());
         CHECK(box_planner
@@ -1093,7 +1098,6 @@ int main() {
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
     CHECK(document.undo_barred_by_io());
-    CHECK(document.source_path().empty());
     if (const std::optional<Node> payload = document.node(document.root())) {
         const Container& container = std::get<Container>(std::get<SVGNode>(*payload).data);
         const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
@@ -1158,7 +1162,8 @@ int main() {
     {
         Document turned_document;
         Editor turned_editor{turned_document};
-        Planner turned_planner{turned_document, turned_editor};
+        FileSystem turned_file_system{turned_document};
+        Planner turned_planner{turned_document, turned_editor, turned_file_system};
         CHECK(turned_planner.dispatch(Init{}).ok());
         CHECK(turned_planner.dispatch(Create{CreateGroup{"turned"}}).ok());
         CHECK(turned_planner.dispatch(Create{CreateRect{"under-turned", units(0), units(0), units(10), units(10),
@@ -1247,7 +1252,8 @@ int main() {
     {
         Document replay_document;
         Editor replay_editor(replay_document);
-        Planner replay_planner(replay_document, replay_editor);
+        FileSystem replay_file_system(replay_document);
+        Planner replay_planner(replay_document, replay_editor, replay_file_system);
         CHECK(replay_planner.dispatch(Init{}).ok());
         const CommitId baseline = replay_document.commit_id();
         CHECK(baseline != 0);
@@ -1463,7 +1469,8 @@ int main() {
     {
         Document capped_document;
         Editor capped_editor(capped_document);
-        Planner capped_planner(capped_document, capped_editor);
+        FileSystem capped_file_system(capped_document);
+        Planner capped_planner(capped_document, capped_editor, capped_file_system);
         CHECK(capped_planner.dispatch(Init{}).ok());
         const CommitId baseline = capped_document.commit_id();
         CHECK(capped_planner

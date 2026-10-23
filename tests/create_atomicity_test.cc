@@ -10,6 +10,7 @@
 #include "Create.hh"
 #include "Document.hh"
 #include "Editor.hh"
+#include "FileSystem.hh"
 #include "IntentParser.hh"
 #include "Planner.hh"
 
@@ -59,7 +60,8 @@ int main() {
 
         Document document;
         Editor editor{document};
-        Planner planner{document, editor};
+        FileSystem file_system{document};
+        Planner planner{document, editor, file_system};
         document.reset(std::nullopt, std::nullopt);
         const std::size_t before_depth = document.depth();
         const std::size_t before_position = document.position();

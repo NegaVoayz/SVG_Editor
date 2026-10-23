@@ -16,7 +16,7 @@
 enum class Kind {
     View,     // read the document and report
     Change,   // edit the document, through the Editor
-    Context,  // change what is being edited, through Model/FileSystem
+    Context,  // change what is being edited, through FileSystem
     Unknown,  // nothing produced this outcome's branch, or it failed before one
 };
 

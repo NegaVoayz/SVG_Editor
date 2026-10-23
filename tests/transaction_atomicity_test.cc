@@ -8,6 +8,7 @@
 
 #include "Document.hh"
 #include "Editor.hh"
+#include "FileSystem.hh"
 #include "Intent.hh"
 #include "Planner.hh"
 
@@ -40,7 +41,8 @@ struct EditSample {
 void check_one_commit(const EditSample& sample) {
     Document document;
     Editor editor{document};
-    Planner planner{document, editor};
+    FileSystem file_system{document};
+    Planner planner{document, editor, file_system};
     CHECK(dispatch_ok(planner, Init{}));
     sample.setup(planner);
 
@@ -149,7 +151,8 @@ int main() {
     {
         Document document;
         Editor editor{document};
-        Planner planner{document, editor};
+        FileSystem file_system{document};
+        Planner planner{document, editor, file_system};
         CHECK(dispatch_ok(planner, Init{}));
         CHECK(dispatch_ok(planner,
                           Create{CreateRect{"history", units(0), units(0), units(1), units(1), std::nullopt}}));

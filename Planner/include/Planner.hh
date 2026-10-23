@@ -4,6 +4,7 @@
 
 #include "Document.hh"
 #include "Editor.hh"
+#include "FileSystem.hh"
 #include "Intent.hh"
 #include "Outcome.hh"
 #include "View.hh"
@@ -12,14 +13,14 @@
 //
 //   - a view reads the document through Model's viewing API and reports;
 //   - a change goes to the Editor, which turns it into a tree transaction;
-//   - a context change goes to Model/FileSystem, through Document::open()/save(),
-//     because it changes which document is being edited, not the tree in it.
+//   - a context change goes to FileSystem, which owns file syntax, paths and the
+//     history baseline.
 //
 // The route is a specialization per intent, and the primary template below is a
 // build error: an instruction with no route cannot be forgotten, only not written.
 class Planner {
 public:
-    Planner(Document& document, Editor& editor);
+    Planner(Document& document, Editor& editor, FileSystem& filesystem);
 
     Outcome dispatch(const Intent& intent);
 
@@ -34,6 +35,8 @@ private:
         if constexpr (std::is_constructible_v<ChangeIntent, T>) {
             if (!document_.has_document()) return no_document(Kind::Change);
             return editor_.translate(ChangeIntent{intent});
+        } else if constexpr (std::is_constructible_v<FileIntent, T>) {
+            return filesystem_.translate(FileIntent{intent});
         } else {
             static_assert(false, "the Planner has no route for this intent");
             return refused(Kind::Unknown, fault::InternalError{});
@@ -42,4 +45,5 @@ private:
 
     Document& document_;
     Editor& editor_;
+    FileSystem& filesystem_;
 };

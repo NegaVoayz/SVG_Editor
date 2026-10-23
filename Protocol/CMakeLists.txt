@@ -1,5 +1,6 @@
 # The shared vocabulary of the pipeline: the instruction a front end parses a line
-# into, and the outcome the Planner hands back. Header only, and it is where the
+# into, the outcome the Planner hands back, and the diagnostics FileSystem reports.
+# Header only, and it is where the
 # project's language level travels to the modules above Model - C++23, which is the
 # language this project is written in. Model states its own, and the dependency
 # states its own for the code that uses it.

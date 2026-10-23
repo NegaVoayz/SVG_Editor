@@ -294,7 +294,7 @@ struct ShowHistory {
     std::optional<std::size_t> limit;
 };
 struct Read { std::string path; };
-// No path: write where the document was read from, which is the Model's to remember.
+// No path: write where the document was read from, which FileSystem remembers.
 struct Save { std::optional<std::string> path; };
 
 // The element instructions, one variant of their own: which element a line asks for is a
@@ -309,6 +309,10 @@ using Create =
 // over the kinds it may hold.
 using Intent = std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Set, Undo, Redo,
                             Checkout, SetCanvas, Init, ShowTree, Show, ShowHistory, Read, Save>;
+
+// The context instructions on their own. FileSystem owns their file syntax, paths and
+// context baselines, so the Planner only has to recognise that a request is one of them.
+using FileIntent = std::variant<Init, Read, Save>;
 
 // The change instructions on their own: the Editor is typed to these, so a view or a
 // context instruction reaching the write path is not a runtime branch it has to refuse, it

@@ -12,6 +12,7 @@
 #include "Color.hh"
 #include "Document.hh"
 #include "ElementName.hh"
+#include "FileSystem.hh"
 #include "SvgFields.hh"
 #include "SvgSchema.hh"
 #include "TinyXml2Adapter.hh"
@@ -54,13 +55,25 @@ std::optional<SVGNode> element_at(const Document& document, Id id) {
     return std::get<SVGNode>(*payload);
 }
 
-bool has_problem(const Status& status, SvgProblem problem) {
-    const model_status::InvalidSvg* invalid = std::get_if<model_status::InvalidSvg>(&status);
+Outcome open(Document& document, std::string_view path) {
+    FileSystem file_system{document};
+    return file_system.translate(Read{std::string{path}});
+}
+
+Outcome save(Document& document, std::string_view path) {
+    FileSystem file_system{document};
+    return file_system.translate(Save{std::string{path}});
+}
+
+bool has_problem(const Outcome& outcome, SvgProblem problem) {
+    if (outcome.ok()) return false;
+    const fault::InvalidSvg* invalid = std::get_if<fault::InvalidSvg>(&outcome.refusal());
     return invalid != nullptr && invalid->diagnostic.problem == problem;
 }
 
-std::optional<SvgDiagnostic> diagnostic_of(const Status& status) {
-    if (const model_status::InvalidSvg* invalid = std::get_if<model_status::InvalidSvg>(&status)) {
+std::optional<SvgDiagnostic> diagnostic_of(const Outcome& outcome) {
+    if (outcome.ok()) return std::nullopt;
+    if (const fault::InvalidSvg* invalid = std::get_if<fault::InvalidSvg>(&outcome.refusal())) {
         return invalid->diagnostic;
     }
     return std::nullopt;
@@ -186,16 +199,16 @@ int main() {
     CHECK(write_text(full_path, full_svg));
 
     Document document;
-    const Status opened = document.open(full_path.string());
-    CHECK(ok(opened));
-    const model_status::Opened* open_success = std::get_if<model_status::Opened>(&opened);
+    const Outcome opened = open(document, full_path.string());
+    CHECK(opened.ok());
+    const event::Opened* open_success =
+        opened.ok() ? std::get_if<event::Opened>(&opened.event()) : nullptr;
     CHECK(open_success != nullptr);
     if (open_success) {
         CHECK(open_success->assigned_ids.size() == 7);
         CHECK(open_success->assigned_ids.front().id == "rect1");
         CHECK(open_success->assigned_ids.front().element == "rect");
     }
-    CHECK(document.source_path() == full_path.string());
     CHECK(document.depth() == 0);
 
     // An empty transform attribute is the same as no transform, not a malformed value.
@@ -203,7 +216,7 @@ int main() {
     CHECK(write_text(empty_transform_path,
                      R"(<svg><g id="plain" transform=""/><g id="spaced" transform="   "/></svg>)"));
     Document empty_transform_document;
-    CHECK(ok(empty_transform_document.open(empty_transform_path.string())));
+    CHECK(open(empty_transform_document, empty_transform_path.string()).ok());
     const std::optional<Id> plain_group = named(empty_transform_document, "plain");
     const std::optional<Id> spaced_group = named(empty_transform_document, "spaced");
     CHECK(plain_group.has_value());
@@ -315,9 +328,9 @@ int main() {
     CHECK(write_text(collision_path,
                      R"(<svg><rect width="1" height="1"/><rect id="rect1" width="2" height="2"/><rect width="3" height="3"/></svg>)"));
     Document collision;
-    const Status collision_status = collision.open(collision_path.string());
-    CHECK(ok(collision_status));
-    if (const model_status::Opened* warnings = std::get_if<model_status::Opened>(&collision_status)) {
+    const Outcome collision_status = open(collision, collision_path.string());
+    CHECK(collision_status.ok());
+    if (const event::Opened* warnings = std::get_if<event::Opened>(&collision_status.event())) {
         CHECK(warnings->assigned_ids.size() == 2);
         CHECK(warnings->assigned_ids[0].id == "rect2");
         CHECK(warnings->assigned_ids[1].id == "rect3");
@@ -332,9 +345,9 @@ int main() {
     CHECK(write_text(reserved_path,
                      R"(<svg><rect id="svg" width="1" height="1"/><rect id="rect1" width="2" height="2"/><g id="svg"><circle r="1"/></g></svg>)"));
     Document reserved;
-    const Status reserved_status = reserved.open(reserved_path.string());
-    CHECK(ok(reserved_status));
-    if (const model_status::Opened* renamed = std::get_if<model_status::Opened>(&reserved_status)) {
+    const Outcome reserved_status = open(reserved, reserved_path.string());
+    CHECK(reserved_status.ok());
+    if (const event::Opened* renamed = std::get_if<event::Opened>(&reserved_status.event())) {
         CHECK(renamed->assigned_ids.size() == 3);
         if (renamed->assigned_ids.size() == 3) {
             CHECK(renamed->assigned_ids[0].id == "rect2");
@@ -351,9 +364,8 @@ int main() {
     CHECK(reserved.find("circle1").has_value());
 
     // Every rejected file leaves the current tree and source path exactly as they were.
-    const Status before_failure_tree = collision.save(file_named("svg_io_before_failure.svg").string());
-    CHECK(ok(before_failure_tree));
-    const std::string preserved_path = collision.source_path();
+    const Outcome before_failure_tree = save(collision, file_named("svg_io_before_failure.svg").string());
+    CHECK(before_failure_tree.ok());
     const std::size_t preserved_children = collision.children(collision.root()).size();
     const std::vector<std::string> rejected{
         R"(<svg><path/></svg>)",
@@ -369,25 +381,24 @@ int main() {
     for (std::size_t index = 0; index < rejected.size(); ++index) {
         const std::filesystem::path path = file_named("svg_io_rejected_" + std::to_string(index) + ".svg");
         CHECK(write_text(path, rejected[index]));
-        const Status rejected_status = collision.open(path.string());
-        CHECK(!ok(rejected_status));
+        const Outcome rejected_status = open(collision, path.string());
+        CHECK(!rejected_status.ok());
         CHECK(diagnostic_of(rejected_status).has_value());
-        CHECK(collision.source_path() == preserved_path);
         CHECK(collision.children(collision.root()).size() == preserved_children);
     }
 
     const std::filesystem::path malformed_path = file_named("svg_io_malformed.svg");
     CHECK(write_text(malformed_path, "<svg>"));
-    CHECK(has_problem(collision.open(malformed_path.string()), SvgProblem::MalformedXml));
+    CHECK(has_problem(open(collision, malformed_path.string()), SvgProblem::MalformedXml));
 
     const std::filesystem::path invalid_id_path = file_named("svg_io_invalid_id.svg");
     CHECK(write_text(invalid_id_path, R"(<svg><g id="a b"/></svg>)"));
-    CHECK(has_problem(collision.open(invalid_id_path.string()), SvgProblem::InvalidId));
+    CHECK(has_problem(open(collision, invalid_id_path.string()), SvgProblem::InvalidId));
 
     // A successful read and save round-trip preserves structure, values, text and the
     // ids that were assigned while reading.
     const std::filesystem::path saved_path = file_named("svg_io_saved.svg");
-    CHECK(ok(document.save(saved_path.string())));
+    CHECK(save(document, saved_path.string()).ok());
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
     const std::string saved_svg = read_text(saved_path);
@@ -395,7 +406,7 @@ int main() {
     CHECK(saved_svg.find("xlink:href") == std::string::npos);
 
     Document reread;
-    CHECK(ok(reread.open(saved_path.string())));
+    CHECK(open(reread, saved_path.string()).ok());
     CHECK(named(reread, "rect1").has_value());
     CHECK(named(reread, "small").has_value());
     if (const std::optional<SVGNode> root = element_at(reread, reread.root())) {
@@ -454,13 +465,13 @@ int main() {
     CHECK(write_text(composite_path,
                      R"SVG(<svg><g id="status" data-kind="box"><rect id="status-rect" width="10" height="10"/></g></svg>)SVG"));
     Document composite_document;
-    const Status composite_opened = composite_document.open(composite_path.string());
-    CHECK(ok(composite_opened));
-    if (ok(composite_opened)) {
-        CHECK(ok(composite_document.save(composite_path.string())));
+    const Outcome composite_opened = open(composite_document, composite_path.string());
+    CHECK(composite_opened.ok());
+    if (composite_opened.ok()) {
+        CHECK(save(composite_document, composite_path.string()).ok());
         CHECK(read_text(composite_path).find("<g id=\"status\" data-kind=\"box\">") != std::string::npos);
         Document composite_reread;
-        CHECK(ok(composite_reread.open(composite_path.string())));
+        CHECK(open(composite_reread, composite_path.string()).ok());
         const std::optional<Id> composite = named(composite_reread, "status");
         CHECK(composite.has_value());
         if (composite) {
@@ -483,8 +494,8 @@ int main() {
     CHECK(write_text(trs_path,
                      R"SVG(<svg><rect id="turned" width="10" height="10" transform="matrix(0 1 -1 0 10 0)"/></svg>)SVG"));
     Document trs_document;
-    CHECK(ok(trs_document.open(trs_path.string())));
-    CHECK(ok(trs_document.save(trs_path.string())));
+    CHECK(open(trs_document, trs_path.string()).ok());
+    CHECK(save(trs_document, trs_path.string()).ok());
     const std::string trs_svg = read_text(trs_path);
     CHECK(trs_svg.find("transform=\"translate(10 0) rotate(90)\"") != std::string::npos);
 
@@ -493,8 +504,8 @@ int main() {
     CHECK(write_text(skew_path,
                      R"SVG(<svg><rect id="sheared" width="10" height="10" transform="skewY(15)"/></svg>)SVG"));
     Document skew_document;
-    CHECK(ok(skew_document.open(skew_path.string())));
-    CHECK(ok(skew_document.save(skew_path.string())));
+    CHECK(open(skew_document, skew_path.string()).ok());
+    CHECK(save(skew_document, skew_path.string()).ok());
     CHECK(read_text(skew_path).find("transform=\"skewY(15)\"") != std::string::npos);
 
     // Small non-zero components are real geometry, not identity noise.
@@ -502,13 +513,13 @@ int main() {
     CHECK(write_text(micro_transform_path,
                      R"SVG(<svg><rect id="moved" width="1" height="1" transform="translate(0.000001 0)"/><rect id="turned" width="1" height="1" transform="rotate(0.0005)"/></svg>)SVG"));
     Document micro_transform_document;
-    CHECK(ok(micro_transform_document.open(micro_transform_path.string())));
-    CHECK(ok(micro_transform_document.save(micro_transform_path.string())));
+    CHECK(open(micro_transform_document, micro_transform_path.string()).ok());
+    CHECK(save(micro_transform_document, micro_transform_path.string()).ok());
     const std::string micro_transform_svg = read_text(micro_transform_path);
     CHECK(micro_transform_svg.find("transform=\"translate(1e-06 0)\"") != std::string::npos);
     CHECK(micro_transform_svg.find("transform=\"rotate(") != std::string::npos);
     Document micro_transform_reread;
-    CHECK(ok(micro_transform_reread.open(micro_transform_path.string())));
+    CHECK(open(micro_transform_reread, micro_transform_path.string()).ok());
     const std::optional<Id> moved = named(micro_transform_reread, "moved");
     const std::optional<Id> turned = named(micro_transform_reread, "turned");
     CHECK(moved.has_value() && turned.has_value());
@@ -521,14 +532,14 @@ int main() {
         tiny_path,
         R"(<svg><rect id="tiny" x="0.0000004" y="-0" width="1" height="1" stroke-width="0.00000045"/></svg>)"));
     Document tiny_document;
-    CHECK(ok(tiny_document.open(tiny_path.string())));
-    CHECK(ok(tiny_document.save(tiny_path.string())));
+    CHECK(open(tiny_document, tiny_path.string()).ok());
+    CHECK(save(tiny_document, tiny_path.string()).ok());
     const std::string tiny_svg = read_text(tiny_path);
     CHECK(tiny_svg.find("x=\"" + exact_number_text(4.0e-7F) + "\"") != std::string::npos);
     CHECK(tiny_svg.find("y=\"0\"") != std::string::npos);
     CHECK(tiny_svg.find("stroke-width=\"" + exact_number_text(4.5e-7F) + "\"") != std::string::npos);
     Document tiny_reread;
-    CHECK(ok(tiny_reread.open(tiny_path.string())));
+    CHECK(open(tiny_reread, tiny_path.string()).ok());
     const std::optional<Id> tiny = named(tiny_reread, "tiny");
     CHECK(tiny.has_value());
     if (tiny) {
