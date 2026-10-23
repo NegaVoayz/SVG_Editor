@@ -123,9 +123,11 @@ The hive's internal handle is not part of the command language.
 
 A box is one instruction and one history entry even though it writes three elements:
 `status-rect` and `status-label` are derived children of `g#status`. The group is saved
-with `data-kind="box"`, so reading the file restores the same editable box. Setting the
-box's fill updates its outline as part of the same commit. A collision with either
-derived id is refused before the box writes anything.
+with `data-kind="box"`, so reading the file restores the same editable box. `tree` and
+`show` print the marker as `g#status (box)`. Setting the box's fill updates its outline,
+and setting its `text` updates its label, in the same commit. A marked composite cannot
+be ungrouped: `ungroup status` is refused as `cannot ungroup composite shape: status`.
+A collision with either derived id is refused before the box writes anything.
 
 Quotes group words that contain spaces, which is how text content and file paths are
 written. A quote or backslash inside one is written `\"` or `\\`, and the same escaping

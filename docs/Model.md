@@ -27,6 +27,7 @@ Id insert_at(Id parent, Id before, Node payload);   // before a sibling; no_id i
 void attach_at(Id parent, Id before, Id node);
 void update(Id node, Node payload);
 void erase(Id node);
+bool empty() const;
 void commit(CommitId = 0);  void rollback();
 
 // history: the Model owns it, so the Planner never sees a commit id
@@ -53,6 +54,13 @@ and the destruction without `commit()` rolls the whole thing back, so an edit th
 fails half way - a bad handle, a parser that refuses, an exception - leaves
 nothing behind. That is also why the Editor is the only writer: undo and redo are
 edits of the history, not of the tree, and they go through the same path.
+`Transaction::empty()` reports that no operation has been staged, and an explicit
+commit may still be used to align a second hive on a shared checkout id. User
+translations go through the Editor's commit helper, which refuses to commit an empty
+edit; otherwise MVCCHive would create a real block that no user instruction describes.
+The Editor brackets every instruction and rejects a second commit inside it, so
+"one instruction, one history block" is enforced rather than inferred from each
+translation body.
 
 A `Subtree` is a node and its detached descendants. `append_subtree` recursively appends
 that tree under a parent within the current transaction, so a composite create needs one

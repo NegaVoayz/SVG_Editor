@@ -130,6 +130,10 @@ template<> Outcome handle<Create>(const Create& intent) {
   protocol returns the bounded `InternalError` refusal. Setting `SVG_EDITOR_DEBUG`
   also writes the exception message to `stderr`, so a violated Model invariant remains
   diagnosable without changing the user-facing outcome.
+- The Editor brackets every translation with the Model's instruction guard. The first
+  commit ends the transaction; a second commit within the same instruction is rejected
+  as an internal error. The Editor's commit helper refuses a transaction when no edit
+  was staged, so an instruction cannot create an undescribed empty history block.
 - A create is answered in two levels. `Create` is one alternative of `ChangeIntent`, so
   level one routes it like any other change and the Planner never learns which element a
   line named; level two is a translation of its own, `handle<Create>` in
@@ -157,6 +161,10 @@ template<> Outcome handle<Create>(const Create& intent) {
   about nodes, which is why its interface needs nothing beyond `LengthPercentage`.
 - the visitors that name things - a node kind, a shape, a colour - are overload
   sets, so a new kind in the model is a build error until it is named too.
+- the create-kind and SVG-schema table sizes are checked against their variants. Every
+  payload alternative must have a schema row in the right family, and the SVG reader's
+  visitor names every alternative statically, so a new element cannot silently become
+  an unsupported reader branch.
 
 The `switch`es that are left are all over an enum the model declares (`Length::Unit`,
 `Kind`), where `-Wswitch` and `-Werror` / `/WX` make a missing enum case a build
