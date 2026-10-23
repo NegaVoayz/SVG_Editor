@@ -12,6 +12,7 @@
 #include <variant>
 #include <vector>
 
+#include "ElementName.hh"
 #include "Exhaustive.hh"
 #include "SvgSchema.hh"
 #include "SvgValueReader.hh"

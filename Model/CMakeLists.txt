@@ -2,6 +2,7 @@
 # API that edits it. MVCCHive is its dependency, so this directory is the only
 # place in the build where the hive is used.
 include(cmake/MVCCHive.cmake)
+include(cmake/ReflectionCpp.cmake)
 include(cmake/TinyXml2.cmake)
 
 add_library(Model
@@ -10,6 +11,7 @@ add_library(Model
     src/History.cc
     src/LoadDocument.cc
     src/SvgReader.cc
+    src/SvgSchema.cc
     src/SvgValueReader.cc
     src/SvgWriter.cc
     src/TinyXml2Adapter.cc
@@ -31,6 +33,7 @@ target_link_libraries(Model
     PUBLIC
         mvcc_hive
     PRIVATE
+        reflection-cpp::reflection-cpp
         tinyxml2::tinyxml2
         SvgEditor::Warnings)
 
