@@ -12,6 +12,7 @@
 #include "Color.hh"
 #include "Document.hh"
 #include "ElementName.hh"
+#include "SvgFields.hh"
 #include "SvgSchema.hh"
 #include "TinyXml2Adapter.hh"
 
@@ -78,7 +79,7 @@ constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"
   </g>
   <defs><symbol id="mark"/></defs>
   <switch><g id="fallback"/></switch>
-  <text x="20" y="40" text-anchor="middle" font-size="12pt">Hello &amp; &lt;SVG&gt;<tspan id="small" fill="rebeccapurple"> again</tspan><textPath id="along" href="#mark" startOffset="10%">path</textPath></text>
+  <text x="20" y="40" text-anchor="middle" font-size="12pt">Hello &amp; &lt;SVG&gt;<tspan id="small" fill="rebeccapurple"> again</tspan><textPath id="along" xlink:href="#mark" startOffset="10%">path</textPath></text>
 </svg>)SVG";
 
 }  // namespace
@@ -87,6 +88,23 @@ constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"
 
 int main() {
     // The reader and writer validate attributes through the same table.
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::common_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::svg_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::group_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::rect_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::circle_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::ellipse_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::line_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::text_common_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::text_path_attributes));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::svg_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::group_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::rect_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::circle_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::ellipse_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::line_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::text_common_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::text_path_attributes));
     CHECK(svg_schema::is_element("rect"));
     CHECK(svg_schema::is_element("svg"));
     CHECK(svg_schema::is_element("switch"));
@@ -372,6 +390,9 @@ int main() {
     CHECK(ok(document.save(saved_path.string())));
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
+    const std::string saved_svg = read_text(saved_path);
+    CHECK(saved_svg.find("href=\"#mark\"") != std::string::npos);
+    CHECK(saved_svg.find("xlink:href") == std::string::npos);
 
     Document reread;
     CHECK(ok(reread.open(saved_path.string())));
