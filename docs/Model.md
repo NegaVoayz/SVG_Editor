@@ -350,8 +350,10 @@ mirror and collapse, and nothing here writes either yet.
 
 ## SVG file I/O
 
-`Model/FileSystem` still moves bytes and nothing else. Above it, Model reads XML through
-tinyxml2 `11.0.0`, but every tinyxml2 type and raw pointer lives in
+`Model/FileSystem` owns byte access and SVG line formatting. Model interprets tree nodes
+into its values-only `SvgNode` form; escaping, indentation, self-closing elements and
+inline character data are decided in `FileSystem::svg_document`. Above it, Model reads XML
+through tinyxml2 `11.0.0`, but every tinyxml2 type and raw pointer lives in
 `TinyXml2Adapter.cc`. The adapter copies the DOM into `XmlSnapshot`, a vector arena with
 index-based children and value attributes. `SvgReader` maps that snapshot to a
 `ParsedSvg`, and only after the whole file passes does `Document::open()` replace the
@@ -369,14 +371,12 @@ alpha, `transparent`, `style` and element kinds such as `path` remain outside th
 An empty or whitespace-only `transform` attribute is accepted as the identity, just
 like `transform="none"`.
 
-`SvgSchema.cc` is the shared source for that element/attribute list. Its row type is an
-aggregate reflected with `reflection-cpp`: each member name is an SVG element name, and
-each marker member in an attribute aggregate is an attribute name. A trailing underscore
-makes a C++ keyword usable, an internal underscore becomes a hyphen, and `xlink_href`
-becomes `xlink:href`; camel-case SVG names stay as written. The reader rejects anything
-the reflected schema does not name, and the writer validates every attribute against it
-before emission. A future writer attribute that skips the table therefore fails at the
-write, rather than producing a file that the same binary cannot reopen.
+`SvgFields.hh` is the shared source for that element/attribute list. Each descriptor
+contains the actual pointer-to-member, its SVG spelling, optional aliases, and validation
+flags such as `nonnegative` or whether the generic writer emits it. The reader, writer and
+`SvgSchema` all consume the same tuples: reading an identifier assigns the connected
+member, writing the member emits the connected identifier, and schema validation checks
+the same names. `svg_io_test` verifies that every mapping has unique and nonempty names.
 
 Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,
 in document order. The root may stay unnamed. A non-root element whose id is `svg` is
@@ -392,8 +392,9 @@ The Planner turns these into `event::Opened`; the front end prints
 The loader commits at most 1024 nodes per transaction and then clears history, making
 the loaded tree the baseline. The first chunk also creates the root, so no empty root
 commit precedes the document. `SvgWriter` walks the current checkout in document order
-and writes deterministic UTF-8 SVG: declaration, the root namespace, fixed attribute
-order, escaped attributes and text, structural indentation, and inline mixed text.
+and projects it into `FileSystem::SvgNode` values. FileSystem writes deterministic UTF-8
+SVG: declaration, the root namespace, fixed attribute order, escaped attributes and text,
+structural indentation, and inline mixed text.
 Numbers are serialized with the shortest `std::to_chars` form that round-trips the
 stored `float`, separately from the rounded display form. A save clears history only
 after the file write succeeds.

@@ -10,7 +10,7 @@ history and cost model are in [Model.md](Model.md).
 | module              | what it is                                                        | depends on                    |
 | ------------------- | ----------------------------------------------------------------- | ----------------------------- |
 | `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | MVCCHive, tinyxml2            |
-| `Model/FileSystem/` | bytes in and out of the document's file                             | -                             |
+| `Model/FileSystem/` | SVG line formatting and bytes in and out of the document's file     | -                             |
 | `Protocol/`         | the vocabulary the pipeline passes around, in the six parts it is made of: how a node is named, the intents, the views, the events, the refusals, the outcome | Model (for the values) |
 | `Editor/`           | translates one change intent into tree transactions                 | Model, Protocol               |
 | `Planner/`          | decides what one instruction means                                  | Model, Editor, Protocol       |
@@ -77,7 +77,7 @@ classDiagram
     class FileSystem {
         <<module>>
         Model/FileSystem
-        bytes in and out
+        SVG lines and bytes
     }
     class MVCCHive {
         <<library>>
@@ -167,7 +167,7 @@ The rule also forbids runtime fallthroughs:
   it may not silently ignore an unknown alternative.
 
 In particular, shape translation uses a visitor rather than assuming the last remaining
-alternative is a line; `SvgWriter::write_node` dispatches both `Node` payloads; and
+alternative is a line; `SvgWriter::build_node` dispatches both `Node` payloads; and
 `TreeStore::visit_data` permits only `PlainText` as a non-element payload. These replace
 runtime exceptions or silent omission with compile-time failures.
 
@@ -276,8 +276,7 @@ change behind the same target, but the edge stays.
 | --- | --- | --- | --- | --- |
 | `Model` | MVCCHive | `FetchContent`, public link, `TreeStore.hh` | The tree is stored as MVCC records, and the hive supplies commits, snapshots and checkout | Required; the storage engine is replaceable behind `TreeStore`, but the dependency is not removable |
 | `Model` | tinyxml2 | `FetchContent`, private link, adapter source only | XML syntax is not worth maintaining beside the SVG schema, while the adapter keeps its pointers and DOM out of the rest of Model | Required for file input; replaceable behind the adapter |
-| `Model` | reflection-cpp | `FetchContent`, private link, `SvgSchema.cc` only | Aggregate reflection derives element and attribute names from the schema's member names while retaining exact hand-written family and attribute-set rules | Required for the current schema representation; replaceable by another compile-time reflection implementation |
-| `Model` | `Model/FileSystem` | private link; `Document.cc` includes `FileSystem.hh` | `open()` and `save()` need bytes from and to a file | Required for the file commands; removable only if the product drops file I/O |
+| `Model` | `Model/FileSystem` | private link; `Document.cc` includes `FileSystem.hh` | `open()` and `save()` need file bytes, and `save()` formats Model's values-only `SvgNode` tree into SVG lines there | Required for the file commands; removable only if the product drops file I/O |
 | `Protocol` | `Model` | interface link; includes `SVGNode.hh`, `Document.hh`, `History.hh` | `Intent`, `View`, `Event` and `Refusal` carry model values and handles; views project payloads without the hive's parent, sibling, or child-list links | **Removable** by moving the value types into a separate `Values` or `Core` target, or by making `Protocol` own DTOs; both add a conversion layer for no current benefit |
 | `Editor` | `Model` | public link; `Document.hh` | The Editor is the only writer and needs the transaction API | Required |
 | `Editor` | `Protocol` | public link; `Intent.hh`, `Outcome.hh` | A change intent is the Editor's input and an outcome is its output | Required |
@@ -357,7 +356,7 @@ abstraction worthwhile. The third group is as much a design decision as the firs
 | A new length system or unit family appears | Partly | `Length::Unit` and Model's unit table are the place to extend. Metric and imperial are intentionally separate, so a new family needs a conversion rule and a rendering name; user units, `em` and `ex` stay outside both systems |
 | A new transform operation appears | Yes | The model stores one affine matrix. A new named input form is a parsing case that composes a matrix, and the TRS+skew writer needs no case for it; a form that the decomposition cannot represent is the only design question |
 | The interface is localized or themed | Partly | All user-facing prose is already isolated in `Ui/src/Rendering.cc` and `usage()`, and outcomes are structured rather than pre-worded. There is no message catalog or locale parameter yet |
-| A format other than SVG is imported or exported | Not reserved | `Model/FileSystem` is byte I/O, and `Document::open/save` assume the SVG tree. A general codec interface would be a new Model boundary, not a change inside the existing one |
+| A format other than SVG is imported or exported | Not reserved | `Model/FileSystem` owns byte I/O plus SVG line formatting, and `Document::open/save` assume the SVG tree. A general codec interface would add a format-neutral node boundary rather than change the attribute field mapping |
 | The pipeline is split across a process or network | Not reserved | `Intent`, `View`, `Event` and `Refusal` are in-process C++ values with no serialization or versioning. The clean boundary makes it possible, but no wire format is reserved |
 
 The deliberate omissions are the plugin node protocol, runtime attribute bags, a generic
