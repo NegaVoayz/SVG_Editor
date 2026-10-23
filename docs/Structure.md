@@ -9,36 +9,34 @@ history and cost model are in [Model.md](Model.md).
 
 | module              | what it is                                                        | depends on                    |
 | ------------------- | ----------------------------------------------------------------- | ----------------------------- |
-| `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | MVCCHive, tinyxml2            |
-| `Model/FileSystem/` | SVG line formatting and bytes in and out of the document's file     | -                             |
+| `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | MVCCHive                      |
+| `FileSystem/`       | SVG/XML parsing, serialization, file bytes and context history       | Model, Protocol, tinyxml2     |
 | `Protocol/`         | the vocabulary the pipeline passes around, in the six parts it is made of: how a node is named, the intents, the views, the events, the refusals, the outcome | Model (for the values) |
 | `Editor/`           | translates one change intent into tree transactions                 | Model, Protocol               |
-| `Planner/`          | decides what one instruction means                                  | Model, Editor, Protocol       |
-| `Ui/`               | the text front end: parses one line into an intent, prints the outcome; owns the document | Planner, Model, Protocol |
+| `Planner/`          | decides what one instruction means                                  | Model, Editor, FileSystem, Protocol |
+| `Ui/`               | the text front end: parses one line into an intent and prints the outcome | Planner, Model, Protocol |
 
 Three rules hold the shape together:
 
-- **MVCCHive and tinyxml2 are Model's dependencies.** The hive is the arena the tree is stored
-  in: only `Model/` fetches it (`Model/cmake/MVCCHive.cmake`) and only `Model/`
-  uses it - its transactions, commit ids and virtual ids are Model's business,
-  and no other module opens one. tinyxml2 is fetched by `Model/cmake/TinyXml2.cmake`;
-  its pointer-based DOM is confined to `Model/src/TinyXml2Adapter.cc`, which converts
-  it to the pointer-free `XmlSnapshot` vectors the SVG reader uses.
-- **Everything above Model reaches the document through Model.** The Editor
-  writes to it, the Planner reads it, and the Planner never talks to the Editor
-  about anything but a change intent.
+- **MVCCHive belongs to Model and tinyxml2 belongs to FileSystem.** The hive is the arena
+  the tree is stored in: only `Model/` fetches and uses it. XML syntax is the file format's
+  business: only `FileSystem/` fetches tinyxml2, and its pointer-based DOM is confined to
+  `FileSystem/src/TinyXml2Adapter.cc`.
+- **Everything above Model reaches the document through Model.** Editor writes tree edits,
+  FileSystem installs parsed documents and performs context I/O, and Planner reads through
+  Model's viewing API.
 - **Text is the ui layer's business, in both directions of the boundary.** What a
   user typed becomes a typed intent before it leaves `Ui/`, so no layer above ever
   parses a string, and no layer below knows how an instruction was written.
 
 Because `Document` holds the arena by value, the hive's headers do reach the other
 modules' include path, so the link line no longer says who may use it. The test
-named `layering` reads the sources and fails if a module outside Model names MVCCHive,
-`mvcc_hive` or tinyxml2, or if a Model source other than the adapter mentions tinyxml2.
+named `layering` reads the sources and fails if a module outside Model names MVCCHive
+or a module outside FileSystem names tinyxml2.
 
-The text front end is also the composition root: it owns the `Document` and hands
-it to the Editor and the Planner. A gui front end would sit in exactly the same
-place, which is why the document is owned above the Planner rather than inside it.
+The text front end is also the composition root: it owns the `Document`, constructs
+the Editor and FileSystem, and gives all three to the Planner. A GUI front end would
+sit in exactly the same place.
 
 The module graph is a dependency graph, not a call trace; an arrow means "may
 include or link", and the directions below are the ones the CMake targets declare.
@@ -76,8 +74,8 @@ classDiagram
     }
     class FileSystem {
         <<module>>
-        Model/FileSystem
-        SVG lines and bytes
+        context intents
+        SVG parsing, lines and bytes
     }
     class MVCCHive {
         <<library>>
@@ -93,17 +91,20 @@ classDiagram
     Cli ..> Ui : uses
     Cli ..> Planner : dispatches
     Cli ..> Model : owns
+    Cli ..> FileSystem : owns
     Ui ..> Protocol : produces
     Ui ..> Model : values
     Protocol ..> Model : values
     Planner ..> Protocol : intents
-    Planner ..> Model : views, context
+    Planner ..> Model : views
     Planner ..> Editor : changes
+    Planner ..> FileSystem : context
     Editor ..> Protocol : intents, outcomes
     Editor ..> Model : transactions
-    Model ..> FileSystem : open, save
+    FileSystem ..> Model : staged replacement
+    FileSystem ..> Protocol : intents, outcomes
+    FileSystem ..> TinyXml2 : parses XML
     Model ..> MVCCHive : stores
-    Model ..> TinyXml2 : parses XML
 ```
 
 ## The bone: `variant + visit + handle<T>`
@@ -233,7 +234,7 @@ that are handled another way.
 | Template Method | `std::variant` is a closed, restricted template; `std::visit` fixes the skeleton and `handle<T>()` supplies the varying step | There is no base class, no virtual hook and no subclass override. It is a compile-time Template Method in spirit, not the GoF structure. It trades the open subclass set for a closed variant set and gains compile-time exhaustiveness |
 | Factory Method | A named-constructor/overload-based factory: `Editor::new_element()` overloads build the element named by the static type | There is no subclass factory and no polymorphic creator. The separation of construction from `create()` is kept; the inheritance is not |
 | Strategy | A verb table: `verbs()` selects a reader, and `Create`/`Set` use the same table shape | The algorithm is selected by a key, but there is no policy object held by a context. The table is the registry |
-| Adapter | A boundary visitor: `OpenStatus` and `SaveStatus` adapt `model_status` to `Outcome`, and `Rendering` adapts protocol values to text | The adaptation is a function object at a module boundary, not a wrapper class around an existing interface |
+| Adapter | FileSystem's XML adapter converts tinyxml2's pointer DOM to value snapshots, and `Rendering` adapts protocol values to text | The adaptation is a function object at a module boundary, not a wrapper class around an existing interface |
 
 The grey zone is the normal shape of this codebase: inheritance is replaced by
 composition, and the pattern's intent is preserved by a variant plus exhaustive
@@ -263,8 +264,8 @@ mechanism.
 ## Dependency direction
 
 The arrows point from policy toward the stable tree model. `Model` is the bottom of the
-application graph because it owns the document and its history; `Model/FileSystem` and
-MVCCHive are mechanisms underneath it. `Protocol` is the one dependency that points
+application graph because it owns the document and its history; MVCCHive is the storage
+mechanism underneath it. `Protocol` is the one dependency that points
 "back" into Model: the vocabulary is made of model values on purpose, because a second,
 duplicated set of length, colour and node types would only create conversion code.
 
@@ -275,20 +276,23 @@ change behind the same target, but the edge stays.
 | from | to | how | why | status |
 | --- | --- | --- | --- | --- |
 | `Model` | MVCCHive | `FetchContent`, public link, `TreeStore.hh` | The tree is stored as MVCC records, and the hive supplies commits, snapshots and checkout | Required; the storage engine is replaceable behind `TreeStore`, but the dependency is not removable |
-| `Model` | tinyxml2 | `FetchContent`, private link, adapter source only | XML syntax is not worth maintaining beside the SVG schema, while the adapter keeps its pointers and DOM out of the rest of Model | Required for file input; replaceable behind the adapter |
-| `Model` | `Model/FileSystem` | private link; `Document.cc` includes `FileSystem.hh` | `open()` and `save()` need file bytes, and `save()` formats Model's values-only `SvgNode` tree into SVG lines there | Required for the file commands; removable only if the product drops file I/O |
+| `FileSystem` | `Model` | public link; `Document.hh`, `StagedTree.hh` | FileSystem writes parsed trees into a Model document and serializes its viewing API | Required for context I/O |
+| `FileSystem` | `Protocol` | public link; `Intent.hh`, `Outcome.hh` | A `FileIntent` is its input and a structured outcome is its output | Required for the same interface shape as Editor |
+| `FileSystem` | tinyxml2 | `FetchContent`, private link, adapter source only | XML syntax stays behind one adapter and inside the file module | Required for file input; replaceable behind the adapter |
 | `Protocol` | `Model` | interface link; includes `SVGNode.hh`, `Document.hh`, `History.hh` | `Intent`, `View`, `Event` and `Refusal` carry model values and handles; views project payloads without the hive's parent, sibling, or child-list links | **Removable** by moving the value types into a separate `Values` or `Core` target, or by making `Protocol` own DTOs; both add a conversion layer for no current benefit |
 | `Editor` | `Model` | public link; `Document.hh` | The Editor is the only writer and needs the transaction API | Required |
 | `Editor` | `Protocol` | public link; `Intent.hh`, `Outcome.hh` | A change intent is the Editor's input and an outcome is its output | Required |
-| `Planner` | `Model` | public link; `Document.hh` | Views read the tree, and `init`/`read`/`save` change the document context | Required |
+| `Planner` | `Model` | public link; `Document.hh` | Views read the tree | Required |
 | `Planner` | `Editor` | public link; `Editor.hh` | A change intent has to reach the write path | Required |
+| `Planner` | `FileSystem` | public link; `FileSystem.hh` | A context intent has to reach the file write path | Required |
 | `Planner` | `Protocol` | public link; `Intent.hh`, `Outcome.hh` | The Planner's input and output are the protocol | Required |
 | `Ui` | `Protocol` | public link; `Intent.hh`, `Outcome.hh` | Parsing produces intents and rendering consumes outcomes | Required |
 | `Ui` | `Model` | public link; `SVGNode.hh`, `NodeRef.hh` | The front end parses lengths, colours and node ids into model values | **Removable** if those values move behind `Protocol` or a separate value target; that is a type-layout move, not a behavioural one |
 | `Cli` | `Ui` | private link; `main.cc` includes `IntentParser.hh`, `Rendering.hh` | The executable is the prompt and the renderer around the Ui library | Required while the CLI is the only front end |
 | `Cli` | `Planner` | private link; `Planner.hh` | The CLI hands each parsed intent to the Planner | Required |
 | `Cli` | `Model` | private link; `Document.hh` | The composition root owns the `Document` and constructs the Editor and Planner | **Removable** by moving composition into a `Session`/`Application` object in `Ui` or a dedicated composition target; the dependency then belongs to that object instead |
-| `tests` | `Ui`, `Planner`, `Model`, `Editor` | test target links | Tests drive the same pipeline a front end does | Test-only, not a product dependency |
+| `Cli` | `FileSystem` | private link; `FileSystem.hh` | The composition root owns the FileSystem and gives it to the Planner | **Removable** with the same session-object extraction as the Model and Editor ownership |
+| `tests` | `Ui`, `Planner`, `Model`, `Editor`, `FileSystem` | test target links | Tests drive the same pipeline a front end does | Test-only, not a product dependency |
 | every module | `SvgEditor::Warnings` | interface target | Warnings belong to our code, not to fetched dependencies | Build-only; removable with the warning target |
 | `Model` public headers | MVCCHive headers | public include path through `TreeStore.hh` | `Document` holds `TreeStore` by value, and `TreeStore` holds the hive by value | **Not removable** without hiding the storage behind a pointer or PIMPL, which the no-pointer and cache-locality decisions reject; the `layering` test guards use, not inclusion |
 
@@ -297,15 +301,20 @@ The target graph is therefore one DAG:
 ```text
 Cli -> Ui -> Protocol -> Model -> MVCCHive
 Cli -> Planner -> Editor -> Model
+                     \-> FileSystem -> Model
 Cli -> Model
+Cli -> FileSystem
 Planner -> Model
+Planner -> FileSystem
 Ui -> Model
-Model -> Model/FileSystem
+FileSystem -> Protocol -> Model
+FileSystem -> tinyxml2
 ```
 
-Only the `Model -> MVCCHive` and `Editor/Planner -> Model` edges carry behaviour.
-Everything else is either a vocabulary edge, a composition-root edge, or a test edge. A
-new dependency should have to say which of those it is before it is added.
+Only the `Model -> MVCCHive`, `Editor -> Model`, and `FileSystem -> Model` edges carry
+storage or document behaviour. Everything else is either a vocabulary edge, a
+composition-root edge, or a test edge. A new dependency should have to say which of those
+it is before it is added.
 
 ## What happens after one instruction
 
@@ -320,8 +329,8 @@ new dependency should have to say which of those it is before it is added.
    - a **view** is served by reading the tree directly [M Model]
    - a **change** goes to the Editor, which translates it into a tree-level
      transaction [M Editor] [M Model]
-   - a **context change** goes to the file layer, because it changes which
-     document is being edited rather than the tree in it [M Model/FileSystem]
+   - a **context change** goes to FileSystem, which owns parsing, paths and the
+     context baseline [M FileSystem] [M Model]
 3. The outcome travels back the way it came: which branch produced it, and one of three
    structured answers - a `View` for a read, an `Event` saying what changed, or a
    `Refusal` saying why nothing changed. None of them carries user-facing prose; the ui
@@ -356,7 +365,7 @@ abstraction worthwhile. The third group is as much a design decision as the firs
 | A new length system or unit family appears | Partly | `Length::Unit` and Model's unit table are the place to extend. Metric and imperial are intentionally separate, so a new family needs a conversion rule and a rendering name; user units, `em` and `ex` stay outside both systems |
 | A new transform operation appears | Yes | The model stores one affine matrix. A new named input form is a parsing case that composes a matrix, and the TRS+skew writer needs no case for it; a form that the decomposition cannot represent is the only design question |
 | The interface is localized or themed | Partly | All user-facing prose is already isolated in `Ui/src/Rendering.cc` and `usage()`, and outcomes are structured rather than pre-worded. There is no message catalog or locale parameter yet |
-| A format other than SVG is imported or exported | Not reserved | `Model/FileSystem` owns byte I/O plus SVG line formatting, and `Document::open/save` assume the SVG tree. A general codec interface would add a format-neutral node boundary rather than change the attribute field mapping |
+| A format other than SVG is imported or exported | Not reserved | `FileSystem` owns SVG parsing and line formatting while Model accepts format-neutral staged trees. A second format can reuse that tree boundary, but the codec selection and parser lifecycle are not designed yet |
 | The pipeline is split across a process or network | Not reserved | `Intent`, `View`, `Event` and `Refusal` are in-process C++ values with no serialization or versioning. The clean boundary makes it possible, but no wire format is reserved |
 
 The deliberate omissions are the plugin node protocol, runtime attribute bags, a generic

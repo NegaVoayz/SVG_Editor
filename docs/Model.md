@@ -37,10 +37,8 @@ bool undo_barred_by_io() const;
 CommitId baseline_commit() const;                                // retained context floor
 std::optional<CommitId> commit_at(std::size_t position) const;  // one edit's checkout
 
-// the context: which document this is, rather than what is in it
-const std::string& source_path() const;
-Status open(std::string_view path);                  // staged parse, then replace the document
-Status save(std::optional<std::string_view> path);   // no path: where it was read from
+// context: install a fully parsed tree, or reset to a fresh root
+void replace(StagedTree tree);                       // validate, install, and make it the baseline
 void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
 void clear_history();                                // the tree stays and becomes the baseline
 ```
@@ -350,14 +348,14 @@ mirror and collapse, and nothing here writes either yet.
 
 ## SVG file I/O
 
-`Model/FileSystem` owns byte access and SVG line formatting. Model interprets tree nodes
-into its values-only `SvgNode` form; escaping, indentation, self-closing elements and
-inline character data are decided in `FileSystem::svg_document`. Above it, Model reads XML
-through tinyxml2 `11.0.0`, but every tinyxml2 type and raw pointer lives in
-`TinyXml2Adapter.cc`. The adapter copies the DOM into `XmlSnapshot`, a vector arena with
-index-based children and value attributes. `SvgReader` maps that snapshot to a
-`ParsedSvg`, and only after the whole file passes does `Document::open()` replace the
-tree. Parse failure therefore leaves the old tree, history and source path untouched.
+`FileSystem` owns byte access, XML/SVG parsing, serialization, remembered paths and the
+SVG line format. It is a top-level module beside Editor; `Model` contains no file parser
+or tinyxml2 dependency. FileSystem reads XML through tinyxml2 `11.0.0`, with every
+pointer behind `TinyXml2Adapter.cc`. The adapter copies the DOM into `XmlSnapshot`,
+`SvgReader` maps it to `ParsedSvg`, and the parse result becomes a model-owned
+`StagedTree`. Only after the whole file passes does `Document::replace()` validate and
+install that tree. Parse failure therefore leaves the old tree, history and FileSystem's
+remembered source path untouched.
 
 The accepted element set is `svg`, `g`, `defs`, `symbol`, `switch`, `rect`, `circle`,
 `ellipse`, `line`, `text`, `tspan` and `textPath`. Common attributes are `id`, `class`,
@@ -383,21 +381,35 @@ in document order. The root may stay unnamed. A non-root element whose id is `sv
 renamed the same way, because `svg` names the root and would leave that element
 unreachable. Explicit ids are reserved first, so a generated id cannot collide with an
 explicit id later in the file, including the `rect1` an explicit element already holds.
-Each assignment is an `AssignedId` in `model_status::Opened`; its empty `original_id`
-means the element was unnamed, and a value there is the reserved id that was replaced.
-The Planner turns these into `event::Opened`; the front end prints
+Each assignment is an `AssignedId` in `event::Opened`; its empty `original_id` means the
+element was unnamed, and a value there is the reserved id that was replaced. The front
+end prints
 `warning: assigned id rect1 to unnamed <rect>` or
 `warning: id "svg" is reserved for the root, renamed <rect> to rect2`.
 
-The loader commits at most 1024 nodes per transaction and then clears history, making
-the loaded tree the baseline. The first chunk also creates the root, so no empty root
-commit precedes the document. `SvgWriter` walks the current checkout in document order
-and projects it into `FileSystem::SvgNode` values. FileSystem writes deterministic UTF-8
+`Document::replace()` validates the staged graph before touching the current document,
+then commits at most 1024 nodes per transaction and clears history, making the loaded
+tree the baseline. The first chunk also creates the root, so no empty root commit
+precedes the document. `SvgWriter` walks the current checkout through Model's viewing
+API in document order and projects it into FileSystem's private `SvgNode` values. It
+writes deterministic UTF-8
 SVG: declaration, the root namespace, fixed attribute order, escaped attributes and text,
 structural indentation, and inline mixed text.
 Numbers are serialized with the shortest `std::to_chars` form that round-trips the
 stored `float`, separately from the rounded display form. A save clears history only
 after the file write succeeds.
+
+The `FileSystem` interface mirrors Editor:
+
+```C++
+explicit FileSystem(Document& document);
+Outcome translate(const FileIntent& intent);  // Init, Read or Save
+```
+
+FileSystem remembers the path of the last successful read. A save with no path uses that
+value; an explicit save does not replace it. `init` forgets it. A successful save clears
+Model history and establishes the I/O baseline; a failed read or write changes neither
+the document nor the remembered path.
 
 The full reader/writer fixture is saved and read again without a diagnostic. The
 sub-micro regression covers geometry and `stroke-width`, so every length-bearing writer

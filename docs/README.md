@@ -26,7 +26,7 @@ ctest --preset default
 ```
 
 The first configure fetches MVCCHive and tinyxml2 at the versions pinned in
-`Model/cmake/`. A package config found by `find_package` or a checkout pointed at by the
+`Model/cmake/` and `FileSystem/cmake/`. A package config found by `find_package` or a checkout pointed at by the
 matching `FETCHCONTENT_SOURCE_DIR_*` variable avoids a download:
 
 ```sh
@@ -232,19 +232,18 @@ the accepted syntax. The root keeps its `xmlns` and `viewBox`; text elements kee
 
 | target              | directory           | links                              |
 | ------------------- | ------------------- | ---------------------------------- |
-| `SvgEditor::Model`  | `Model/`            | MVCCHive, tinyxml2                 |
-| `SvgEditor::FileSystem` | `Model/FileSystem/` | -                              |
+| `SvgEditor::Model`  | `Model/`            | MVCCHive                           |
+| `SvgEditor::FileSystem` | `FileSystem/`   | Model, Protocol, tinyxml2          |
 | `SvgEditor::Protocol`   | `Protocol/`     | Model (for the values)             |
 | `SvgEditor::Editor` | `Editor/`           | Model, Protocol                    |
-| `SvgEditor::Planner`| `Planner/`          | Model, Editor, Protocol            |
+| `SvgEditor::Planner`| `Planner/`          | Model, Editor, FileSystem, Protocol |
 | `SvgEditor::Ui`     | `Ui/`               | Protocol, Model                    |
-| `Cli`               | `Ui/`               | Ui, Planner, Model                 |
+| `Cli`               | `Ui/`               | Ui, Planner, Model, FileSystem     |
 
 `Ui/` holds the text front end: the instruction syntax, the value syntax, and a
-library that a test can link. `Cli` is the small executable around it, and it links
-Model because it is the composition root - it owns the document and hands it to the
-Editor and the Planner. What it must not do is decide what an instruction means:
-that is the Planner's job, and nothing else in the pipeline routes.
+library that a test can link. `Cli` is the small executable around it and the composition
+root: it owns the document, constructs Editor and FileSystem, and gives all three to the
+Planner. What it must not do is decide what an instruction means.
 
 Only `Model/` may *use* MVCCHive: its transactions, commit ids and virtual ids are
 Model's business, and an edit or a read from any other module goes through Model's

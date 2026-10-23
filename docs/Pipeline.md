@@ -67,18 +67,20 @@ function per alternative. Most of those functions are not written by hand, becau
 answers an instruction is a question about its type:
 
 ```C++
-// the Planner. Every change instruction goes to the Editor, and which instructions
-// those are is what ChangeIntent holds, so the compiler answers it from the type.
+// The Planner routes by category. ChangeIntent and FileIntent are closed variants,
+// so no instruction is listed again as a string or runtime case.
 template<typename T>
 Outcome handle(const T& intent) {
     if constexpr (std::is_constructible_v<ChangeIntent, T>) {
         return editor_.translate(ChangeIntent{intent});
+    } else if constexpr (std::is_constructible_v<FileIntent, T>) {
+        return filesystem_.translate(FileIntent{intent});
     } else {
         static_assert(false, "the Planner has no route for this intent");
     }
 }
 
-// the five instructions that are not the Editor's, each written where it is routed
+// view instructions are written where they are routed
 template<> Outcome handle<ShowTree>(const ShowTree& intent) {
     const std::optional<Id> node = look_up(document_, intent.node);
     if (!node) return refused(Kind::View, fault::MissingShape{intent.node});
@@ -87,7 +89,6 @@ template<> Outcome handle<ShowTree>(const ShowTree& intent) {
     append_rows(view.rows, document_, *node, 0, true);
     return viewed(Kind::View, View{std::move(view)});
 }
-template<> Outcome handle<Init>(const Init& intent) { ... }
 ```
 
 The point is what happens when an instruction is added, and it is the same in both
@@ -104,8 +105,8 @@ get around that. Both layers here want the same thing - a branch that cannot be 
 a case that has a route, and that a case without one must take - so neither of them needs
 the workaround now, and neither of them has one.
 
-The Editor is the same shape with a different question asked of the type, and a create is
-the one instruction it answers twice:
+The Editor and FileSystem are the same shape with different questions asked of the type.
+A create is the one Editor instruction it answers twice:
 
 ```C++
 template<typename T>
@@ -123,7 +124,8 @@ template<> Outcome handle<Create>(const Create& intent) {
 }
 ```
 
-- The Editor is typed to `ChangeIntent`, so a view or a context instruction reaching
+- The Editor is typed to `ChangeIntent` and FileSystem to `FileIntent`, so a view or a
+  context instruction reaching
   the write path is not something it has to refuse at runtime - it is not a type it
   accepts.
 - If Model throws after a transaction is open, the transaction rolls back and the
@@ -197,9 +199,9 @@ failure rather than a warning that a normal test run can miss.
 | `front <id>` / `back <id>`                       | the two ends of the child order, last child in front    | the Editor, one transaction |
 | `undo` / `redo` / `checkout <commit> [n]`        | one instruction back, forward again, or to a commit, with that checkout's timeline | the Editor, the history |
 | `canvas <w> [h]`                                 | a new size, and a checkpoint                           | the Editor, the history |
-| `init [w] [h]`                                   | a fresh document, 800x600 by default                   | the Planner, Model      |
-| `read <file.svg>`                                | read a document                                        | the Planner, Model/FileSystem |
-| `save [file.svg]`                                | write it, where it was read from by default            | the Planner, Model/FileSystem |
+| `init [w] [h]`                                   | a fresh document, 800x600 by default                   | FileSystem, Model |
+| `read <file.svg>`                                | read a document                                        | FileSystem, Model |
+| `save [file.svg]`                                | write it, where it was read from by default            | FileSystem, Model |
 
 Every `create` also takes `in <gid>`, which is where the new element goes; without it
 the element is the last child of the root, because an element that belonged to nothing
@@ -207,7 +209,9 @@ would be unreachable and unreclaimable. `help` is the one instruction that never
 leaves the front end: what the commands are is the syntax of that layer, and no other
 layer knows it or needs to.
 
-`init`, `read`, `save`, and `canvas` set an IO baseline. Undo at that baseline is
+`init`, `read`, and `save` are `FileIntent`s and go through `FileSystem::translate()`.
+FileSystem owns the remembered read path and the SVG parser; Model receives only a
+validated `StagedTree`. `init`, `read`, `save`, and `canvas` set an IO baseline. Undo at that baseline is
 refused with `error: undo not allowed after io command`; ordinary edits after it remain
 undoable.
 
