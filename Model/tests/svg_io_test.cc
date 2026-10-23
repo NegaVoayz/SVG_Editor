@@ -89,12 +89,19 @@ int main() {
     // The reader and writer validate attributes through the same table.
     CHECK(svg_schema::is_element("rect"));
     CHECK(svg_schema::is_element("svg"));
+    CHECK(svg_schema::is_element("switch"));
+    CHECK(svg_schema::is_element("textPath"));
     CHECK(!svg_schema::is_element("path"));
     CHECK(svg_schema::accepts_attribute("rect", "x"));
     CHECK(svg_schema::accepts_attribute("rect", "fill"));
+    CHECK(svg_schema::accepts_attribute("svg", "viewBox"));
+    CHECK(svg_schema::accepts_attribute("g", "class"));
     CHECK(svg_schema::accepts_attribute("g", "data-kind"));
     CHECK(!svg_schema::accepts_attribute("rect", "viewBox"));
+    CHECK(svg_schema::accepts_attribute("text", "font-size"));
     CHECK(svg_schema::accepts_attribute("textPath", "startOffset"));
+    CHECK(svg_schema::accepts_attribute("textPath", "xlink:href"));
+    CHECK(!svg_schema::accepts_attribute("g", "text-anchor"));
     CHECK(!svg_schema::accepts_attribute("textPath", "transform-origin"));
     const svg_schema::ElementSchema* root_schema = svg_schema::schema_for("svg");
     CHECK(root_schema != nullptr);
