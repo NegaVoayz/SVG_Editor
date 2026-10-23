@@ -58,6 +58,17 @@ void for_each_alternative(Action&& action) {
     }(std::make_index_sequence<std::variant_size_v<Variant>>{});
 }
 
+class SvgReader;
+
+template<typename T>
+Shape::Kinds read_shape_payload(const SvgReader& reader, const XmlNode& node);
+
+template<typename T>
+Text::Kinds read_text_payload(const SvgReader& reader, const XmlNode& node);
+
+template<typename T>
+Container::Kinds read_container_payload(const SvgReader& reader, const XmlNode& node);
+
 class SvgReader {
 public:
     explicit SvgReader(const XmlSnapshot& xml) : xml_(xml) {}
@@ -74,6 +85,15 @@ public:
     }
 
 private:
+    template<typename T>
+    friend Shape::Kinds read_shape_payload(const SvgReader& reader, const XmlNode& node);
+
+    template<typename T>
+    friend Text::Kinds read_text_payload(const SvgReader& reader, const XmlNode& node);
+
+    template<typename T>
+    friend Container::Kinds read_container_payload(const SvgReader& reader, const XmlNode& node);
+
     [[noreturn]] void fail(SvgProblem problem, const XmlNode& node, std::string attribute = {},
                            std::string value = {}, std::string detail = {}) const {
         throw SvgParseFailure{
@@ -167,109 +187,9 @@ private:
         }
     }
 
-    Shape read_shape(const XmlNode& node, std::string_view element) const {
-        const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
-        std::optional<Shape> result;
-        for_each_alternative<Shape::Kinds>(
-            [&](const auto& alternative) {
-                using T = std::remove_cvref_t<decltype(alternative)>;
-                if (result || element_name(alternative) != element) return;
-                if constexpr (std::is_same_v<T, Shape::Rect>) {
-                    const LengthPercentage width = length_or(node, "width", zero);
-                    const LengthPercentage height = length_or(node, "height", zero);
-                    require_nonnegative(node, "width", width);
-                    require_nonnegative(node, "height", height);
-                    result =
-                        Shape{Shape::Rect{length_or(node, "x", zero), length_or(node, "y", zero), width, height}};
-                } else if constexpr (std::is_same_v<T, Shape::Circle>) {
-                    const LengthPercentage radius = length_or(node, "r", zero);
-                    require_nonnegative(node, "r", radius);
-                    result =
-                        Shape{Shape::Circle{length_or(node, "cx", zero), length_or(node, "cy", zero), radius}};
-                } else if constexpr (std::is_same_v<T, Shape::Ellipse>) {
-                    const LengthPercentage rx = length_or(node, "rx", zero);
-                    const LengthPercentage ry = length_or(node, "ry", zero);
-                    require_nonnegative(node, "rx", rx);
-                    require_nonnegative(node, "ry", ry);
-                    result = Shape{
-                        Shape::Ellipse{length_or(node, "cx", zero), length_or(node, "cy", zero), rx, ry}};
-                } else if constexpr (std::is_same_v<T, Shape::Line>) {
-                    result = Shape{Shape::Line{length_or(node, "x1", zero), length_or(node, "y1", zero),
-                                               length_or(node, "x2", zero), length_or(node, "y2", zero)}};
-                } else {
-                    static_assert(always_false<T>, "no SVG reader for this shape alternative");
-                }
-            });
-        if (!result) fail(SvgProblem::UnsupportedElement, node, {}, {}, std::string{element});
-        return std::move(*result);
-    }
-
-    Text read_text(const XmlNode& node, std::string_view element) const {
-        Text text;
-        text.child_attr = ChildAttr{};
-        text.common.x = optional_length(node, "x");
-        text.common.y = optional_length(node, "y");
-        text.common.dx = optional_length(node, "dx");
-        text.common.dy = optional_length(node, "dy");
-        text.common.text_anchor = optional_text_anchor(node);
-        text.common.font_size = optional_length(node, "font-size");
-        if (text.common.font_size) require_nonnegative(node, "font-size", *text.common.font_size);
-
-        std::optional<Text> result;
-        for_each_alternative<Text::Kinds>(
-            [&](const auto& alternative) {
-                using T = std::remove_cvref_t<decltype(alternative)>;
-                if (result || element_name(alternative) != element) return;
-                if constexpr (std::is_same_v<T, Text::Wrapper>) {
-                    text.specific = Text::Wrapper{};
-                } else if constexpr (std::is_same_v<T, Text::Span>) {
-                    text.specific = Text::Span{};
-                } else if constexpr (std::is_same_v<T, Text::Path>) {
-                    const auto href = href_attribute(node);
-                    text.specific =
-                        Text::Path{optional_length(node, "startOffset"), href ? href->get().value : std::string{}};
-                } else {
-                    static_assert(always_false<T>, "no SVG reader for this text alternative");
-                }
-                result = std::move(text);
-            });
-        if (!result) fail(SvgProblem::UnsupportedElement, node, {}, {}, std::string{element});
-        return std::move(*result);
-    }
-
-    Container read_container(const XmlNode& node, std::string_view element) const {
-        Container container;
-        container.child_attr = ChildAttr{};
-        std::optional<Container> result;
-        for_each_alternative<Container::Kinds>(
-            [&](const auto& alternative) {
-                using T = std::remove_cvref_t<decltype(alternative)>;
-                if (result || element_name(alternative) != element) return;
-                if constexpr (std::is_same_v<T, Container::Group>) {
-                    container.specific = Container::Group{string_or_empty(node, "data-kind")};
-                } else if constexpr (std::is_same_v<T, Container::Defs>) {
-                    container.specific = Container::Defs{};
-                } else if constexpr (std::is_same_v<T, Container::Symbol>) {
-                    container.specific = Container::Symbol{};
-                } else if constexpr (std::is_same_v<T, Container::Switch>) {
-                    container.specific = Container::Switch{};
-                } else if constexpr (std::is_same_v<T, Container::SVG>) {
-                    const std::optional<LengthPercentage> width = optional_length(node, "width");
-                    const std::optional<LengthPercentage> height = optional_length(node, "height");
-                    if (width) require_nonnegative(node, "width", *width);
-                    if (height) require_nonnegative(node, "height", *height);
-                    Container::SVG canvas{width, height};
-                    canvas.xmlns = string_or_empty(node, "xmlns");
-                    canvas.view_box = optional_view_box(node);
-                    container.specific = std::move(canvas);
-                } else {
-                    static_assert(always_false<T>, "no SVG reader for this container alternative");
-                }
-                result = std::move(container);
-            });
-        if (!result) fail(SvgProblem::UnsupportedElement, node, {}, {}, std::string{element});
-        return std::move(*result);
-    }
+    Shape read_shape(const XmlNode& node, std::string_view element) const;
+    Text read_text(const XmlNode& node, std::string_view element) const;
+    Container read_container(const XmlNode& node, std::string_view element) const;
 
     void remember_id(const XmlNode& node, const std::string& id) {
         if (id.empty()) return;
@@ -370,6 +290,159 @@ private:
     ParsedSvg parsed_;
     std::unordered_set<std::string> explicit_ids_;
 };
+
+// Element-name dispatch has to ask every alternative, not only the active one a
+// default-constructed variant would visit. Each alternative enters its own explicit
+// specialization; a new kind that has not been taught to the reader reaches the primary
+// template and fails with the assertion below.
+template<typename T>
+Shape::Kinds read_shape_payload(const SvgReader&, const XmlNode&) {
+    static_assert(always_false<T>, "no SVG reader for this shape alternative");
+    return Shape::Rect{};
+}
+
+template<>
+Shape::Kinds read_shape_payload<Shape::Rect>(const SvgReader& reader, const XmlNode& node) {
+    const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
+    const LengthPercentage width = reader.length_or(node, "width", zero);
+    const LengthPercentage height = reader.length_or(node, "height", zero);
+    reader.require_nonnegative(node, "width", width);
+    reader.require_nonnegative(node, "height", height);
+    return Shape::Rect{reader.length_or(node, "x", zero), reader.length_or(node, "y", zero), width, height};
+}
+
+template<>
+Shape::Kinds read_shape_payload<Shape::Circle>(const SvgReader& reader, const XmlNode& node) {
+    const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
+    const LengthPercentage radius = reader.length_or(node, "r", zero);
+    reader.require_nonnegative(node, "r", radius);
+    return Shape::Circle{reader.length_or(node, "cx", zero), reader.length_or(node, "cy", zero), radius};
+}
+
+template<>
+Shape::Kinds read_shape_payload<Shape::Ellipse>(const SvgReader& reader, const XmlNode& node) {
+    const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
+    const LengthPercentage rx = reader.length_or(node, "rx", zero);
+    const LengthPercentage ry = reader.length_or(node, "ry", zero);
+    reader.require_nonnegative(node, "rx", rx);
+    reader.require_nonnegative(node, "ry", ry);
+    return Shape::Ellipse{reader.length_or(node, "cx", zero), reader.length_or(node, "cy", zero), rx, ry};
+}
+
+template<>
+Shape::Kinds read_shape_payload<Shape::Line>(const SvgReader& reader, const XmlNode& node) {
+    const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
+    return Shape::Line{reader.length_or(node, "x1", zero), reader.length_or(node, "y1", zero),
+                       reader.length_or(node, "x2", zero), reader.length_or(node, "y2", zero)};
+}
+
+template<typename T>
+Text::Kinds read_text_payload(const SvgReader&, const XmlNode&) {
+    static_assert(always_false<T>, "no SVG reader for this text alternative");
+    return Text::Wrapper{};
+}
+
+template<>
+Text::Kinds read_text_payload<Text::Wrapper>(const SvgReader&, const XmlNode&) {
+    return Text::Wrapper{};
+}
+
+template<>
+Text::Kinds read_text_payload<Text::Span>(const SvgReader&, const XmlNode&) {
+    return Text::Span{};
+}
+
+template<>
+Text::Kinds read_text_payload<Text::Path>(const SvgReader& reader, const XmlNode& node) {
+    const auto href = reader.href_attribute(node);
+    return Text::Path{reader.optional_length(node, "startOffset"),
+                      href ? href->get().value : std::string{}};
+}
+
+template<typename T>
+Container::Kinds read_container_payload(const SvgReader&, const XmlNode&) {
+    static_assert(always_false<T>, "no SVG reader for this container alternative");
+    return Container::Group{};
+}
+
+template<>
+Container::Kinds read_container_payload<Container::Group>(const SvgReader& reader, const XmlNode& node) {
+    return Container::Group{reader.string_or_empty(node, "data-kind")};
+}
+
+template<>
+Container::Kinds read_container_payload<Container::Defs>(const SvgReader&, const XmlNode&) {
+    return Container::Defs{};
+}
+
+template<>
+Container::Kinds read_container_payload<Container::Symbol>(const SvgReader&, const XmlNode&) {
+    return Container::Symbol{};
+}
+
+template<>
+Container::Kinds read_container_payload<Container::Switch>(const SvgReader&, const XmlNode&) {
+    return Container::Switch{};
+}
+
+template<>
+Container::Kinds read_container_payload<Container::SVG>(const SvgReader& reader, const XmlNode& node) {
+    const std::optional<LengthPercentage> width = reader.optional_length(node, "width");
+    const std::optional<LengthPercentage> height = reader.optional_length(node, "height");
+    if (width) reader.require_nonnegative(node, "width", *width);
+    if (height) reader.require_nonnegative(node, "height", *height);
+    Container::SVG canvas{width, height};
+    canvas.xmlns = reader.string_or_empty(node, "xmlns");
+    canvas.view_box = reader.optional_view_box(node);
+    return canvas;
+}
+
+Shape SvgReader::read_shape(const XmlNode& node, std::string_view element) const {
+    std::optional<Shape> result;
+    for_each_alternative<Shape::Kinds>([&](const auto& alternative) {
+        using T = std::remove_cvref_t<decltype(alternative)>;
+        if (result || element_name(alternative) != element) return;
+        result = Shape{read_shape_payload<T>(*this, node)};
+    });
+    if (!result) fail(SvgProblem::UnsupportedElement, node, {}, {}, std::string{element});
+    return std::move(*result);
+}
+
+Text SvgReader::read_text(const XmlNode& node, std::string_view element) const {
+    Text text;
+    text.child_attr = ChildAttr{};
+    text.common.x = optional_length(node, "x");
+    text.common.y = optional_length(node, "y");
+    text.common.dx = optional_length(node, "dx");
+    text.common.dy = optional_length(node, "dy");
+    text.common.text_anchor = optional_text_anchor(node);
+    text.common.font_size = optional_length(node, "font-size");
+    if (text.common.font_size) require_nonnegative(node, "font-size", *text.common.font_size);
+
+    std::optional<Text::Kinds> specific;
+    for_each_alternative<Text::Kinds>([&](const auto& alternative) {
+        using T = std::remove_cvref_t<decltype(alternative)>;
+        if (specific || element_name(alternative) != element) return;
+        specific = read_text_payload<T>(*this, node);
+    });
+    if (!specific) fail(SvgProblem::UnsupportedElement, node, {}, {}, std::string{element});
+    text.specific = std::move(*specific);
+    return text;
+}
+
+Container SvgReader::read_container(const XmlNode& node, std::string_view element) const {
+    std::optional<Container::Kinds> specific;
+    for_each_alternative<Container::Kinds>([&](const auto& alternative) {
+        using T = std::remove_cvref_t<decltype(alternative)>;
+        if (specific || element_name(alternative) != element) return;
+        specific = read_container_payload<T>(*this, node);
+    });
+    if (!specific) fail(SvgProblem::UnsupportedElement, node, {}, {}, std::string{element});
+    Container container;
+    container.child_attr = ChildAttr{};
+    container.specific = std::move(*specific);
+    return container;
+}
 
 }  // namespace
 

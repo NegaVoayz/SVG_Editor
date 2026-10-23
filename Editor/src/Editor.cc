@@ -19,18 +19,33 @@
 
 namespace {
 
+template<typename T>
+std::optional<event::EditEvent> edit_event_of(const T& value) {
+    static_assert(std::is_constructible_v<event::EditEvent, T>,
+                  "a non-edit event must be excluded explicitly");
+    return event::EditEvent{value};
+}
+
+template<>
+std::optional<event::EditEvent> edit_event_of<event::Undone>(const event::Undone&) {
+    return std::nullopt;
+}
+
+template<>
+std::optional<event::EditEvent> edit_event_of<event::Redone>(const event::Redone&) {
+    return std::nullopt;
+}
+
+template<>
+std::optional<event::EditEvent> edit_event_of<event::CheckedOut>(const event::CheckedOut&) {
+    return std::nullopt;
+}
+
 std::optional<event::EditEvent> edit_event_of(const Event& event) {
     return std::visit(
         [](const auto& value) -> std::optional<event::EditEvent> {
             using T = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<T, event::Undone> || std::is_same_v<T, event::Redone> ||
-                          std::is_same_v<T, event::CheckedOut>) {
-                return std::nullopt;
-            } else {
-                static_assert(std::is_constructible_v<event::EditEvent, T>,
-                              "a non-edit event must be excluded explicitly");
-                return event::EditEvent{value};
-            }
+            return edit_event_of<T>(value);
         },
         event);
 }

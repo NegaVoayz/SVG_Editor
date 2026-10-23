@@ -19,6 +19,27 @@
 
 namespace {
 
+template<typename T>
+ElementData element_data_of(const T&) {
+    static_assert(always_false<T>, "no view projection for this element payload");
+    return Shape{};
+}
+
+template<>
+ElementData element_data_of<Shape>(const Shape& payload) {
+    return payload;
+}
+
+template<>
+ElementData element_data_of<Container>(const Container& payload) {
+    return ContainerShape{payload.specific};
+}
+
+template<>
+ElementData element_data_of<Text>(const Text& payload) {
+    return TextShape{payload.common, payload.specific};
+}
+
 // Project one stored payload onto the storage-independent view vocabulary. The SVGNode
 // links stay in Model; only the element's named attributes and data cross the boundary.
 struct ShapeOf {
@@ -26,15 +47,7 @@ struct ShapeOf {
         ElementData data = std::visit(
             [](const auto& payload) -> ElementData {
                 using T = std::remove_cvref_t<decltype(payload)>;
-                if constexpr (std::is_same_v<T, Shape>) {
-                    return payload;
-                } else if constexpr (std::is_same_v<T, Container>) {
-                    return ContainerShape{payload.specific};
-                } else if constexpr (std::is_same_v<T, Text>) {
-                    return TextShape{payload.common, payload.specific};
-                } else {
-                    static_assert(always_false<T>, "no view projection for this element payload");
-                }
+                return element_data_of<T>(payload);
             },
             element.data);
         return ElementShape{element.identity_attr, element.paint_attr, std::move(data)};

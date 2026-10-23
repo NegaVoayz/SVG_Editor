@@ -147,19 +147,26 @@ struct AttrsText {
     }
 };
 
-struct ElementDataName {
-    template <class T>
-    std::string_view operator()(const T& payload) const {
-        using Payload = std::remove_cvref_t<T>;
-        if constexpr (std::is_same_v<Payload, Shape> || std::is_same_v<Payload, ContainerShape> ||
-                      std::is_same_v<Payload, TextShape>) {
-            return std::visit([](const auto& specific) { return element_name(specific); }, payload.specific);
-        } else {
-            static_assert(always_false<Payload>, "no element name for this view payload");
-            return {};
-        }
-    }
-};
+template<class T>
+std::string_view element_data_name(const T&) {
+    static_assert(always_false<T>, "no element name for this view payload");
+    return {};
+}
+
+template<>
+std::string_view element_data_name<Shape>(const Shape& payload) {
+    return std::visit([](const auto& specific) { return element_name(specific); }, payload.specific);
+}
+
+template<>
+std::string_view element_data_name<ContainerShape>(const ContainerShape& payload) {
+    return std::visit([](const auto& specific) { return element_name(specific); }, payload.specific);
+}
+
+template<>
+std::string_view element_data_name<TextShape>(const TextShape& payload) {
+    return std::visit([](const auto& specific) { return element_name(specific); }, payload.specific);
+}
 
 // --- one line's worth of a node ---
 
@@ -187,7 +194,12 @@ std::string joined_details(const Words& words) {
 
 Words element_words(const ElementShape& element, const Transform& transform, const std::string& text) {
     Words words;
-    const std::string_view kind = std::visit(ElementDataName{}, element.data);
+    const std::string_view kind = std::visit(
+        [](const auto& payload) {
+            using T = std::remove_cvref_t<decltype(payload)>;
+            return element_data_name<T>(payload);
+        },
+        element.data);
     // The kind and the id the user wrote: the handle is not part of the drawing, because
     // it is the hive's virtual id, which is never reused for another node.
     words.name = element.identity_attr.id.empty()
