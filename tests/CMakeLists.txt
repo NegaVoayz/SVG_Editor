@@ -308,13 +308,31 @@ set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION
 add_test(NAME cli_create_box COMMAND $<TARGET_FILE:Cli>
     "init; create box status 10 20 120 40 \"Ready\" #00ff00; tree; history")
 set_tests_properties(cli_create_box PROPERTIES PASS_REGULAR_EXPRESSION
-    "g#status created\nsvg \\(800 x 600 user units\\)\n└── g#status\n    ├── rect#status-rect   x=10 y=20 w=120 h=40 fill=#00ff00\n    └── text#status-label  \\(10,20\\) text=\"Ready\"\n2  g#status created \\(HEAD\\)\n1  baseline")
+    "g#status created\nsvg \\(800 x 600 user units\\)\n└── g#status \\(box\\)\n    ├── rect#status-rect   x=10 y=20 w=120 h=40 fill=#00ff00\n    └── text#status-label  \\(10,20\\) text=\"Ready\"\n2  g#status created \\(HEAD\\)\n1  baseline")
+
+# The box id routes to its label.
+add_test(NAME cli_box_label COMMAND $<TARGET_FILE:Cli>
+    "init; create box status 0 0 10 10 \"L\"; set status content \"N\"")
+set_tests_properties(cli_box_label PROPERTIES
+    PASS_REGULAR_EXPRESSION "g#status updated: text=\"N\"")
+
+# A composite cannot be dismantled by ungroup.
+add_test(NAME cli_box_ungroup COMMAND $<TARGET_FILE:Cli>
+    "init; create box status 0 0 10 10 \"L\"; ungroup status")
+set_tests_properties(cli_box_ungroup PROPERTIES
+    PASS_REGULAR_EXPRESSION "error: cannot ungroup composite shape: status")
+
+# The composite marker is visible through both tree and show.
+add_test(NAME cli_box_marker COMMAND $<TARGET_FILE:Cli>
+    "init; create box status 0 0 10 10 \"L\"; show status; tree")
+set_tests_properties(cli_box_marker PROPERTIES
+    PASS_REGULAR_EXPRESSION "g#status \\(box\\)  parent=svg\nsvg \\(800 x 600 user units\\)\n└── g#status \\(box\\)")
 
 # The marker makes a saved composite editable as one named box after it is read back.
 add_test(NAME cli_create_box_roundtrip COMMAND $<TARGET_FILE:Cli>
     "init; create box status 10 20 120 40 \"Ready\" #00ff00; save ${CMAKE_CURRENT_BINARY_DIR}/cli_box.svg; read ${CMAKE_CURRENT_BINARY_DIR}/cli_box.svg; set status fill blue; show status-rect")
 set_tests_properties(cli_create_box_roundtrip PROPERTIES PASS_REGULAR_EXPRESSION
-    "saved to .*cli_box\\.svg \\(3 elements\\)\nread .*cli_box\\.svg \\(3 elements\\)\ng#status updated: fill=blue\nrect#status-rect  parent=g#status\n  x=10 y=20 w=120 h=40\n  fill=blue")
+    "saved to .*cli_box\\.svg \\(3 elements\\)\nread .*cli_box\\.svg \\(3 elements\\)\ng#status updated: fill=blue\nrect#status-rect  parent=g#status \\(box\\)\n  x=10 y=20 w=120 h=40\n  fill=blue")
 
 # A derived id that is already taken leaves no group or partial child behind.
 add_test(NAME cli_create_box_atomic COMMAND $<TARGET_FILE:Cli>
