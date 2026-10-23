@@ -145,6 +145,24 @@ void Document::clear_history(bool io) {
     io_barrier_ = io;
 }
 
+void Document::begin_instruction() {
+    instruction_open_ = true;
+    instruction_commits_ = 0;
+}
+
+void Document::finish_instruction() {
+    instruction_open_ = false;
+    instruction_commits_ = 0;
+}
+
+void Document::note_commit() {
+    if (!instruction_open_) return;
+    if (instruction_commits_ != 0) {
+        throw std::logic_error("Document: one instruction cannot commit more than once");
+    }
+    ++instruction_commits_;
+}
+
 Transaction::Transaction(Document& document) : document_(document), edit_(document.store_.begin()) {}
 
 Transaction::~Transaction() {
@@ -173,26 +191,32 @@ void Transaction::attach_last(Id parent, Id node) { attach_at(parent, no_id, nod
 
 Id Transaction::insert_at(Id parent, Id before, Node payload) {
     require_open();
-    return document_.store_.insert_at(edit_, parent, before, std::move(payload));
+    const Id node = document_.store_.insert_at(edit_, parent, before, std::move(payload));
+    changed_ = true;
+    return node;
 }
 
 void Transaction::attach_at(Id parent, Id before, Id node) {
     require_open();
     document_.store_.attach_at(edit_, parent, before, node);
+    changed_ = true;
 }
 
 void Transaction::update(Id node, Node payload) {
     require_open();
     document_.store_.update(edit_, node, std::move(payload));
+    changed_ = true;
 }
 
 void Transaction::erase(Id node) {
     require_open();
     document_.store_.erase_subtree(edit_, node);
+    changed_ = true;
 }
 
 void Transaction::commit(CommitId commit) {
     if (closed_) return;
+    document_.note_commit();
     document_.store_.commit(edit_, commit);
     closed_ = true;
 }

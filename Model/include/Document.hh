@@ -12,6 +12,7 @@
 #include "SVGNode.hh"
 #include "TreeStore.hh"
 
+class Editor;
 class Transaction;
 
 // The document is the tree, its history, and the file it came from. It has two
@@ -142,6 +143,7 @@ public:
     void clear_history(bool io = false);
 
     friend class Transaction;
+    friend class Editor;
 
 private:
     // The arena is a member, not something behind another pointer: a document and
@@ -150,6 +152,16 @@ private:
     TreeStore store_;
     std::string source_path_;  // the file open() read, if it read one
     bool io_barrier_ = false;
+
+    // The Editor brackets one instruction with these. A translation may request one
+    // commit, but a second one is a broken edit rather than two history entries with no
+    // outcome for the first. Navigation instructions do not commit and leave the count
+    // at zero.
+    void begin_instruction();
+    void finish_instruction();
+    void note_commit();
+    bool instruction_open_ = false;
+    std::size_t instruction_commits_ = 0;
 };
 
 // One user-level edit. The ops are applied to the tree as they come, and the
@@ -167,6 +179,11 @@ public:
 
     Transaction(const Transaction&) = delete;
     Transaction& operator=(const Transaction&) = delete;
+
+    // Whether any edit has been staged. The Editor's commit helper refuses an empty
+    // translation; direct callers may still use an explicit empty commit to align a
+    // second hive on the same checkout id.
+    bool empty() const { return !changed_; }
 
     // Add a new node as the last child of a parent. The last place is the cheap
     // end for the link layout, and the new node's handle is returned.
@@ -207,5 +224,6 @@ private:
 
     Document& document_;
     TreeStore::Edit edit_;
+    bool changed_ = false;
     bool closed_ = false;
 };

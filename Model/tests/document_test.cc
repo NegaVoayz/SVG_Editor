@@ -186,11 +186,22 @@ int main() {
     }
 
     // one transaction is one block, so both children go back together
+    {
+        Transaction empty_edit = document.transaction();
+        const std::size_t before = document.position();
+        const CommitId before_commit = document.commit_id();
+        CHECK(empty_edit.empty());
+        CHECK(document.position() == before);
+        CHECK(document.commit_id() == before_commit);
+    }
+
     Id first = no_id;
     Id second = no_id;
     {
         Transaction edit = document.transaction();
+        CHECK(edit.empty());
         first = edit.append_child(root, group("first"));
+        CHECK(!edit.empty());
         second = edit.append_child(root, group("second"));
         edit.commit();
     }

@@ -18,6 +18,14 @@ target_link_libraries(create_atomicity_test PRIVATE
     SvgEditor::Warnings)
 add_test(NAME create_atomicity COMMAND create_atomicity_test)
 
+# Every mutating verb gets the same one-history-step check. History navigation is checked
+# separately because it moves the checkout without adding a block.
+add_executable(transaction_atomicity_test transaction_atomicity_test.cc)
+target_link_libraries(transaction_atomicity_test PRIVATE
+    SvgEditor::Planner
+    SvgEditor::Warnings)
+add_test(NAME transaction_atomicity COMMAND transaction_atomicity_test)
+
 # the rule the target graph no longer expresses: no module outside Model/ may use
 # MVCCHive, so the sources are read rather than the link lines
 add_test(NAME layering

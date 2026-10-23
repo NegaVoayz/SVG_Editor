@@ -115,6 +115,7 @@ Outcome Editor::translate(const ChangeIntent& intent) {
     sync_history_events();
     const std::size_t before_position = document_.position();
     const CommitId before_commit = document_.commit_id();
+    document_.begin_instruction();
     Outcome outcome = refused(Kind::Change, fault::InternalError{});
     try {
         outcome = std::visit([this](const auto& value) { return handle(value); }, intent);
@@ -128,6 +129,7 @@ Outcome Editor::translate(const ChangeIntent& intent) {
         }
         outcome = refused(Kind::Change, fault::InternalError{});
     }
+    document_.finish_instruction();
 
     const std::size_t after_position = document_.position();
     const CommitId after_commit = document_.commit_id();
@@ -139,7 +141,7 @@ Outcome Editor::translate(const ChangeIntent& intent) {
         // describe. History navigation reports an event too, but moves the checkout
         // without writing a new block, and is excluded by edit_event_of.
         if (std::optional<event::EditEvent> edit = edit_event_of(outcome.event())) {
-            if (after_position > before_position + 1) {
+            if (after_position != before_position + 1) {
                 if (const char* debug = std::getenv("SVG_EDITOR_DEBUG");
                     debug != nullptr && *debug != '\0') {
                     std::cerr << "internal edit failure: one instruction committed more than once\n";

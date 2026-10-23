@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -50,5 +51,10 @@ Node make_group(std::string svg_id);
 
 // Every user edit takes the next id from the process coordinator and hands it to
 // MVCCHive explicitly. The hive's native commit id is then the shared checkout id,
-// including for an empty commit a second hive needs in order to stay aligned.
-inline void commit_edit(Transaction& edit) { edit.commit(next_commit_id()); }
+// including for an empty commit a second hive needs in order to stay aligned. A user
+// translation never needs that alignment case: an edit that staged nothing is a broken
+// translation, not a history entry with no outcome.
+inline void commit_edit(Transaction& edit) {
+    if (edit.empty()) throw std::logic_error("Editor: an instruction staged no edit");
+    edit.commit(next_commit_id());
+}
