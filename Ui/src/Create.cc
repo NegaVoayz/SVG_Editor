@@ -73,6 +73,16 @@ Create build_text(const std::string& id, const Words& values, const NodeRef& par
     return intent;
 }
 
+Create build_box(const std::string& id, const Words& values, const NodeRef& parent) {
+    expect_between(values.size(), 5, 6,
+                   "create box takes '<id> <x> <y> <w> <h> \"label\" [fill] [in <gid>]'");
+    CreateBox intent{id, length_of(values[0]), length_of(values[1]), length_of(values[2]),
+                     length_of(values[3]), values[4], std::nullopt};
+    if (values.size() == 6) intent.fill = color_of(values[5]);
+    intent.parent = parent;
+    return intent;
+}
+
 // The kinds a `create` may name, in the order the help lists them. The array size is
 // deduced from the rows, so adding an initializer cannot leave an empty lookup row.
 constexpr auto kinds = std::to_array<ElementKind>({
@@ -82,6 +92,7 @@ constexpr auto kinds = std::to_array<ElementKind>({
     {"line", build_line},
     {"text", build_text},
     {"g", build_group},
+    {"box", build_box},
 });
 
 constexpr auto kind_names = [] {

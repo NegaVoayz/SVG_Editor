@@ -1,6 +1,6 @@
-// Building an element. Six kinds share one body, because what differs between them is
-// only what they bring: the element itself, the tag a message names it by, and the words
-// to put inside it when the element is a text.
+// Building an element. Seven kinds share one body, because what differs between them is
+// only the detached subtree they bring: one element, text character data, or a composite
+// tree whose nodes are written together.
 //
 // The second level of the dispatch lives here too: `handle<Create>` is the question of which
 // element a create holds, asked where the builders it may answer with are.
@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 
@@ -88,6 +89,27 @@ std::optional<Refusal> dimension_problem(const CreateText& intent) {
 
 std::optional<Refusal> dimension_problem(const CreateGroup&) { return std::nullopt; }
 
+std::optional<Refusal> dimension_problem(const CreateBox& intent) {
+    if (std::optional<Refusal> problem = finite_length("x", intent.x)) return problem;
+    if (std::optional<Refusal> problem = finite_length("y", intent.y)) return problem;
+    if (std::optional<Refusal> problem = nonnegative("width", intent.width)) return problem;
+    return nonnegative("height", intent.height);
+}
+
+std::optional<Refusal> subtree_id_problem(const Document& document, const Subtree& subtree,
+                                          std::unordered_set<std::string>& seen) {
+    if (const SVGNode* element = std::get_if<SVGNode>(&subtree.payload)) {
+        const std::string& id = element->identity_attr.id;
+        if (!valid_svg_id(id)) return fault::InvalidId{id};
+        if (reserved_svg_id(id)) return fault::ReservedId{id};
+        if (document.find(id) || !seen.insert(id).second) return fault::DuplicateId{id};
+    }
+    for (const Subtree& child : subtree.children) {
+        if (std::optional<Refusal> problem = subtree_id_problem(document, child, seen)) return problem;
+    }
+    return std::nullopt;
+}
+
 }  // namespace
 
 // The one element that is built for an edit rather than for a command: `group` takes
@@ -96,61 +118,77 @@ Node make_group(std::string svg_id) {
     return element(std::move(svg_id), Container{ChildAttr{}, Container::Group{}});
 }
 
-Editor::NewElement Editor::new_element(const CreateGroup& intent) const {
-    return NewElement{make_group(intent.id), std::nullopt};
+Subtree Editor::new_element(const CreateGroup& intent) const {
+    return Subtree{make_group(intent.id), {}};
 }
 
-Editor::NewElement Editor::new_element(const CreateRect& intent) const {
+Subtree Editor::new_element(const CreateRect& intent) const {
     Node payload = element(intent.id, Shape{Shape::Rect{intent.x, intent.y, intent.width, intent.height}});
     fill(payload, intent.fill);
-    return NewElement{std::move(payload), std::nullopt};
+    return Subtree{std::move(payload), {}};
 }
 
-Editor::NewElement Editor::new_element(const CreateCircle& intent) const {
+Subtree Editor::new_element(const CreateCircle& intent) const {
     Node payload = element(intent.id, Shape{Shape::Circle{intent.cx, intent.cy, intent.r}});
     fill(payload, intent.fill);
-    return NewElement{std::move(payload), std::nullopt};
+    return Subtree{std::move(payload), {}};
 }
 
-Editor::NewElement Editor::new_element(const CreateEllipse& intent) const {
+Subtree Editor::new_element(const CreateEllipse& intent) const {
     Node payload = element(intent.id, Shape{Shape::Ellipse{intent.cx, intent.cy, intent.rx, intent.ry}});
     fill(payload, intent.fill);
-    return NewElement{std::move(payload), std::nullopt};
+    return Subtree{std::move(payload), {}};
 }
 
-Editor::NewElement Editor::new_element(const CreateLine& intent) const {
+Subtree Editor::new_element(const CreateLine& intent) const {
     Node payload = element(intent.id, Shape{Shape::Line{intent.x1, intent.y1, intent.x2, intent.y2}});
     stroke(payload, intent.stroke);
-    return NewElement{std::move(payload), std::nullopt};
+    return Subtree{std::move(payload), {}};
 }
 
-Editor::NewElement Editor::new_element(const CreateText& intent) const {
+Subtree Editor::new_element(const CreateText& intent) const {
     Text text;
     text.common.x = intent.x;
     text.common.y = intent.y;
     text.child_attr = ChildAttr{};  // an empty child list, filled when children arrive
-    return NewElement{element(intent.id, std::move(text)), intent.content};
+    return Subtree{element(intent.id, std::move(text)),
+                   {Subtree{characters(intent.content), {}}}};
+}
+
+Subtree Editor::new_element(const CreateBox& intent) const {
+    Node group = element(intent.id, Container{ChildAttr{}, Container::Group{std::string{"box"}}});
+    Node outline =
+        element(intent.id + "-rect", Shape{Shape::Rect{intent.x, intent.y, intent.width, intent.height}});
+    fill(outline, intent.fill);
+
+    Text label;
+    label.common.x = intent.x;
+    label.common.y = intent.y;
+    label.child_attr = ChildAttr{};
+    Subtree label_node{element(intent.id + "-label", std::move(label)),
+                       {Subtree{characters(intent.label), {}}}};
+
+    return Subtree{std::move(group),
+                   {Subtree{std::move(outline), {}}, std::move(label_node)}};
 }
 
 template<typename T>
 Outcome Editor::create(const T& intent) {
-    if (!valid_svg_id(intent.id)) return refused(Kind::Change, fault::InvalidId{intent.id});
-    if (reserved_svg_id(intent.id)) return refused(Kind::Change, fault::ReservedId{intent.id});
     std::optional<Refusal> problem = dimension_problem(intent);
     if (problem) return refused(Kind::Change, std::move(*problem));
 
-    NewElement built = new_element(intent);
-    if (document_.find(intent.id)) {
-        return refused(Kind::Change, fault::DuplicateId{intent.id});
+    Subtree built = new_element(intent);
+    std::unordered_set<std::string> ids;
+    if (std::optional<Refusal> id_problem = subtree_id_problem(document_, built, ids)) {
+        return refused(Kind::Change, std::move(*id_problem));
     }
     const std::expected<Id, Refusal> parent = resolve_container(intent.parent);
     if (!parent) return refused(Kind::Change, parent.error());
 
-    // The element and its content are two nodes, and one instruction is one
-    // transaction, so either both are written or neither is.
+    // Whatever the kind brought is one instruction, so the Model writes the whole tree in
+    // one transaction and one undo takes it back.
     Transaction edit = document_.transaction();
-    const Id node = edit.append_child(*parent, std::move(built.payload));
-    if (built.content) edit.append_child(node, characters(std::move(*built.content)));
+    const Id node = edit.append_subtree(*parent, std::move(built));
     commit_edit(edit);
     const bool parent_named = intent.parent_named || !std::holds_alternative<RootRef>(intent.parent);
     return happened(Kind::Change,

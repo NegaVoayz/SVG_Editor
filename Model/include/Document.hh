@@ -172,6 +172,10 @@ public:
     // end for the link layout, and the new node's handle is returned.
     Id append_child(Id parent, Node payload);
 
+    // Add a whole tree below a parent in one call, all within the transaction this
+    // method belongs to. The root of the inserted tree is returned.
+    Id append_subtree(Id parent, Subtree subtree);
+
     // Move an existing node under a parent, last among its siblings. The node
     // keeps its own children, and a node cannot be moved into its own subtree.
     void attach_last(Id parent, Id node);

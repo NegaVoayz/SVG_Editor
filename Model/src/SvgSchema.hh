@@ -20,6 +20,7 @@ inline constexpr std::string_view common_attributes[] = {
 };
 
 inline constexpr std::string_view svg_attributes[] = {"width", "height", "viewBox", "xmlns"};
+inline constexpr std::string_view group_attributes[] = {"data-kind"};
 inline constexpr std::string_view rect_attributes[] = {"x", "y", "width", "height"};
 inline constexpr std::string_view circle_attributes[] = {"cx", "cy", "r"};
 inline constexpr std::string_view ellipse_attributes[] = {"cx", "cy", "rx", "ry"};
@@ -34,7 +35,7 @@ inline constexpr auto no_attributes = std::array<std::string_view, 0>{};
 
 inline constexpr ElementSchema elements[] = {
     {"svg", svg_attributes},
-    {"g", no_attributes},
+    {"g", group_attributes},
     {"defs", no_attributes},
     {"symbol", no_attributes},
     {"switch", no_attributes},

@@ -100,6 +100,7 @@ The instructions are:
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]` | a line                                                     |
 | `create text <id> <x> <y> "content"`            | a text element, and the character data inside it           |
 | `create g <id>`                                 | a group                                                    |
+| `create box <id> <x> <y> <w> <h> "label" [fill]` | a labelled box: a marked group with a rectangle and text |
 | `delete <id>`                                   | the node and its descendants                               |
 | `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants |
 | `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants |
@@ -119,6 +120,12 @@ element is the last child of the root. A node is named by its SVG id; `/` or `sv
 the root. `svg` is reserved for the root: `create` and `group` refuse it as an id, and
 `read` renames a non-root element that carries it, printing a warning with the new id.
 The hive's internal handle is not part of the command language.
+
+A box is one instruction and one history entry even though it writes three elements:
+`status-rect` and `status-label` are derived children of `g#status`. The group is saved
+with `data-kind="box"`, so reading the file restores the same editable box. Setting the
+box's fill updates its outline as part of the same commit. A collision with either
+derived id is refused before the box writes anything.
 
 Quotes group words that contain spaces, which is how text content and file paths are
 written. A quote or backslash inside one is written `\"` or `\\`, and the same escaping

@@ -76,22 +76,16 @@ private:
     // other containers. A text holds character data but is not this kind of container.
     std::expected<Id, Refusal> resolve_container(const NodeRef& reference) const;
 
-    // What one create brings: the element itself, and the words to put inside it when the
-    // element is a text. A text holds character data in a child node rather than in an
-    // attribute, which is why that is a second node.
-    struct NewElement {
-        Node payload;
-        std::optional<std::string> content;
-    };
-
-    // One per element kind: what each kind builds. The primary template asks for these by
-    // name, so a kind with no overload here does not compile.
-    NewElement new_element(const CreateRect& intent) const;
-    NewElement new_element(const CreateCircle& intent) const;
-    NewElement new_element(const CreateEllipse& intent) const;
-    NewElement new_element(const CreateLine& intent) const;
-    NewElement new_element(const CreateText& intent) const;
-    NewElement new_element(const CreateGroup& intent) const;
+    // One per element kind: what each kind brings as a detached tree. A single element
+    // fills only the payload; a composite fills children too. The primary template asks
+    // for these by name, so a kind with no overload here does not compile.
+    Subtree new_element(const CreateRect& intent) const;
+    Subtree new_element(const CreateCircle& intent) const;
+    Subtree new_element(const CreateEllipse& intent) const;
+    Subtree new_element(const CreateLine& intent) const;
+    Subtree new_element(const CreateText& intent) const;
+    Subtree new_element(const CreateGroup& intent) const;
+    Subtree new_element(const CreateBox& intent) const;
 
     // One create for every kind: the id has to be free, the element goes last among the
     // children of the parent the instruction named, and the body is written once. Which

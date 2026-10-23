@@ -163,6 +163,12 @@ void Transaction::require_open() const {
 
 Id Transaction::append_child(Id parent, Node payload) { return insert_at(parent, no_id, std::move(payload)); }
 
+Id Transaction::append_subtree(Id parent, Subtree subtree) {
+    const Id node = append_child(parent, std::move(subtree.payload));
+    for (Subtree& child : subtree.children) append_subtree(node, std::move(child));
+    return node;
+}
+
 void Transaction::attach_last(Id parent, Id node) { attach_at(parent, no_id, node); }
 
 Id Transaction::insert_at(Id parent, Id before, Node payload) {

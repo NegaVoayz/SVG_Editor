@@ -64,6 +64,16 @@ struct CreateGroup {
     NodeRef parent = RootRef{};
     bool parent_named = false;
 };
+// A composite create: the group is the node the user names, while the outline and
+// label are derived children written with it in the same transaction.
+struct CreateBox {
+    std::string id;
+    LengthPercentage x, y, width, height;
+    std::string label;
+    std::optional<Color> fill;
+    NodeRef parent = RootRef{};
+    bool parent_named = false;
+};
 struct Delete { NodeRef node; };
 // The selectors are optional. With neither, a leaf changes its own params and a
 // container changes its descendants' params; the Editor refuses the combinations that
@@ -290,7 +300,8 @@ struct Save { std::optional<std::string> path; };
 // The element instructions, one variant of their own: which element a line asks for is a
 // question for the layer that builds one, so the Planner only has to know that a line is a
 // create, and the Editor asks the second question when it is the one holding the line.
-using Create = std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup>;
+using Create =
+    std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup, CreateBox>;
 
 // One instruction, of exactly one of those types: the front end produces it and both the
 // Planner and the Editor dispatch on it with std::visit, so every case is answered by a

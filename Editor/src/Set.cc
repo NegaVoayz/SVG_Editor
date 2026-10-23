@@ -492,11 +492,42 @@ Outcome apply(Document& document, Id node, const SetClass& intent) {
     });
 }
 
+// A composite box keeps its kind in the group and the visible outline in its derived
+// rect. Setting the box's fill therefore updates both in one transaction.
+std::optional<Id> box_outline(Document& document, Id node) {
+    const std::optional<Node> payload = document.node(node);
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return std::nullopt;
+    const SVGNode& element = std::get<SVGNode>(*payload);
+    if (!std::holds_alternative<Container>(element.data)) return std::nullopt;
+    const Container& container = std::get<Container>(element.data);
+    if (!std::holds_alternative<Container::Group>(container.specific)) return std::nullopt;
+    const std::string& kind = std::get<Container::Group>(container.specific).data_kind;
+    if (kind != "box") return std::nullopt;
+    return document.find(element.identity_attr.id + "-rect");
+}
+
 Outcome apply(Document& document, Id node, const SetFill& intent) {
-    return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
-        element.paint_attr.fill = value;
-        return true;
-    });
+    const std::optional<Id> outline = box_outline(document, node);
+    if (!outline) {
+        return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
+            element.paint_attr.fill = value;
+            return true;
+        });
+    }
+
+    std::optional<Node> group = document.node(node);
+    std::optional<Node> rect = document.node(*outline);
+    if (!group || !rect) return refused(Kind::Change, fault::InternalError{});
+    std::get<SVGNode>(*group).paint_attr.fill = intent.value;
+    std::get<SVGNode>(*rect).paint_attr.fill = intent.value;
+
+    Transaction edit = document.transaction();
+    edit.update(node, std::move(*group));
+    edit.update(*outline, std::move(*rect));
+    commit_edit(edit);
+    return happened(Kind::Change, event::AttributeSet{
+                                      name_of(document, node), std::string{SetFill::name},
+                                      attribute_value_text(intent.value)});
 }
 
 Outcome apply(Document& document, Id node, const SetStroke& intent) {

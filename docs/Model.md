@@ -21,6 +21,7 @@ std::size_t element_count() const;
 // editing: one user intent, one undoable block
 Transaction transaction();
 Id append_child(Id parent, Node payload);
+Id append_subtree(Id parent, Subtree subtree);
 void attach_last(Id parent, Id node);
 Id insert_at(Id parent, Id before, Node payload);   // before a sibling; no_id is the end
 void attach_at(Id parent, Id before, Id node);
@@ -52,6 +53,11 @@ and the destruction without `commit()` rolls the whole thing back, so an edit th
 fails half way - a bad handle, a parser that refuses, an exception - leaves
 nothing behind. That is also why the Editor is the only writer: undo and redo are
 edits of the history, not of the tree, and they go through the same path.
+
+A `Subtree` is a node and its detached descendants. `append_subtree` recursively appends
+that tree under a parent within the current transaction, so a composite create needs one
+commit without knowing how links are threaded. The inserted nodes keep the ids in the
+subtree; regenerating them belongs to a future deep-copy operation.
 
 ## The canvas, and the checkpoints
 
@@ -386,8 +392,9 @@ path is checked rather than only relying on the fixture's current attributes.
 
 ## What is not there yet
 
-- the element kinds the Editor can create are the four shapes, a text and a group. The
-  model has no `path` at all; a `defs`, `symbol` or `switch` can arrive from a file.
+- the element kinds the Editor can create are the four shapes, a text, a group and a box.
+  A box is a group marked with `data-kind="box"` plus derived outline and label children.
+  The model has no `path` at all; a `defs`, `symbol` or `switch` can arrive from a file.
 - the strict SVG subset has no path data, gradients or other paint-server definitions,
   style sheets, alpha channels, masks or filters. A file using them is refused
   until the corresponding model value and exhaustive visitors exist.

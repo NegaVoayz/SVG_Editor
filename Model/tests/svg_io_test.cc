@@ -91,6 +91,7 @@ int main() {
     CHECK(!svg_schema::is_element("path"));
     CHECK(svg_schema::accepts_attribute("rect", "x"));
     CHECK(svg_schema::accepts_attribute("rect", "fill"));
+    CHECK(svg_schema::accepts_attribute("g", "data-kind"));
     CHECK(!svg_schema::accepts_attribute("rect", "viewBox"));
     CHECK(svg_schema::accepts_attribute("textPath", "startOffset"));
     CHECK(!svg_schema::accepts_attribute("textPath", "transform-origin"));
@@ -412,6 +413,35 @@ int main() {
             const Color& fill = std::get<Color>(*payload->paint_attr.fill);
             CHECK(std::holds_alternative<Color::Named>(fill.specific));
             CHECK(std::get<Color::Named>(fill.specific).id == Color::NamedColorId::RebeccaPurple);
+        }
+    }
+
+    // A composite kind keeps its marker through a save and read, while the file remains
+    // an ordinary SVG group for consumers that do not know the kind.
+    const std::filesystem::path composite_path = file_named("svg_io_composite_kind.svg");
+    CHECK(write_text(composite_path,
+                     R"SVG(<svg><g id="status" data-kind="box"><rect id="status-rect" width="10" height="10"/></g></svg>)SVG"));
+    Document composite_document;
+    const Status composite_opened = composite_document.open(composite_path.string());
+    CHECK(ok(composite_opened));
+    if (ok(composite_opened)) {
+        CHECK(ok(composite_document.save(composite_path.string())));
+        CHECK(read_text(composite_path).find("<g id=\"status\" data-kind=\"box\">") != std::string::npos);
+        Document composite_reread;
+        CHECK(ok(composite_reread.open(composite_path.string())));
+        const std::optional<Id> composite = named(composite_reread, "status");
+        CHECK(composite.has_value());
+        if (composite) {
+            const std::optional<SVGNode> payload = element_at(composite_reread, *composite);
+            CHECK(payload.has_value());
+            if (payload && std::holds_alternative<Container>(payload->data)) {
+                const Container& container = std::get<Container>(payload->data);
+                CHECK(std::holds_alternative<Container::Group>(container.specific));
+                if (std::holds_alternative<Container::Group>(container.specific)) {
+                    const std::string& kind = std::get<Container::Group>(container.specific).data_kind;
+                    CHECK(kind == "box");
+                }
+            }
         }
     }
 

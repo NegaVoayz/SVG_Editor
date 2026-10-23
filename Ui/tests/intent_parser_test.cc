@@ -174,6 +174,18 @@ int main() {
     CHECK(holds<CreateGroup>(group));
     if (holds<CreateGroup>(group)) CHECK(as<CreateGroup>(group).id == "layer");
 
+    const Request box = parse("create box status 10 20 120 40 \"Ready\" #00ff00 in layer");
+    CHECK(holds<CreateBox>(box));
+    if (holds<CreateBox>(box)) {
+        const CreateBox& intent = as<CreateBox>(box);
+        CHECK(intent.id == "status");
+        CHECK(intent.label == "Ready");
+        CHECK(std::get<Length>(intent.width).value == 120.0F);
+        CHECK(intent.fill.has_value());
+        CHECK(name_in(intent.parent) == "layer");
+    }
+    CHECK(refuses(parse("create box status 10 20 120 40")));
+
     // a '#' word is an SVG id here, not the hive's internal handle
     const Request hash_id = parse("delete #3");
     CHECK(holds<Delete>(hash_id));

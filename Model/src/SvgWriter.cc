@@ -116,7 +116,10 @@ struct ContainerAttributes {
         }
         return attributes;
     }
-    std::string operator()(const Container::Group&) const { return {}; }
+    std::string operator()(const Container::Group& group) const {
+        if (group.data_kind.empty()) return {};
+        return attribute_text(element, "data-kind", group.data_kind);
+    }
     std::string operator()(const Container::Defs&) const { return {}; }
     std::string operator()(const Container::Symbol&) const { return {}; }
     std::string operator()(const Container::Switch&) const { return {}; }

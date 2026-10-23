@@ -8,6 +8,16 @@ target_link_libraries(pipeline_test PRIVATE SvgEditor::Planner SvgEditor::Warnin
 target_compile_definitions(pipeline_test PRIVATE SVG_EDITOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME pipeline COMMAND pipeline_test)
 
+# The front-end vocabulary is the list under test, so every create kind is parsed and
+# dispatched through the real pipeline and must advance exactly one history position.
+add_executable(create_atomicity_test create_atomicity_test.cc)
+target_include_directories(create_atomicity_test PRIVATE ${CMAKE_SOURCE_DIR}/Ui/src)
+target_link_libraries(create_atomicity_test PRIVATE
+    SvgEditor::Ui
+    SvgEditor::Planner
+    SvgEditor::Warnings)
+add_test(NAME create_atomicity COMMAND create_atomicity_test)
+
 # the rule the target graph no longer expresses: no module outside Model/ may use
 # MVCCHive, so the sources are read rather than the link lines
 add_test(NAME layering
@@ -285,6 +295,25 @@ add_test(NAME cli_nested COMMAND $<TARGET_FILE:Cli>
     "init; create g layer; create rect box 0 0 10 10 in layer; create circle dot 1 1 1 in layer; tree")
 set_tests_properties(cli_nested PROPERTIES PASS_REGULAR_EXPRESSION
     "    ├── rect#box +x=0 y=0 w=10 h=10\n    └── circle#dot +cx=1 cy=1 r=1")
+
+# A composite kind is one instruction: its group, outline, and label arrive together.
+add_test(NAME cli_create_box COMMAND $<TARGET_FILE:Cli>
+    "init; create box status 10 20 120 40 \"Ready\" #00ff00; tree; history")
+set_tests_properties(cli_create_box PROPERTIES PASS_REGULAR_EXPRESSION
+    "g#status created\nsvg \\(800 x 600 user units\\)\n└── g#status\n    ├── rect#status-rect   x=10 y=20 w=120 h=40 fill=#00ff00\n    └── text#status-label  \\(10,20\\) text=\"Ready\"\n2  g#status created \\(HEAD\\)\n1  baseline")
+
+# The marker makes a saved composite editable as one named box after it is read back.
+add_test(NAME cli_create_box_roundtrip COMMAND $<TARGET_FILE:Cli>
+    "init; create box status 10 20 120 40 \"Ready\" #00ff00; save ${CMAKE_CURRENT_BINARY_DIR}/cli_box.svg; read ${CMAKE_CURRENT_BINARY_DIR}/cli_box.svg; set status fill blue; show status-rect")
+set_tests_properties(cli_create_box_roundtrip PROPERTIES PASS_REGULAR_EXPRESSION
+    "saved to .*cli_box\\.svg \\(3 elements\\)\nread .*cli_box\\.svg \\(3 elements\\)\ng#status updated: fill=blue\nrect#status-rect  parent=g#status\n  x=10 y=20 w=120 h=40\n  fill=blue")
+
+# A derived id that is already taken leaves no group or partial child behind.
+add_test(NAME cli_create_box_atomic COMMAND $<TARGET_FILE:Cli>
+    "init; create rect status-rect 0 0 1 1; create box status 10 20 120 40 \"Ready\"; tree")
+set_tests_properties(cli_create_box_atomic PROPERTIES
+    PASS_REGULAR_EXPRESSION "error: id already exists: status-rect"
+    FAIL_REGULAR_EXPRESSION "g#status")
 
 # The unit systems are never mixed: an inch does not add up with a centimetre, and the
 # answer says which of the two is which. WILL_FAIL cannot stand next to a pattern here -

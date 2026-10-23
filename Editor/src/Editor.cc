@@ -113,6 +113,7 @@ void Editor::record_history_event(std::size_t position, CommitId commit, event::
 // element to build reaches the primary template, which fails the build naming the type.
 Outcome Editor::translate(const ChangeIntent& intent) {
     sync_history_events();
+    const std::size_t before_position = document_.position();
     const CommitId before_commit = document_.commit_id();
     Outcome outcome = refused(Kind::Change, fault::InternalError{});
     try {
@@ -135,9 +136,18 @@ Outcome Editor::translate(const ChangeIntent& intent) {
     } else if (outcome.ok() && std::holds_alternative<Event>(outcome.result) &&
                after_commit > before_commit && after_position > 0) {
         // One intent is one commit, so one new id is the only shape an outcome can
-        // describe. An empty transaction leaves the id and the log alone.
+        // describe. History navigation reports an event too, but moves the checkout
+        // without writing a new block, and is excluded by edit_event_of.
         if (std::optional<event::EditEvent> edit = edit_event_of(outcome.event())) {
-            record_history_event(after_position - 1, after_commit, std::move(*edit));
+            if (after_position > before_position + 1) {
+                if (const char* debug = std::getenv("SVG_EDITOR_DEBUG");
+                    debug != nullptr && *debug != '\0') {
+                    std::cerr << "internal edit failure: one instruction committed more than once\n";
+                }
+                outcome = refused(Kind::Change, fault::InternalError{});
+            } else {
+                record_history_event(after_position - 1, after_commit, std::move(*edit));
+            }
         }
     }
     return outcome;

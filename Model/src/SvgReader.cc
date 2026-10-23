@@ -206,7 +206,7 @@ private:
         Container container;
         container.child_attr = ChildAttr{};
         if (element == "g") {
-            container.specific = Container::Group{};
+            container.specific = Container::Group{string_or_empty(node, "data-kind")};
         } else if (element == "defs") {
             container.specific = Container::Defs{};
         } else if (element == "symbol") {

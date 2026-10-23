@@ -1,9 +1,10 @@
 #pragma once
 #include <concepts>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
-#include <optional>
+#include <vector>
 
 #include "BasicType.hh"
 #include "Attr.hh"
@@ -46,7 +47,11 @@ struct Text {
 struct Container {
     ChildAttr child_attr;
 
-    struct Group {};
+    // A composite kind is still an ordinary SVG group. The marker says which derived
+    // children belong to it, while a reader without the plugin can treat it as a <g>.
+    struct Group {
+        std::string data_kind;  // empty for an ordinary group
+    };
     struct Defs {};
     // The four numbers of a viewBox, in the order SVG writes them. They are plain
     // numbers: a viewBox has no units of its own, because it maps user units onto the
@@ -87,6 +92,13 @@ struct SVGNode {
 };
 
 using Node = std::variant<SVGNode, PlainText>;
+
+// A tree that is not in the document yet: a payload and the trees below it. A place in
+// the document is what insertion gives, so a detached subtree carries no links.
+struct Subtree {
+    Node payload;
+    std::vector<Subtree> children;
+};
 
 inline std::string_view text_anchor_text(Text::Anchor anchor) {
     switch (anchor) {

@@ -61,7 +61,7 @@ The `variant + visit + handle<T>` shape described in [Structure.md](Structure.md
 project's central structural mechanism, not a local convenience.
 
 An instruction is a `std::variant` of one struct per thing a user can ask for - except that
-the six ways to create an element are one alternative, `Create`, which is a variant of its
+the seven ways to create an element are one alternative, `Create`, which is a variant of its
 own. Every layer that has to answer one does it with `std::visit` over that variant plus one
 function per alternative. Most of those functions are not written by hand, because what
 answers an instruction is a question about its type:
@@ -137,8 +137,10 @@ template<> Outcome handle<Create>(const Create& intent) {
   primary template above, where `new_element()` having an overload for it is what sends it
   to `create()` - so a kind added to `Create` with no builder is the build error naming
   that kind, and one with a builder needs no change to the routing above.
-- One body answers all six kinds, and what differs is what the instruction brings: the
-  overloads of `new_element()` are what each kind builds. The visit sits next to that body
+- One body answers all seven kinds, and what differs is what the instruction brings: the
+  overloads of `new_element()` return a detached `Subtree`, and `Transaction::append_subtree`
+  writes it inside the same transaction. A text brings its character data, while a box
+  brings a marked group, a rectangle and a labelled text. The visit sits next to that body
   and the builders, so it is also what instantiates `create()` for every kind: the kinds
   are the alternatives of `Create`, and there is no second list of them to keep in step.
 - The other translations are written where they are routed, one file per thing an edit
@@ -176,6 +178,7 @@ failure rather than a warning that a normal test run can miss.
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]`  | a line, which has no inside to fill                    | the Editor, one transaction |
 | `create text <id> <x> <y> "content"`             | a text element and the character data inside it        | the Editor, one transaction |
 | `create g <id>`                                  | a group                                                | the Editor, one transaction |
+| `create box <id> <x> <y> <w> <h> "label" [fill]` | a marked group, its outline and its label in one edit  | the Editor, one transaction |
 | `delete <id>`                                    | the node and its descendants                           | the Editor, one transaction |
 | `move <id> <dx> <dy> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants | the Editor, one transaction |
 | `scale <id> <factor> [transform\|params] [cascade\|restrict]` | a node's params or transform, or a container's descendants | the Editor, one transaction |
