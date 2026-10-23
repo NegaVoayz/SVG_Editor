@@ -345,6 +345,28 @@ int main() {
         }
     }
 
+    // Ungrouping cannot dismantle a marked composite into unrelated siblings.
+    {
+        Document box_document;
+        Editor box_editor{box_document};
+        Planner box_planner{box_document, box_editor};
+        CHECK(box_planner.dispatch(Init{}).ok());
+        CHECK(box_planner.dispatch(Create{CreateGroup{"layer"}}).ok());
+        CHECK(box_planner
+                  .dispatch(Create{CreateBox{"status", units(10), units(20), units(120), units(40), "Ready",
+                                            std::nullopt, SvgIdRef{"layer"}, true}})
+                  .ok());
+        const std::size_t before_refusal = box_document.position();
+        const Outcome composite_ungroup =
+            box_planner.dispatch(Ungroup{SvgIdRef{"status"}});
+        CHECK(!composite_ungroup.ok());
+        CHECK(refused_with<fault::CannotUngroupComposite>(composite_ungroup));
+        CHECK(box_document.position() == before_refusal);
+        CHECK(box_document.find("status").has_value());
+        CHECK(box_document.find("status-rect").has_value());
+        CHECK(box_document.find("status-label").has_value());
+    }
+
     const Outcome zero_scale = planner.dispatch(ScaleBy{SvgIdRef{"box"}, 0.0F});
     CHECK(!zero_scale.ok());
     CHECK(refused_with<fault::ScaleFactorNotPositive>(zero_scale));

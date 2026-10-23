@@ -528,6 +528,9 @@ struct RefusalText {
     std::string operator()(const fault::CannotUngroupNonContainer& leaf) const {
         return "error: cannot ungroup a shape or text node: " + label(leaf.node);
     }
+    std::string operator()(const fault::CannotUngroupComposite& composite) const {
+        return "error: cannot ungroup composite shape: " + label(composite.node);
+    }
     std::string operator()(const fault::CannotGroupIntoOwnDescendant& descendant) const {
         return "error: cannot group a container into its own descendant: " + label(descendant.node);
     }

@@ -207,6 +207,12 @@ template<> Outcome Editor::handle<Ungroup>(const Ungroup& intent) {
         return refused(Kind::Change, fault::CannotUngroupNonContainer{intent.node});
     }
 
+    const Container& container = std::get<Container>(std::get<SVGNode>(*payload).data);
+    if (std::holds_alternative<Container::Group>(container.specific) &&
+        !std::get<Container::Group>(container.specific).data_kind.empty()) {
+        return refused(Kind::Change, fault::CannotUngroupComposite{intent.node});
+    }
+
     const std::optional<Id> parent = document_.parent(node);
     if (!parent) {
         return refused(Kind::Change, fault::CannotUngroupTopLevelContainer{top_level_name(document_)});

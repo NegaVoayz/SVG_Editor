@@ -323,6 +323,8 @@ int main() {
     CHECK(render(event::Saved{"one.svg", 1}) == "saved to one.svg (1 element)");
     CHECK(render(fault::CannotUngroupNonContainer{SvgIdRef{"n1"}}) ==
           "error: cannot ungroup a shape or text node: n1");
+    CHECK(render(fault::CannotUngroupComposite{SvgIdRef{"n1"}}) ==
+          "error: cannot ungroup composite shape: n1");
     CHECK(render(fault::CannotAddToOwnDescendant{SvgIdRef{"layer"}}) ==
           "error: cannot add a container to its own descendant: layer");
     CHECK(render(fault::DuplicateId{"r1"}) == "error: id already exists: r1");

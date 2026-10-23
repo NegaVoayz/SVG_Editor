@@ -65,6 +65,10 @@ struct CannotUngroupNonContainer {
     NodeRef node;
 };
 
+struct CannotUngroupComposite {
+    NodeRef node;
+};
+
 struct CannotGroupIntoOwnDescendant {
     NodeRef node;
 };
@@ -153,6 +157,7 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::UnknownAttribute, fault::NegativeDimension, fault::NonPositiveCanvas,
                              fault::NonFiniteValue,
                              fault::CannotUngroupNonContainer,
+                             fault::CannotUngroupComposite,
                              fault::CannotGroupIntoOwnDescendant, fault::CannotAddToOwnDescendant,
                              fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
