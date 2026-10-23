@@ -95,6 +95,11 @@ constexpr auto kinds = std::to_array<ElementKind>({
     {"box", build_box},
 });
 
+// Adding a member to Create must add its front-end row. The row's contents still need a
+// parse-and-dispatch test, but a kind cannot be added with no word for the user at all.
+static_assert(std::size(kinds) == std::variant_size_v<Create>,
+              "the create table must have one row per Create alternative");
+
 constexpr auto kind_names = [] {
     std::array<std::string_view, kinds.size()> names;
     for (std::size_t index = 0; index < kinds.size(); ++index) names[index] = kinds[index].name;

@@ -14,7 +14,8 @@ struct Shape {
     struct Circle { LengthPercentage cx, cy, r; };
     struct Ellipse { LengthPercentage cx, cy, rx, ry; };
     struct Line { LengthPercentage x1, y1, x2, y2; };
-    std::variant<Rect,Circle,Ellipse,Line> specific;
+    using Kinds = std::variant<Rect,Circle,Ellipse,Line>;
+    Kinds specific;
 };
 
 struct PlainText {
@@ -41,7 +42,8 @@ struct Text {
     struct Wrapper {};
     struct Span {};
     struct Path { std::optional<LengthPercentage> startOffset; std::string href; };
-    std::variant<Wrapper,Span,Path> specific;
+    using Kinds = std::variant<Wrapper,Span,Path>;
+    Kinds specific;
 };
 
 struct Container {
@@ -73,7 +75,8 @@ struct Container {
     };
     struct Symbol {};
     struct Switch {};
-    std::variant<Group, Defs, SVG, Symbol, Switch> specific;
+    using Kinds = std::variant<Group, Defs, SVG, Symbol, Switch>;
+    Kinds specific;
 };
 
 struct SVGNode {

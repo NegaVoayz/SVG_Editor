@@ -88,6 +88,7 @@ constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"
 int main() {
     // The reader and writer validate attributes through the same table.
     CHECK(svg_schema::is_element("rect"));
+    CHECK(svg_schema::is_element("svg"));
     CHECK(!svg_schema::is_element("path"));
     CHECK(svg_schema::accepts_attribute("rect", "x"));
     CHECK(svg_schema::accepts_attribute("rect", "fill"));
@@ -95,6 +96,9 @@ int main() {
     CHECK(!svg_schema::accepts_attribute("rect", "viewBox"));
     CHECK(svg_schema::accepts_attribute("textPath", "startOffset"));
     CHECK(!svg_schema::accepts_attribute("textPath", "transform-origin"));
+    const svg_schema::ElementSchema* root_schema = svg_schema::schema_for("svg");
+    CHECK(root_schema != nullptr);
+    if (root_schema) CHECK(root_schema->family == svg_schema::ElementFamily::Container);
 
     // The enum and its spelling table are generated from the same definition list, and
     // every canonical spelling reads back as the same enum value.
