@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "History.hh"
+#include "StagedTree.hh"
 #include "Status.hh"
 #include "SVGNode.hh"
 #include "TreeStore.hh"
@@ -114,15 +115,12 @@ public:
     // Move to a commit in the current context's history, without committing anything.
     std::optional<HistoryCheckout> checkout(CommitId commit);
 
-    // --- the file the document came from (Model/FileSystem) ---
+    // Replace the whole tree with a complete staged value. FileSystem parses a file
+    // into this model-owned value, so no parser type has to enter Model.
+    void replace(StagedTree tree);
 
-    // Where the document was last read from, empty when it came from nowhere. A
-    // save with no path of its own writes here.
+    // --- legacy file boundary, removed when FileSystem becomes top-level ---
     const std::string& source_path() const;
-
-    // Read a document from a file, and write it to one. A read that fails leaves the
-    // document as it was, so a document whose read failed did not come from that
-    // file and has no path to save back to.
     Status open(std::string_view path);
     Status save(std::optional<std::string_view> path);
 

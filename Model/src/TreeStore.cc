@@ -1,6 +1,7 @@
 #include "TreeStore.hh"
 
 #include <algorithm>
+#include <cstddef>
 #include <iterator>
 #include <stdexcept>
 #include <type_traits>
@@ -18,6 +19,13 @@ using NodeRef = std::reference_wrapper<const Node>;
 // rather than to the command that asks for it.
 inline const LengthPercentage fresh_canvas_width = Length{800.0F, Length::Unit::UserUnit};
 inline const LengthPercentage fresh_canvas_height = Length{600.0F, Length::Unit::UserUnit};
+
+inline constexpr std::size_t nodes_per_commit = 1024;
+
+struct Pending {
+    std::size_t index;
+    Id parent;
+};
 
 struct Links {
     Id parent;
@@ -152,6 +160,66 @@ TreeStore::Edit TreeStore::begin() {
 }
 
 TreeStore::Edit TreeStore::begin_load() { return nodes_.begin_transaction(); }
+
+void TreeStore::replace(StagedTree tree) {
+    if (tree.nodes.empty() || tree.root >= tree.nodes.size()) {
+        throw std::invalid_argument("TreeStore::replace: the staged tree has no valid root");
+    }
+
+    // Validate the complete graph before clearing anything. A malformed value cannot
+    // destroy the document that is currently being edited.
+    std::vector<bool> reached(tree.nodes.size(), false);
+    std::vector<std::size_t> pending{tree.root};
+    reached[tree.root] = true;
+    std::size_t reached_count = 1;
+    while (!pending.empty()) {
+        const std::size_t index = pending.back();
+        pending.pop_back();
+        const StagedNode& node = tree.nodes[index];
+        if (!node.children.empty() && !child_attr_of(node.payload)) {
+            throw std::invalid_argument("TreeStore::replace: a leaf has staged children");
+        }
+        for (const std::size_t child : node.children) {
+            if (child >= tree.nodes.size() || reached[child]) {
+                throw std::invalid_argument("TreeStore::replace: the staged tree is not a tree");
+            }
+            reached[child] = true;
+            ++reached_count;
+            pending.push_back(child);
+        }
+    }
+    if (reached_count != tree.nodes.size()) {
+        throw std::invalid_argument("TreeStore::replace: the staged tree is disconnected");
+    }
+
+    reset_empty();
+    std::vector<Pending> load{{tree.root, no_id}};
+    std::size_t loaded = 0;
+    while (loaded < tree.nodes.size()) {
+        auto edit = begin_load();
+        std::size_t batch = 0;
+        while (!load.empty() && batch < nodes_per_commit) {
+            const Pending item = load.back();
+            load.pop_back();
+
+            StagedNode& staged = tree.nodes[item.index];
+            Id handle = no_id;
+            if (item.index == tree.root) {
+                handle = create_root(edit, std::move(staged.payload));
+            } else {
+                handle = append_child(edit, item.parent, std::move(staged.payload));
+            }
+            ++loaded;
+            ++batch;
+
+            for (std::size_t index = staged.children.size(); index > 0; --index) {
+                load.push_back(Pending{staged.children[index - 1], handle});
+            }
+        }
+        commit(edit, next_commit_id());
+    }
+    clear_history();
+}
 
 void TreeStore::commit(Edit& edit, CommitId commit) {
     const Hive::CommitId before = view_ ? view_->commit_id() : 0;

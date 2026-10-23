@@ -40,6 +40,12 @@ Node rect(std::string svg_id) {
     return Node{std::move(element)};
 }
 
+Node svg_root() {
+    SVGNode element;
+    element.data = Container{ChildAttr{}, Container::SVG{}};
+    return Node{std::move(element)};
+}
+
 template<typename Action>
 bool throws(Action&& action) {
     try {
@@ -471,6 +477,30 @@ int main() {
     CHECK(document.children(holder) == std::vector<Id>({leaf}));
 
     // --- the context: the canvas, the reset, and the checkpoint ---
+
+    // A staged tree replaces the full document in one model operation. Invalid values
+    // are rejected before the current tree is touched.
+    {
+        Document staged;
+        staged.replace(StagedTree{{StagedNode{svg_root(), {1}}, StagedNode{rect("staged"), {}}}, 0});
+        CHECK(staged.has_document());
+        CHECK(staged.find("staged").has_value());
+        CHECK(staged.element_count() == 1);
+        CHECK(staged.depth() == 0);
+        CHECK(!staged.can_undo());
+        CHECK(staged.undo_barred_by_io());
+
+        const Id preserved_root = staged.root();
+        const Id preserved_child = *staged.find("staged");
+        CHECK(throws([&] {
+            staged.replace(StagedTree{{StagedNode{svg_root(), {1}}, StagedNode{rect("leaf-parent"), {2}},
+                                      StagedNode{rect("child"), {}}},
+                                     0});
+        }));
+        CHECK(staged.root() == preserved_root);
+        CHECK(staged.find("staged") == preserved_child);
+        CHECK(!staged.find("leaf-parent").has_value());
+    }
 
     // A reset is a fresh document: an empty tree, the canvas it was given for
     // whichever sides it was given, the virtual ids from the start again, and

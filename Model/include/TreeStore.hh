@@ -12,6 +12,7 @@
 
 #include "History.hh"
 #include "SVGNode.hh"
+#include "StagedTree.hh"
 
 // The child-list ends of a node, or nothing when its type cannot hold children.
 std::optional<ChildAttr> child_attr_of(const Node& node);
@@ -43,6 +44,11 @@ public:
     // an interactive document. The loader uses this so its first bounded chunk can create
     // the real root and become the visible baseline in one commit.
     void reset_empty();
+
+    // Validate and replace the whole tree with a staged value. The graph is checked
+    // before the current tree is touched, then installed in bounded commits and made
+    // the history baseline.
+    void replace(StagedTree tree);
 
     // --- one user-level edit ---
 
