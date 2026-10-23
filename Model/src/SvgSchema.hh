@@ -1,6 +1,5 @@
 #pragma once
 
-#include <span>
 #include <string_view>
 
 // The one reader/writer attribute contract. The reader refuses anything the schema does
@@ -16,7 +15,6 @@ enum class ElementFamily {
 
 struct ElementSchema {
     ElementFamily family;
-    std::span<const std::string_view> attributes;
 };
 
 const ElementSchema* schema_for(std::string_view element);

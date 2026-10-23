@@ -14,6 +14,7 @@
 
 #include "ElementName.hh"
 #include "Exhaustive.hh"
+#include "SvgFields.hh"
 #include "SvgSchema.hh"
 #include "SvgValueReader.hh"
 
@@ -70,6 +71,10 @@ Text::Kinds read_text_payload(const SvgReader& reader, const XmlNode& node);
 template<typename T>
 Container::Kinds read_container_payload(const SvgReader& reader, const XmlNode& node);
 
+template<typename Value>
+Value read_attribute_value(const SvgReader& reader, const XmlNode& node, const XmlAttribute& attribute,
+                           bool nonnegative);
+
 class SvgReader {
 public:
     explicit SvgReader(const XmlSnapshot& xml) : xml_(xml) {}
@@ -95,6 +100,10 @@ private:
     template<typename T>
     friend Container::Kinds read_container_payload(const SvgReader& reader, const XmlNode& node);
 
+    template<typename Value>
+    friend Value read_attribute_value(const SvgReader& reader, const XmlNode& node,
+                                      const XmlAttribute& attribute, bool nonnegative);
+
     [[noreturn]] void fail(SvgProblem problem, const XmlNode& node, std::string attribute = {},
                            std::string value = {}, std::string detail = {}) const {
         throw SvgParseFailure{
@@ -107,86 +116,41 @@ private:
         return Xml::attribute(node, name);
     }
 
-    std::optional<std::reference_wrapper<const XmlAttribute>> href_attribute(const XmlNode& node) const {
-        if (const auto href = exact_attribute(node, "href")) return href;
-        return exact_attribute(node, "xlink:href");
-    }
-
-    std::optional<LengthPercentage> optional_length(const XmlNode& node, std::string_view name) const {
-        const auto found = exact_attribute(node, name);
-        if (!found) return std::nullopt;
-        const XmlAttribute& attribute = found->get();
-        const std::optional<LengthPercentage> value = SvgValueReader::length(attribute.value);
-        if (!value) fail(SvgProblem::InvalidAttributeValue, node, std::string{name}, attribute.value, "length");
-        return value;
-    }
-
-    LengthPercentage length_or(const XmlNode& node, std::string_view name, LengthPercentage fallback) const {
-        const std::optional<LengthPercentage> value = optional_length(node, name);
-        return value ? *value : fallback;
-    }
-
     void require_nonnegative(const XmlNode& node, std::string_view name, LengthPercentage value) const {
         const float number = std::holds_alternative<Length>(value) ? std::get<Length>(value).value
                                                                    : std::get<Percentage>(value).value;
         if (number < 0.0F) fail(SvgProblem::InvalidAttributeValue, node, std::string{name}, to_text(value), "nonnegative");
     }
 
-    std::optional<Paint> optional_paint(const XmlNode& node, std::string_view name) const {
-        const auto found = exact_attribute(node, name);
-        if (!found) return std::nullopt;
-        const XmlAttribute& attribute = found->get();
-        const std::optional<Paint> value = SvgValueReader::paint(attribute.value);
-        if (!value) fail(SvgProblem::InvalidAttributeValue, node, std::string{name}, attribute.value, "paint");
-        return value;
-    }
-
-    std::optional<Container::ViewBox> optional_view_box(const XmlNode& node) const {
-        const auto found = exact_attribute(node, "viewBox");
-        if (!found) return std::nullopt;
-        const XmlAttribute& attribute = found->get();
-        const std::optional<Container::ViewBox> value = SvgValueReader::view_box(attribute.value);
-        if (!value) fail(SvgProblem::InvalidAttributeValue, node, "viewBox", attribute.value, "viewBox");
-        return value;
-    }
-
-    std::optional<Text::Anchor> optional_text_anchor(const XmlNode& node) const {
-        const auto found = exact_attribute(node, "text-anchor");
-        if (!found) return std::nullopt;
-        const XmlAttribute& attribute = found->get();
-        const std::optional<Text::Anchor> value = SvgValueReader::text_anchor(attribute.value);
-        if (!value) fail(SvgProblem::InvalidAttributeValue, node, "text-anchor", attribute.value, "text-anchor");
-        return value;
-    }
-
-    std::string string_or_empty(const XmlNode& node, std::string_view name) const {
-        const auto found = exact_attribute(node, name);
-        return found ? found->get().value : std::string{};
-    }
-
-    void read_common(const XmlNode& xml_node, SVGNode& element) const {
-        element.identity_attr.id = string_or_empty(xml_node, "id");
-        element.identity_attr.class_ = string_or_empty(xml_node, "class");
-        element.paint_attr.fill = optional_paint(xml_node, "fill");
-        element.paint_attr.stroke = optional_paint(xml_node, "stroke");
-        if (const auto width = exact_attribute(xml_node, "stroke-width")) {
-            const std::optional<LengthPercentage> parsed = SvgValueReader::length(width->get().value);
-            if (!parsed) {
-                fail(SvgProblem::InvalidAttributeValue, xml_node, "stroke-width", width->get().value, "length");
-            }
-            require_nonnegative(xml_node, "stroke-width", *parsed);
-            element.paint_attr.stroke_width = *parsed;
+    template<typename Owner, typename Value, std::size_t AliasCount>
+    std::optional<std::reference_wrapper<const XmlAttribute>> attribute_for(
+        const XmlNode& node, const svg_fields::Field<Owner, Value, AliasCount>& field) const {
+        if (const auto found = exact_attribute(node, field.name)) return found;
+        for (const std::string_view alias : field.aliases) {
+            if (const auto found = exact_attribute(node, alias)) return found;
         }
-
-        if (const auto transform_attribute = exact_attribute(xml_node, "transform")) {
-            const std::optional<Transform> parsed = SvgValueReader::transform(transform_attribute->get().value);
-            if (!parsed) {
-                fail(SvgProblem::InvalidAttributeValue, xml_node, "transform", transform_attribute->get().value,
-                     "transform");
-            }
-            element.transform_attr.transform = *parsed;
-        }
+        return std::nullopt;
     }
+
+    template<typename Owner, typename Value, std::size_t AliasCount>
+    void read_field(const XmlNode& node, Owner& owner,
+                    const svg_fields::Field<Owner, Value, AliasCount>& field) const {
+        const auto attribute = attribute_for(node, field);
+        if (!attribute) return;
+        owner.*field.member =
+            read_attribute_value<Value>(*this, node, attribute->get(), field.options.nonnegative);
+    }
+
+    template<typename Owner, typename Fields>
+    void read_fields(const XmlNode& node, Owner& owner, const Fields& fields) const {
+        std::apply(
+            [&](const auto&... field) {
+                (read_field(node, owner, field), ...);
+            },
+            fields);
+    }
+
+    void read_common(const XmlNode& xml_node, SVGNode& element) const;
 
     Shape read_shape(const XmlNode& node, std::string_view element) const;
     Text read_text(const XmlNode& node, std::string_view element) const;
@@ -292,6 +256,81 @@ private:
     std::unordered_set<std::string> explicit_ids_;
 };
 
+template<typename Value>
+Value read_attribute_value(const SvgReader&, const XmlNode&, const XmlAttribute&, bool) {
+    static_assert(always_false<Value>, "no SVG reader for this attribute value type");
+    return Value{};
+}
+
+template<>
+std::string read_attribute_value<std::string>(const SvgReader&, const XmlNode&, const XmlAttribute& attribute,
+                                              bool) {
+    return attribute.value;
+}
+
+template<>
+LengthPercentage read_attribute_value<LengthPercentage>(const SvgReader& reader, const XmlNode& node,
+                                                        const XmlAttribute& attribute, bool nonnegative) {
+    const std::optional<LengthPercentage> value = SvgValueReader::length(attribute.value);
+    if (!value) {
+        reader.fail(SvgProblem::InvalidAttributeValue, node, attribute.name, attribute.value, "length");
+    }
+    if (nonnegative) reader.require_nonnegative(node, attribute.name, *value);
+    return *value;
+}
+
+template<>
+std::optional<LengthPercentage> read_attribute_value<std::optional<LengthPercentage>>(
+    const SvgReader& reader, const XmlNode& node, const XmlAttribute& attribute, bool nonnegative) {
+    return read_attribute_value<LengthPercentage>(reader, node, attribute, nonnegative);
+}
+
+template<>
+std::optional<Paint> read_attribute_value<std::optional<Paint>>(const SvgReader& reader, const XmlNode& node,
+                                                               const XmlAttribute& attribute, bool) {
+    const std::optional<Paint> value = SvgValueReader::paint(attribute.value);
+    if (!value) {
+        reader.fail(SvgProblem::InvalidAttributeValue, node, attribute.name, attribute.value, "paint");
+    }
+    return value;
+}
+
+template<>
+std::optional<Text::Anchor> read_attribute_value<std::optional<Text::Anchor>>(
+    const SvgReader& reader, const XmlNode& node, const XmlAttribute& attribute, bool) {
+    const std::optional<Text::Anchor> value = SvgValueReader::text_anchor(attribute.value);
+    if (!value) {
+        reader.fail(SvgProblem::InvalidAttributeValue, node, attribute.name, attribute.value, "text-anchor");
+    }
+    return value;
+}
+
+template<>
+std::optional<Container::ViewBox> read_attribute_value<std::optional<Container::ViewBox>>(
+    const SvgReader& reader, const XmlNode& node, const XmlAttribute& attribute, bool) {
+    const std::optional<Container::ViewBox> value = SvgValueReader::view_box(attribute.value);
+    if (!value) {
+        reader.fail(SvgProblem::InvalidAttributeValue, node, attribute.name, attribute.value, "viewBox");
+    }
+    return value;
+}
+
+template<>
+Transform read_attribute_value<Transform>(const SvgReader& reader, const XmlNode& node,
+                                          const XmlAttribute& attribute, bool) {
+    const std::optional<Transform> value = SvgValueReader::transform(attribute.value);
+    if (!value) {
+        reader.fail(SvgProblem::InvalidAttributeValue, node, attribute.name, attribute.value, "transform");
+    }
+    return *value;
+}
+
+void SvgReader::read_common(const XmlNode& node, SVGNode& element) const {
+    read_fields(node, element.identity_attr, svg_fields::identity_fields);
+    read_fields(node, element.paint_attr, svg_fields::paint_fields);
+    read_fields(node, element.transform_attr, svg_fields::transform_fields);
+}
+
 // Element-name dispatch has to ask every alternative, not only the active one a
 // default-constructed variant would visit. Each alternative enters its own explicit
 // specialization; a new kind that has not been taught to the reader reaches the primary
@@ -305,36 +344,33 @@ Shape::Kinds read_shape_payload(const SvgReader&, const XmlNode&) {
 template<>
 Shape::Kinds read_shape_payload<Shape::Rect>(const SvgReader& reader, const XmlNode& node) {
     const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
-    const LengthPercentage width = reader.length_or(node, "width", zero);
-    const LengthPercentage height = reader.length_or(node, "height", zero);
-    reader.require_nonnegative(node, "width", width);
-    reader.require_nonnegative(node, "height", height);
-    return Shape::Rect{reader.length_or(node, "x", zero), reader.length_or(node, "y", zero), width, height};
+    Shape::Rect rect{zero, zero, zero, zero};
+    reader.read_fields(node, rect, svg_fields::rect_fields);
+    return rect;
 }
 
 template<>
 Shape::Kinds read_shape_payload<Shape::Circle>(const SvgReader& reader, const XmlNode& node) {
     const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
-    const LengthPercentage radius = reader.length_or(node, "r", zero);
-    reader.require_nonnegative(node, "r", radius);
-    return Shape::Circle{reader.length_or(node, "cx", zero), reader.length_or(node, "cy", zero), radius};
+    Shape::Circle circle{zero, zero, zero};
+    reader.read_fields(node, circle, svg_fields::circle_fields);
+    return circle;
 }
 
 template<>
 Shape::Kinds read_shape_payload<Shape::Ellipse>(const SvgReader& reader, const XmlNode& node) {
     const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
-    const LengthPercentage rx = reader.length_or(node, "rx", zero);
-    const LengthPercentage ry = reader.length_or(node, "ry", zero);
-    reader.require_nonnegative(node, "rx", rx);
-    reader.require_nonnegative(node, "ry", ry);
-    return Shape::Ellipse{reader.length_or(node, "cx", zero), reader.length_or(node, "cy", zero), rx, ry};
+    Shape::Ellipse ellipse{zero, zero, zero, zero};
+    reader.read_fields(node, ellipse, svg_fields::ellipse_fields);
+    return ellipse;
 }
 
 template<>
 Shape::Kinds read_shape_payload<Shape::Line>(const SvgReader& reader, const XmlNode& node) {
     const LengthPercentage zero = Length{0.0F, Length::Unit::UserUnit};
-    return Shape::Line{reader.length_or(node, "x1", zero), reader.length_or(node, "y1", zero),
-                       reader.length_or(node, "x2", zero), reader.length_or(node, "y2", zero)};
+    Shape::Line line{zero, zero, zero, zero};
+    reader.read_fields(node, line, svg_fields::line_fields);
+    return line;
 }
 
 template<typename T>
@@ -355,9 +391,9 @@ Text::Kinds read_text_payload<Text::Span>(const SvgReader&, const XmlNode&) {
 
 template<>
 Text::Kinds read_text_payload<Text::Path>(const SvgReader& reader, const XmlNode& node) {
-    const auto href = reader.href_attribute(node);
-    return Text::Path{reader.optional_length(node, "startOffset"),
-                      href ? href->get().value : std::string{}};
+    Text::Path path;
+    reader.read_fields(node, path, svg_fields::text_path_fields);
+    return path;
 }
 
 template<typename T>
@@ -368,7 +404,9 @@ Container::Kinds read_container_payload(const SvgReader&, const XmlNode&) {
 
 template<>
 Container::Kinds read_container_payload<Container::Group>(const SvgReader& reader, const XmlNode& node) {
-    return Container::Group{reader.string_or_empty(node, "data-kind")};
+    Container::Group group;
+    reader.read_fields(node, group, svg_fields::group_fields);
+    return group;
 }
 
 template<>
@@ -388,13 +426,8 @@ Container::Kinds read_container_payload<Container::Switch>(const SvgReader&, con
 
 template<>
 Container::Kinds read_container_payload<Container::SVG>(const SvgReader& reader, const XmlNode& node) {
-    const std::optional<LengthPercentage> width = reader.optional_length(node, "width");
-    const std::optional<LengthPercentage> height = reader.optional_length(node, "height");
-    if (width) reader.require_nonnegative(node, "width", *width);
-    if (height) reader.require_nonnegative(node, "height", *height);
-    Container::SVG canvas{width, height};
-    canvas.xmlns = reader.string_or_empty(node, "xmlns");
-    canvas.view_box = reader.optional_view_box(node);
+    Container::SVG canvas;
+    reader.read_fields(node, canvas, svg_fields::svg_fields);
     return canvas;
 }
 
@@ -412,13 +445,7 @@ Shape SvgReader::read_shape(const XmlNode& node, std::string_view element) const
 Text SvgReader::read_text(const XmlNode& node, std::string_view element) const {
     Text text;
     text.child_attr = ChildAttr{};
-    text.common.x = optional_length(node, "x");
-    text.common.y = optional_length(node, "y");
-    text.common.dx = optional_length(node, "dx");
-    text.common.dy = optional_length(node, "dy");
-    text.common.text_anchor = optional_text_anchor(node);
-    text.common.font_size = optional_length(node, "font-size");
-    if (text.common.font_size) require_nonnegative(node, "font-size", *text.common.font_size);
+    read_fields(node, text.common, svg_fields::text_common_fields);
 
     std::optional<Text::Kinds> specific;
     for_each_alternative<Text::Kinds>([&](const auto& alternative) {
