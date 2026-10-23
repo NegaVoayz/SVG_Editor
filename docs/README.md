@@ -25,9 +25,9 @@ cmake --build --preset default
 ctest --preset default
 ```
 
-The first configure fetches MVCCHive and tinyxml2 at the tags pinned in
-`Model/cmake/`. A package config found by `find_package` or a checkout pointed at by
-the matching `FETCHCONTENT_SOURCE_DIR_*` variable avoids a download:
+The first configure fetches MVCCHive, tinyxml2 and `reflection-cpp` at the versions
+pinned in `Model/cmake/`. A package config found by `find_package` or a checkout pointed
+at by the matching `FETCHCONTENT_SOURCE_DIR_*` variable avoids a download:
 
 ```sh
 # uses ../MVCCHive as it is; tinyxml2 still needs a package or local source
@@ -44,7 +44,9 @@ cmake --preset default \
   -DSVG_EDITOR_MVCCHIVE_REPOSITORY=https://host/mirror/MVCCHive.git \
   -DSVG_EDITOR_MVCCHIVE_TAG=9b7501802f087c419fcb8f8b42430547fe4d5087 \
   -DSVG_EDITOR_TINYXML2_REPOSITORY=https://host/mirror/tinyxml2.git \
-  -DSVG_EDITOR_TINYXML2_TAG=11.0.0
+  -DSVG_EDITOR_TINYXML2_TAG=11.0.0 \
+  -DSVG_EDITOR_REFLECTION_CPP_REPOSITORY=https://host/mirror/reflection-cpp.git \
+  -DSVG_EDITOR_REFLECTION_CPP_TAG=7c6dd273794cf6b8f6243b751d91360b7dc8cfa2
 ```
 
 ## Running

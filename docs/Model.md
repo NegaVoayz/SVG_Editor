@@ -369,10 +369,14 @@ alpha, `transparent`, `style` and element kinds such as `path` remain outside th
 An empty or whitespace-only `transform` attribute is accepted as the identity, just
 like `transform="none"`.
 
-`SvgSchema.hh` is the shared source for that element/attribute list. The reader rejects
-anything it does not name, and the writer validates every attribute against it before
-emission. A future writer attribute that skips the table therefore fails at the write,
-rather than producing a file that the same binary cannot reopen.
+`SvgSchema.cc` is the shared source for that element/attribute list. Its row type is an
+aggregate reflected with `reflection-cpp`: each member name is an SVG element name, and
+each marker member in an attribute aggregate is an attribute name. A trailing underscore
+makes a C++ keyword usable, an internal underscore becomes a hyphen, and `xlink_href`
+becomes `xlink:href`; camel-case SVG names stay as written. The reader rejects anything
+the reflected schema does not name, and the writer validates every attribute against it
+before emission. A future writer attribute that skips the table therefore fails at the
+write, rather than producing a file that the same binary cannot reopen.
 
 Loading assigns per-kind ids such as `rect1` and `circle1` to unnamed non-root elements,
 in document order. The root may stay unnamed. A non-root element whose id is `svg` is
