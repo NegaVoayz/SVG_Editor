@@ -254,7 +254,7 @@ int main() {
     if (box_before_undo && happened_with<event::Undone>(undo_create)) {
         const event::Undone& undone = std::get<event::Undone>(undo_create.event());
         CHECK(kind_of(undone.touched, *box_before_undo) == TouchedKind::Remove);
-        CHECK(undone.original != nullptr);
+        CHECK(undone.original.has_value());
         if (undone.original) CHECK(std::holds_alternative<event::Created>(*undone.original));
     }
     CHECK(document.find("box") == std::nullopt);
@@ -265,7 +265,7 @@ int main() {
     CHECK(happened_with<event::Redone>(redo_create));
     if (happened_with<event::Redone>(redo_create)) {
         const event::Redone& redone = std::get<event::Redone>(redo_create.event());
-        CHECK(redone.original != nullptr);
+        CHECK(redone.original.has_value());
         if (redone.original) CHECK(std::holds_alternative<event::Created>(*redone.original));
     }
     CHECK(document.find("layer").has_value());
@@ -1288,9 +1288,9 @@ int main() {
         CHECK(happened_with<event::Undone>(undo_class));
         if (happened_with<event::Undone>(undo_class)) {
             CHECK(std::get<event::Undone>(undo_class.event()).checkout == moved_commit);
-            const std::shared_ptr<const event::EditEvent> original =
+            const std::optional<event::EditEvent> original =
                 std::get<event::Undone>(undo_class.event()).original;
-            CHECK(original != nullptr);
+            CHECK(original.has_value());
             if (original) {
                 CHECK(std::holds_alternative<event::AttributeSet>(*original));
                 if (std::holds_alternative<event::AttributeSet>(*original)) {
@@ -1304,9 +1304,9 @@ int main() {
         CHECK(happened_with<event::Undone>(undo_move));
         if (happened_with<event::Undone>(undo_move)) {
             CHECK(std::get<event::Undone>(undo_move.event()).checkout == created_commit);
-            const std::shared_ptr<const event::EditEvent> original =
+            const std::optional<event::EditEvent> original =
                 std::get<event::Undone>(undo_move.event()).original;
-            CHECK(original != nullptr);
+            CHECK(original.has_value());
             if (original) {
                 CHECK(std::holds_alternative<event::Moved>(*original));
                 if (std::holds_alternative<event::Moved>(*original)) {
@@ -1321,9 +1321,9 @@ int main() {
         CHECK(happened_with<event::Redone>(redo_move));
         if (happened_with<event::Redone>(redo_move)) {
             CHECK(std::get<event::Redone>(redo_move.event()).checkout == moved_commit);
-            const std::shared_ptr<const event::EditEvent> original =
+            const std::optional<event::EditEvent> original =
                 std::get<event::Redone>(redo_move.event()).original;
-            CHECK(original != nullptr);
+            CHECK(original.has_value());
             if (original) CHECK(std::holds_alternative<event::Moved>(*original));
         }
 
@@ -1331,9 +1331,9 @@ int main() {
         CHECK(happened_with<event::Redone>(redo_class));
         if (happened_with<event::Redone>(redo_class)) {
             CHECK(std::get<event::Redone>(redo_class.event()).checkout == class_commit);
-            const std::shared_ptr<const event::EditEvent> original =
+            const std::optional<event::EditEvent> original =
                 std::get<event::Redone>(redo_class.event()).original;
-            CHECK(original != nullptr);
+            CHECK(original.has_value());
             if (original) CHECK(std::holds_alternative<event::AttributeSet>(*original));
         }
 
@@ -1459,9 +1459,9 @@ int main() {
         CHECK(happened_with<event::Undone>(undo_branch));
         if (happened_with<event::Undone>(undo_branch)) {
             CHECK(std::get<event::Undone>(undo_branch.event()).checkout == moved_commit);
-            const std::shared_ptr<const event::EditEvent> original =
+            const std::optional<event::EditEvent> original =
                 std::get<event::Undone>(undo_branch.event()).original;
-            CHECK(original != nullptr);
+            CHECK(original.has_value());
             if (original) CHECK(std::holds_alternative<event::Created>(*original));
         }
 
@@ -1469,9 +1469,9 @@ int main() {
         CHECK(happened_with<event::Redone>(redo_branch));
         if (happened_with<event::Redone>(redo_branch)) {
             CHECK(std::get<event::Redone>(redo_branch.event()).checkout == branch_commit);
-            const std::shared_ptr<const event::EditEvent> original =
+            const std::optional<event::EditEvent> original =
                 std::get<event::Redone>(redo_branch.event()).original;
-            CHECK(original != nullptr);
+            CHECK(original.has_value());
             if (original) CHECK(std::holds_alternative<event::Created>(*original));
         }
 
@@ -1481,9 +1481,9 @@ int main() {
         CHECK(happened_with<event::Undone>(undo_after_branch));
         if (happened_with<event::Undone>(undo_after_branch)) {
             CHECK(std::get<event::Undone>(undo_after_branch.event()).checkout == created_commit);
-            const std::shared_ptr<const event::EditEvent> original =
+            const std::optional<event::EditEvent> original =
                 std::get<event::Undone>(undo_after_branch.event()).original;
-            CHECK(original != nullptr);
+            CHECK(original.has_value());
             if (original) CHECK(std::holds_alternative<event::Moved>(*original));
         }
 

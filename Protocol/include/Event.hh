@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <deque>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -178,7 +177,7 @@ struct Undone {
     std::size_t position;
     std::size_t depth;
     TouchedNodes touched;
-    std::shared_ptr<const EditEvent> original;
+    std::optional<EditEvent> original;
     // The commit the checkout landed on. A front end with more than one hive compares
     // the same value on each hive to undo them together.
     CommitId checkout = 0;
@@ -188,7 +187,7 @@ struct Redone {
     std::size_t position;
     std::size_t depth;
     TouchedNodes touched;
-    std::shared_ptr<const EditEvent> original;
+    std::optional<EditEvent> original;
     CommitId checkout = 0;
 };
 

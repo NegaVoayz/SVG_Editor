@@ -25,6 +25,13 @@ add_library(SvgEditor::Editor ALIAS Editor)
 target_include_directories(Editor PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 
+# Debug object files for Editor.cc exceed the default COFF section limit when the
+# history outcome is stored inline. Big-object mode is the GNU MinGW assembler's
+# supported representation for that case; Clang and non-Windows toolchains do not use it.
+if(MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(Editor PRIVATE -Wa,-mbig-obj)
+endif()
+
 target_link_libraries(Editor
     PUBLIC
         SvgEditor::Model

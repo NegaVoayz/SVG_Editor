@@ -71,11 +71,11 @@ void Editor::sync_history() {
                                             document_.position(), document_.depth()};
 }
 
-std::shared_ptr<const event::EditEvent> Editor::history_event(std::size_t position, CommitId commit) const {
-    if (position >= history_events_.size()) return nullptr;
+std::optional<event::EditEvent> Editor::history_event(std::size_t position, CommitId commit) const {
+    if (position >= history_events_.size()) return std::nullopt;
     const event::HistoryEntry& entry = history_events_[position];
-    if (entry.commit != commit) return nullptr;
-    return std::make_shared<const event::EditEvent>(entry.outcome);
+    if (entry.commit != commit) return std::nullopt;
+    return entry.outcome;
 }
 
 void Editor::record_history_event(std::size_t position, CommitId commit, event::EditEvent outcome) {

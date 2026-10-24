@@ -103,7 +103,7 @@ private:
     // that no longer names the same commit cannot replay the wrong outcome. Undo and
     // redo carry the checkout id, which is what lets the same operation be resolved
     // against every hive.
-    std::shared_ptr<const event::EditEvent> history_event(std::size_t position, CommitId commit) const;
+    std::optional<event::EditEvent> history_event(std::size_t position, CommitId commit) const;
     void record_history_event(std::size_t position, CommitId commit, event::EditEvent outcome);
     void sync_history();
     event::HistoryEntries history_events_;

@@ -301,14 +301,12 @@ int main() {
     CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "g#markers deleted (2 elements)");
     CHECK(render(event::Undone{
               3, 3, {},
-              std::make_shared<const event::EditEvent>(
-                  event::Moved{{"rect", "r1"}, units(5), units(7)}),
+              event::EditEvent{event::Moved{{"rect", "r1"}, units(5), units(7)}},
               12}) ==
           "undo: rect#r1 moved by (5, 7) (HEAD 12)");
     CHECK(render(event::Redone{
               3, 3, {},
-              std::make_shared<const event::EditEvent>(
-                  event::Moved{{"rect", "r1"}, units(5), units(7)}),
+              event::EditEvent{event::Moved{{"rect", "r1"}, units(5), units(7)}},
               13}) ==
           "redo: rect#r1 moved by (5, 7) (HEAD 13)");
     const event::HistoryEntries timeline_entries{
