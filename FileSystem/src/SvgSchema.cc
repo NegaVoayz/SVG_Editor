@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <iterator>
+#include <optional>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -73,25 +74,35 @@ inline constexpr SchemaRow rows[] = {
      }},
 };
 
-constexpr const SchemaRow* find_row(std::string_view element) {
+constexpr std::optional<SchemaRow> find_row(std::string_view element) {
     for (const SchemaRow& row : rows) {
-        if (row.element == element) return &row;
+        if (row.element == element) return row;
     }
-    return nullptr;
+    return std::nullopt;
+}
+
+template<typename Element>
+consteval bool has_schema() {
+    return find_row(element_name(Element{})).has_value();
+}
+
+template<typename Element>
+consteval bool has_family(ElementFamily family) {
+    const std::optional<SchemaRow> row = find_row(element_name(Element{}));
+    return row.has_value() && row->schema.family == family;
 }
 
 template<typename Variant>
 consteval bool has_schema_for_every_alternative() {
     return []<std::size_t... Index>(std::index_sequence<Index...>) {
-        return ((find_row(element_name(std::variant_alternative_t<Index, Variant>{})) != nullptr) && ...);
+        return (has_schema<std::variant_alternative_t<Index, Variant>>() && ...);
     }(std::make_index_sequence<std::variant_size_v<Variant>>{});
 }
 
 template<typename Variant>
 consteval bool has_family_for_every_alternative(ElementFamily family) {
     return [family]<std::size_t... Index>(std::index_sequence<Index...>) {
-        return ((find_row(element_name(std::variant_alternative_t<Index, Variant>{}))->schema.family == family) &&
-                ...);
+        return (has_family<std::variant_alternative_t<Index, Variant>>(family) && ...);
     }(std::make_index_sequence<std::variant_size_v<Variant>>{});
 }
 
@@ -114,16 +125,17 @@ static_assert(has_family_for_every_alternative<Text::Kinds>(ElementFamily::Text)
 
 }  // namespace
 
-const ElementSchema* schema_for(std::string_view element) {
-    const SchemaRow* row = find_row(element);
-    return row == nullptr ? nullptr : &row->schema;
+std::optional<ElementSchema> schema_for(std::string_view element) {
+    const std::optional<SchemaRow> row = find_row(element);
+    if (!row) return std::nullopt;
+    return row->schema;
 }
 
-bool is_element(std::string_view element) { return find_row(element) != nullptr; }
+bool is_element(std::string_view element) { return find_row(element).has_value(); }
 
 bool accepts_attribute(std::string_view element, std::string_view attribute) {
-    const SchemaRow* row = find_row(element);
-    if (row == nullptr) return false;
+    const std::optional<SchemaRow> row = find_row(element);
+    if (!row) return false;
     return accepts(svg_fields::common_fields, attribute) || row->accepts_specific(attribute);
 }
 

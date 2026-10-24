@@ -168,8 +168,8 @@ private:
     std::size_t read_element(const std::size_t xml_index) {
         const XmlNode& xml_node = xml_.nodes[xml_index];
         const std::string_view element = Xml::local_name(xml_node.name);
-        const svg_schema::ElementSchema* schema = svg_schema::schema_for(element);
-        if (schema == nullptr) {
+        const std::optional<svg_schema::ElementSchema> schema = svg_schema::schema_for(element);
+        if (!schema) {
             fail(SvgProblem::UnsupportedElement, xml_node, {}, {}, std::string{element});
         }
 

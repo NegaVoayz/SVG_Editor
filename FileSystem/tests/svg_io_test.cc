@@ -134,8 +134,8 @@ int main() {
     CHECK(svg_schema::accepts_attribute("textPath", "xlink:href"));
     CHECK(!svg_schema::accepts_attribute("g", "text-anchor"));
     CHECK(!svg_schema::accepts_attribute("textPath", "transform-origin"));
-    const svg_schema::ElementSchema* root_schema = svg_schema::schema_for("svg");
-    CHECK(root_schema != nullptr);
+    const std::optional<svg_schema::ElementSchema> root_schema = svg_schema::schema_for("svg");
+    CHECK(root_schema.has_value());
     if (root_schema) CHECK(root_schema->family == svg_schema::ElementFamily::Container);
 
     // The enum and its spelling table are generated from the same definition list, and

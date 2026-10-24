@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string_view>
 
 // The one reader/writer attribute contract. The reader refuses anything the schema does
@@ -17,7 +18,7 @@ struct ElementSchema {
     ElementFamily family;
 };
 
-const ElementSchema* schema_for(std::string_view element);
+std::optional<ElementSchema> schema_for(std::string_view element);
 bool is_element(std::string_view element);
 bool accepts_attribute(std::string_view element, std::string_view attribute);
 
