@@ -2,6 +2,7 @@
 # API that edits it. MVCCHive is its dependency, so this directory is the only
 # place in the build where the hive is used.
 include(cmake/MVCCHive.cmake)
+find_package(Threads REQUIRED)
 
 add_library(Model
     src/Color.cc
@@ -23,6 +24,7 @@ target_include_directories(Model PUBLIC
 target_link_libraries(Model
     PUBLIC
         mvcc_hive
+        Threads::Threads
     PRIVATE
         SvgEditor::Warnings)
 
