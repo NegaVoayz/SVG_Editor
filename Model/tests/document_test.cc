@@ -77,7 +77,6 @@ std::optional<TouchedKind> kind_of(const TouchedNodes& touched, Id id) {
 // A payload that claims it holds children but has nowhere to keep the list: it does not
 // count, because the capability is the storage the tree writes, not a statement about it.
 struct ClaimsChildren {
-    static constexpr bool holds_children = true;
 };
 
 // One that does have the child-list ends counts, whatever it is called.
