@@ -17,7 +17,7 @@ public:
 
 private:
     template<typename T>
-    Outcome handle(const T& intent) {
+    Outcome handle(const T&) {
         static_assert(false, "the FileSystem has no translation for this intent");
         return refused(Kind::Context, fault::InternalError{});
     }
