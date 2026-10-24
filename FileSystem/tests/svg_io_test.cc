@@ -67,14 +67,14 @@ Outcome save(Document& document, std::string_view path) {
 
 bool has_problem(const Outcome& outcome, SvgProblem problem) {
     if (outcome.ok()) return false;
-    const fault::InvalidSvg* invalid = std::get_if<fault::InvalidSvg>(&outcome.refusal());
-    return invalid != nullptr && invalid->diagnostic.problem == problem;
+    return std::holds_alternative<fault::InvalidSvg>(outcome.refusal()) &&
+           std::get<fault::InvalidSvg>(outcome.refusal()).diagnostic.problem == problem;
 }
 
 std::optional<SvgDiagnostic> diagnostic_of(const Outcome& outcome) {
     if (outcome.ok()) return std::nullopt;
-    if (const fault::InvalidSvg* invalid = std::get_if<fault::InvalidSvg>(&outcome.refusal())) {
-        return invalid->diagnostic;
+    if (std::holds_alternative<fault::InvalidSvg>(outcome.refusal())) {
+        return std::get<fault::InvalidSvg>(outcome.refusal()).diagnostic;
     }
     return std::nullopt;
 }
@@ -163,17 +163,18 @@ int main() {
         const XmlReadResult parsed = read_xml(
             "<?xml version=\"1.0\"?><!-- ignored --><root a=\"1\"><child>text &amp; <![CDATA[more]]></child></root>");
         CHECK(std::holds_alternative<XmlSnapshot>(parsed));
-        if (const XmlSnapshot* snapshot = std::get_if<XmlSnapshot>(&parsed)) {
-            CHECK(snapshot->nodes[snapshot->root].name == "root");
-            CHECK(snapshot->nodes[snapshot->root].attributes.size() == 1);
-            const std::vector<std::size_t>& children = snapshot->nodes[snapshot->root].children;
+        if (std::holds_alternative<XmlSnapshot>(parsed)) {
+            const XmlSnapshot& snapshot = std::get<XmlSnapshot>(parsed);
+            CHECK(snapshot.nodes[snapshot.root].name == "root");
+            CHECK(snapshot.nodes[snapshot.root].attributes.size() == 1);
+            const std::vector<std::size_t>& children = snapshot.nodes[snapshot.root].children;
             CHECK(children.size() == 1);
             if (children.size() == 1) {
-                const XmlNode& child = snapshot->nodes[children.front()];
+                const XmlNode& child = snapshot.nodes[children.front()];
                 CHECK(child.name == "child");
                 std::string text;
                 for (const std::size_t part : child.children) {
-                    text += snapshot->nodes[part].text;
+                    text += snapshot.nodes[part].text;
                 }
                 CHECK(text == "text & more");
             }
@@ -182,16 +183,18 @@ int main() {
     {
         const XmlReadResult malformed = read_xml("<root>");
         CHECK(std::holds_alternative<XmlReadError>(malformed));
-        if (const XmlReadError* error = std::get_if<XmlReadError>(&malformed)) {
-            CHECK(error->kind == XmlReadError::Kind::Malformed);
-            CHECK(error->line != 0);
+        if (std::holds_alternative<XmlReadError>(malformed)) {
+            const XmlReadError& error = std::get<XmlReadError>(malformed);
+            CHECK(error.kind == XmlReadError::Kind::Malformed);
+            CHECK(error.line != 0);
         }
     }
     {
         const XmlReadResult empty = read_xml("  \n");
         CHECK(std::holds_alternative<XmlReadError>(empty));
-        if (const XmlReadError* error = std::get_if<XmlReadError>(&empty)) {
-            CHECK(error->kind == XmlReadError::Kind::NoRoot);
+        if (std::holds_alternative<XmlReadError>(empty)) {
+            const XmlReadError& error = std::get<XmlReadError>(empty);
+            CHECK(error.kind == XmlReadError::Kind::NoRoot);
         }
     }
 
@@ -201,13 +204,12 @@ int main() {
     Document document;
     const Outcome opened = open(document, full_path.string());
     CHECK(opened.ok());
-    const event::Opened* open_success =
-        opened.ok() ? std::get_if<event::Opened>(&opened.event()) : nullptr;
-    CHECK(open_success != nullptr);
-    if (open_success) {
-        CHECK(open_success->assigned_ids.size() == 7);
-        CHECK(open_success->assigned_ids.front().id == "rect1");
-        CHECK(open_success->assigned_ids.front().element == "rect");
+    CHECK(opened.ok() && std::holds_alternative<event::Opened>(opened.event()));
+    if (opened.ok() && std::holds_alternative<event::Opened>(opened.event())) {
+        const event::Opened& open_success = std::get<event::Opened>(opened.event());
+        CHECK(open_success.assigned_ids.size() == 7);
+        CHECK(open_success.assigned_ids.front().id == "rect1");
+        CHECK(open_success.assigned_ids.front().element == "rect");
     }
     CHECK(document.depth() == 0);
 
@@ -330,10 +332,11 @@ int main() {
     Document collision;
     const Outcome collision_status = open(collision, collision_path.string());
     CHECK(collision_status.ok());
-    if (const event::Opened* warnings = std::get_if<event::Opened>(&collision_status.event())) {
-        CHECK(warnings->assigned_ids.size() == 2);
-        CHECK(warnings->assigned_ids[0].id == "rect2");
-        CHECK(warnings->assigned_ids[1].id == "rect3");
+    if (std::holds_alternative<event::Opened>(collision_status.event())) {
+        const event::Opened& warnings = std::get<event::Opened>(collision_status.event());
+        CHECK(warnings.assigned_ids.size() == 2);
+        CHECK(warnings.assigned_ids[0].id == "rect2");
+        CHECK(warnings.assigned_ids[1].id == "rect3");
     }
     CHECK(collision.find("rect2").has_value());
     CHECK(collision.find("rect3").has_value());
@@ -347,15 +350,16 @@ int main() {
     Document reserved;
     const Outcome reserved_status = open(reserved, reserved_path.string());
     CHECK(reserved_status.ok());
-    if (const event::Opened* renamed = std::get_if<event::Opened>(&reserved_status.event())) {
-        CHECK(renamed->assigned_ids.size() == 3);
-        if (renamed->assigned_ids.size() == 3) {
-            CHECK(renamed->assigned_ids[0].id == "rect2");
-            CHECK(renamed->assigned_ids[0].original_id == "svg");
-            CHECK(renamed->assigned_ids[1].id == "g1");
-            CHECK(renamed->assigned_ids[1].original_id == "svg");
-            CHECK(renamed->assigned_ids[2].id == "circle1");
-            CHECK(renamed->assigned_ids[2].original_id.empty());
+    if (std::holds_alternative<event::Opened>(reserved_status.event())) {
+        const event::Opened& renamed = std::get<event::Opened>(reserved_status.event());
+        CHECK(renamed.assigned_ids.size() == 3);
+        if (renamed.assigned_ids.size() == 3) {
+            CHECK(renamed.assigned_ids[0].id == "rect2");
+            CHECK(renamed.assigned_ids[0].original_id == "svg");
+            CHECK(renamed.assigned_ids[1].id == "g1");
+            CHECK(renamed.assigned_ids[1].original_id == "svg");
+            CHECK(renamed.assigned_ids[2].id == "circle1");
+            CHECK(renamed.assigned_ids[2].original_id.empty());
         }
     }
     CHECK(!reserved.find("svg").has_value());

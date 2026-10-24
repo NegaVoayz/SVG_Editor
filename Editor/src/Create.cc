@@ -98,8 +98,9 @@ std::optional<Refusal> dimension_problem(const CreateBox& intent) {
 
 std::optional<Refusal> subtree_id_problem(const Document& document, const Subtree& subtree,
                                           std::unordered_set<std::string>& seen) {
-    if (const SVGNode* element = std::get_if<SVGNode>(&subtree.payload)) {
-        const std::string& id = element->identity_attr.id;
+    if (std::holds_alternative<SVGNode>(subtree.payload)) {
+        const SVGNode& element = std::get<SVGNode>(subtree.payload);
+        const std::string& id = element.identity_attr.id;
         if (!valid_svg_id(id)) return fault::InvalidId{id};
         if (reserved_svg_id(id)) return fault::ReservedId{id};
         if (document.find(id) || !seen.insert(id).second) return fault::DuplicateId{id};

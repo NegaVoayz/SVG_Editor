@@ -148,8 +148,9 @@ std::optional<Refusal> scale_text(Text& text, float factor) {
     if (std::optional<Refusal> problem = scale_optional(text.common.dx, factor)) return problem;
     if (std::optional<Refusal> problem = scale_optional(text.common.dy, factor)) return problem;
     if (std::optional<Refusal> problem = scale_optional(text.common.font_size, factor)) return problem;
-    if (Text::Path* path = std::get_if<Text::Path>(&text.specific)) {
-        return scale_optional(path->startOffset, factor);
+    if (std::holds_alternative<Text::Path>(text.specific)) {
+        Text::Path& path = std::get<Text::Path>(text.specific);
+        return scale_optional(path.startOffset, factor);
     }
     return std::nullopt;
 }

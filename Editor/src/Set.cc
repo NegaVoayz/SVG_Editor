@@ -568,9 +568,10 @@ Outcome set_text(Document& document, Id node, const std::string& value, std::str
     if (const std::optional<Id> label = box_label(document, node)) {
         Outcome result = set_text(document, *label, value, attribute);
         if (result.ok() && std::holds_alternative<Event>(result.result)) {
-            if (event::ContentSet* changed =
-                    std::get_if<event::ContentSet>(&std::get<Event>(result.result))) {
-                changed->node = name_of(document, node);
+            Event& event = std::get<Event>(result.result);
+            if (std::holds_alternative<event::ContentSet>(event)) {
+                event::ContentSet& changed = std::get<event::ContentSet>(event);
+                changed.node = name_of(document, node);
             }
         }
         return result;

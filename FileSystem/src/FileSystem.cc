@@ -75,17 +75,18 @@ Outcome FileSystem::handle<Init>(const Init& intent) {
 template<>
 Outcome FileSystem::handle<Read>(const Read& intent) {
     const FileResult file = file_system_detail::read(intent.path);
-    if (const FileReadError* error = std::get_if<FileReadError>(&file)) {
-        return refused(Kind::Context, fault::CannotReadFile{error->path});
+    if (std::holds_alternative<FileReadError>(file)) {
+        const FileReadError& error = std::get<FileReadError>(file);
+        return refused(Kind::Context, fault::CannotReadFile{error.path});
     }
 
     const FileBytes& bytes = std::get<FileBytes>(file);
     const XmlReadResult xml = read_xml(bytes.bytes);
-    if (const XmlReadError* error = std::get_if<XmlReadError>(&xml)) return invalid_xml(*error);
+    if (std::holds_alternative<XmlReadError>(xml)) return invalid_xml(std::get<XmlReadError>(xml));
 
     const SvgReadResult parsed = read_svg(std::get<XmlSnapshot>(xml));
-    if (const SvgDiagnostic* diagnostic = std::get_if<SvgDiagnostic>(&parsed)) {
-        return refused(Kind::Context, fault::InvalidSvg{*diagnostic});
+    if (std::holds_alternative<SvgDiagnostic>(parsed)) {
+        return refused(Kind::Context, fault::InvalidSvg{std::get<SvgDiagnostic>(parsed)});
     }
 
     const ParsedSvg& document = std::get<ParsedSvg>(parsed);
@@ -104,8 +105,9 @@ Outcome FileSystem::handle<Save>(const Save& intent) {
 
     const std::string svg = write_svg(document_);
     const FileResult file = file_system_detail::write(target, svg);
-    if (const FileWriteError* error = std::get_if<FileWriteError>(&file)) {
-        return refused(Kind::Context, fault::CannotWriteFile{error->path});
+    if (std::holds_alternative<FileWriteError>(file)) {
+        const FileWriteError& error = std::get<FileWriteError>(file);
+        return refused(Kind::Context, fault::CannotWriteFile{error.path});
     }
 
     // What was written is what the file says from here on, so the way back to the

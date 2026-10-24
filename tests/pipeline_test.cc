@@ -44,7 +44,7 @@ std::optional<Shape::Rect> rect_of(const ElementShape& element) {
 }
 
 std::optional<Shape::Rect> rect_of(const NodeShape& shape) {
-    if (const ElementShape* element = std::get_if<ElementShape>(&shape)) return rect_of(*element);
+    if (std::holds_alternative<ElementShape>(shape)) return rect_of(std::get<ElementShape>(shape));
     return std::nullopt;
 }
 

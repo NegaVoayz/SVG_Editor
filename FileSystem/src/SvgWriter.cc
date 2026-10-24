@@ -112,8 +112,9 @@ struct TextAttributes {
 
     void operator()(const Text& text) const {
         append_fields(out, text.common, svg_fields::text_common_fields);
-        if (const Text::Path* path = std::get_if<Text::Path>(&text.specific)) {
-            append_fields(out, *path, svg_fields::text_path_fields);
+        if (std::holds_alternative<Text::Path>(text.specific)) {
+            const Text::Path& path = std::get<Text::Path>(text.specific);
+            append_fields(out, path, svg_fields::text_path_fields);
         }
     }
 };
