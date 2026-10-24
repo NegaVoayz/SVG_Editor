@@ -36,7 +36,9 @@ private:
             if (!document_.has_document()) return no_document(Kind::Change);
             return editor_.translate(ChangeIntent{intent});
         } else if constexpr (std::is_constructible_v<FileIntent, T>) {
-            return filesystem_.translate(FileIntent{intent});
+            const Outcome outcome = filesystem_.translate(FileIntent{intent});
+            if (outcome.ok()) editor_.refresh_history();
+            return outcome;
         } else {
             static_assert(false, "the Planner has no route for this intent");
             return refused(Kind::Unknown, fault::InternalError{});

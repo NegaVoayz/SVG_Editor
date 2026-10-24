@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstddef>
+#include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -139,10 +141,38 @@ using EditEvent = std::variant<Created, Deleted, Moved, Scaled, AddedTo, MovedTo
 // editor commits explicitly it is also the id every participating hive uses.
 struct HistoryEntry {
     CommitId commit = 0;
-    std::shared_ptr<const EditEvent> outcome;
+    EditEvent outcome;
     // Zero is the context baseline; editable history starts at position one.
     std::size_t position = 0;
 };
+
+// The live cursor and bounds of the Editor's replay log. A HistoryView refers to this
+// object, so every change to the checkout is visible without rebuilding the view.
+struct HistoryCursor {
+    CommitId baseline = 0;
+    CommitId head = 0;
+    std::size_t position = 0;
+    std::size_t depth = 0;
+};
+
+using HistoryEntries = std::deque<HistoryEntry>;
+
+}  // namespace event
+
+// A live, non-owning window over the Editor's history. The Editor owns both referenced
+// objects for longer than any view it returns; retaining a HistoryView past the Editor
+// is therefore invalid. Selection and folded ranges are render-time concerns.
+struct HistoryView {
+    HistoryView(const event::HistoryEntries& entries, const event::HistoryCursor& cursor,
+                std::size_t limit)
+        : entries{entries}, cursor{cursor}, limit{limit} {}
+
+    std::reference_wrapper<const event::HistoryEntries> entries;
+    std::reference_wrapper<const event::HistoryCursor> cursor;
+    std::size_t limit;
+};
+
+namespace event {
 
 struct Undone {
     std::size_t position;
@@ -170,7 +200,7 @@ struct CheckedOut {
     TouchedNodes touched;
     CommitId commit = 0;
     CommitId baseline = 0;
-    std::vector<HistoryEntry> timeline;
+    HistoryView timeline;
     bool no_effect = false;
 };
 

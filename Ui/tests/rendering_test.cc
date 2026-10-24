@@ -217,47 +217,47 @@ int main() {
     CHECK(render(NodeView{7, CharacterView{"hello"}, "hello"}) == "<text-node> text=\"hello\"");
 
     // The history is shown newest first, with the baseline last. Entries stay
-    // chronological in the view; rendering reverses them for the terminal.
-    HistoryView history;
-    history.baseline = 11;
-    history.head = 13;
-    history.position = 2;
-    history.depth = 2;
-    history.entries.push_back(event::HistoryEntry{
-        12, std::make_shared<const event::EditEvent>(event::Created{{"rect", "r"}, {"svg", ""}, false}), 1});
-    history.entries.push_back(event::HistoryEntry{
-        13, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r"}, units(5), units(7)}), 2});
+    // chronological in the log; rendering reverses them for the terminal.
+    const event::HistoryEntries history_entries{
+        {12, event::EditEvent{event::Created{{"rect", "r"}, {"svg", ""}, false}}, 1},
+        {13, event::EditEvent{event::Moved{{"rect", "r"}, units(5), units(7)}}, 2},
+    };
+    const event::HistoryCursor history_cursor{11, 13, 2, 2};
+    const HistoryView history{history_entries, history_cursor, 20};
     CHECK(render(history) ==
           "13  rect#r moved by (5, 7) (HEAD)\n12  rect#r created\n11  baseline");
 
     // Commit ids line up by their widest value, and folded commits are counted between
     // the visible checkpoints rather than reported as one global total.
-    HistoryView capped;
-    capped.baseline = 8;
-    capped.head = 10;
-    capped.depth = 3;
-    capped.entries.push_back(event::HistoryEntry{
-        9, std::make_shared<const event::EditEvent>(event::Created{{"rect", "a"}, {"svg", ""}, false}), 2});
-    capped.entries.push_back(event::HistoryEntry{
-        10, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "a"}, units(1), units(2)}), 3});
+    const event::HistoryEntries capped_entries{
+        {9, event::EditEvent{event::Created{{"rect", "old"}, {"svg", ""}, false}}, 1},
+        {10, event::EditEvent{event::Created{{"rect", "a"}, {"svg", ""}, false}}, 2},
+        {11, event::EditEvent{event::Moved{{"rect", "a"}, units(1), units(2)}}, 3},
+    };
+    const event::HistoryCursor capped_cursor{8, 11, 3, 3};
+    const HistoryView capped{capped_entries, capped_cursor, 1};
     CHECK(render(capped) ==
-          "10  rect#a moved by (1, 2) (HEAD)\n 9  rect#a created\n"
+          "11  rect#a moved by (1, 2) (HEAD)\n10  rect#a created\n"
           "... 1 commit folded ...\n 8  baseline");
 
     // The baseline, HEAD, and newest commit are anchors even when the cap is smaller than
     // the range between them. Each omitted range gets its own folded count.
-    HistoryView anchored;
-    anchored.baseline = 1;
-    anchored.head = 3;
-    anchored.depth = 5;
-    anchored.entries.push_back(event::HistoryEntry{
-        3, std::make_shared<const event::EditEvent>(event::Created{{"rect", "head"}, {"svg", ""}, false}), 2});
-    anchored.entries.push_back(event::HistoryEntry{
-        6, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "head"}, units(1), units(0)}), 5});
+    const event::HistoryEntries anchored_entries{
+        {11, event::EditEvent{event::Created{{"rect", "old"}, {"svg", ""}, false}}, 1},
+        {12, event::EditEvent{event::Created{{"rect", "near"}, {"svg", ""}, false}}, 2},
+        {13, event::EditEvent{event::Created{{"rect", "head"}, {"svg", ""}, false}}, 3},
+        {14, event::EditEvent{event::Moved{{"rect", "head"}, units(0), units(0)}}, 4},
+        {15, event::EditEvent{event::Moved{{"rect", "head"}, units(1), units(0)}}, 5},
+    };
+    const event::HistoryCursor anchored_cursor{10, 13, 3, 5};
+    const HistoryView anchored{anchored_entries, anchored_cursor, 1};
     CHECK(render(anchored) ==
-          "6  rect#head moved by (1, 0)\n... 2 commits folded ...\n"
-          "3  rect#head created (HEAD)\n... 1 commit folded ...\n1  baseline");
-    CHECK(render(HistoryView{}) == "no history");
+          "15  rect#head moved by (1, 0)\n... 1 commit folded ...\n"
+          "13  rect#head created (HEAD)\n12  rect#near created\n"
+          "... 1 commit folded ...\n10  baseline");
+    const event::HistoryEntries empty_entries;
+    const event::HistoryCursor empty_cursor;
+    CHECK(render(HistoryView{empty_entries, empty_cursor, 20}) == "no history");
 
     // The other half of the boundary: an event and a refusal are data until this file
     // turns them into words. Every branch is plain prose; a refusal starts with `error:`.
@@ -301,22 +301,30 @@ int main() {
     CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "g#markers deleted (2 elements)");
     CHECK(render(event::Undone{
               3, 3, {},
-              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)}), 12}) ==
+              std::make_shared<const event::EditEvent>(
+                  event::Moved{{"rect", "r1"}, units(5), units(7)}),
+              12}) ==
           "undo: rect#r1 moved by (5, 7) (HEAD 12)");
     CHECK(render(event::Redone{
               3, 3, {},
-              std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)}), 13}) ==
+              std::make_shared<const event::EditEvent>(
+                  event::Moved{{"rect", "r1"}, units(5), units(7)}),
+              13}) ==
           "redo: rect#r1 moved by (5, 7) (HEAD 13)");
-    const std::vector<event::HistoryEntry> timeline{
-        {12, std::make_shared<const event::EditEvent>(event::Created{{"rect", "r1"}, {"svg", ""}, false}), 1},
-        {13, std::make_shared<const event::EditEvent>(event::Moved{{"rect", "r1"}, units(5), units(7)}), 2},
+    const event::HistoryEntries timeline_entries{
+        {12, event::EditEvent{event::Created{{"rect", "r1"}, {"svg", ""}, false}}, 1},
+        {13, event::EditEvent{event::Moved{{"rect", "r1"}, units(5), units(7)}}, 2},
     };
+    const event::HistoryCursor timeline_cursor{11, 13, 2, 2};
+    const HistoryView timeline{timeline_entries, timeline_cursor, 20};
     CHECK(render(event::CheckedOut{2, 2, {}, 13, 11, timeline, false}) ==
           "checked out 13\n13  rect#r1 moved by (5, 7) (HEAD)\n12  rect#r1 created\n11  baseline");
     CHECK(render(event::CheckedOut{2, 2, {}, 13, 11, timeline, true}) ==
           "checked out 13 (no effect)\n13  rect#r1 moved by (5, 7) (HEAD)\n"
           "12  rect#r1 created\n11  baseline");
-    CHECK(render(event::CheckedOut{0, 0, {}, 11, 11, {}, true}) ==
+    const event::HistoryCursor empty_timeline_cursor{11, 11, 0, 0};
+    const HistoryView empty_timeline{empty_entries, empty_timeline_cursor, 20};
+    CHECK(render(event::CheckedOut{0, 0, {}, 11, 11, empty_timeline, true}) ==
           "checked out 11 (no effect)\n11  baseline (HEAD)");
     CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
     CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");

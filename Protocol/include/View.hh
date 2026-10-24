@@ -13,11 +13,11 @@
 // what turns it into text, because text is its business in both directions of the boundary
 // - it parses what a user wrote, and it writes what a user reads.
 //
-// The payloads are copies. A view is a snapshot of the tree as it stands, and it has to
-// outlive the checkpoint or transaction that produced it, so nothing here can be a
-// reference into the arena. A view is also storage-independent: it contains no parent or
-// sibling ids, because those describe a position inside Model's hive rather than anything
-// a front end can display or act on.
+// Tree and node payloads are copies so they can outlive the checkpoint or transaction
+// that produced them. HistoryView is the deliberate exception: it is a live reference to
+// the Editor's replay log and cursor. Every view is storage-independent: it contains no
+// parent or sibling ids, because those describe a position inside Model's hive rather
+// than anything a front end can display or act on.
 //
 // `text` is a text element's words, read out of the character data under it. SVG keeps them
 // in a child node rather than in an attribute, but a tree in which every word is a line of
@@ -67,20 +67,6 @@ struct NodeView {
     std::string text;
     std::optional<NodeParent> parent = std::nullopt;
     Transform transform = {};
-};
-
-// A window of the edits since the last context change. Entries stay in chronological
-// order; a front end showing the newest first reverses them. A checkout moves to one of
-// these, so the list is also its operand table.
-// The baseline is the state just after the context change. It is deliberately not an
-// edit entry because it has no edit outcome, but its id is carried here so both history
-// rendering and checkout can show and return to the first retained commit.
-struct HistoryView {
-    CommitId baseline = 0;
-    CommitId head = 0;
-    std::size_t position = 0;
-    std::size_t depth = 0;
-    std::vector<event::HistoryEntry> entries;
 };
 
 // One of the two reads, or nothing: an outcome that is a change or a failure carries its

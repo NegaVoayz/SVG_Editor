@@ -41,9 +41,13 @@ public:
     // branch that quietly does nothing.
     Outcome translate(const ChangeIntent& intent);
 
-    // A window of up to `limit` checkpoints centered on the current checkout, defaulting
-    // to 20. Entries stay chronological; the view also carries the baseline and checkout.
+    // A live window over the Editor-owned history, defaulting to 20 checkpoints. The
+    // return value refers to the Editor and must not outlive it.
     HistoryView history(std::optional<std::size_t> limit);
+
+    // FileSystem changes the Model's baseline directly; the Planner calls this after a
+    // successful context command so retained history views see that change immediately.
+    void refresh_history();
 
 private:
     // Which translation answers an instruction is a question about the type of the
@@ -101,8 +105,9 @@ private:
     // against every hive.
     std::shared_ptr<const event::EditEvent> history_event(std::size_t position, CommitId commit) const;
     void record_history_event(std::size_t position, CommitId commit, event::EditEvent outcome);
-    void sync_history_events();
-    std::deque<event::HistoryEntry> history_events_;
+    void sync_history();
+    event::HistoryEntries history_events_;
+    event::HistoryCursor history_cursor_;
 
     Document& document_;
 };

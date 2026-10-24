@@ -9,7 +9,7 @@
 // The parameter has no name: undo and redo are instructions with nothing in them, and a
 // name for nothing reads as if there were something.
 template<> Outcome Editor::handle<Undo>(const Undo&) {
-    sync_history_events();
+    sync_history();
     if (!document_.can_undo()) {
         if (document_.undo_barred_by_io()) return refused(Kind::Change, fault::UndoAfterIo{});
         return refused(Kind::Change, fault::NothingToUndo{});
@@ -26,7 +26,7 @@ template<> Outcome Editor::handle<Undo>(const Undo&) {
 }
 
 template<> Outcome Editor::handle<Redo>(const Redo&) {
-    sync_history_events();
+    sync_history();
     if (!document_.can_redo()) return refused(Kind::Change, fault::NothingToRedo{});
 
     TouchedNodes touched = document_.redo();
@@ -40,7 +40,7 @@ template<> Outcome Editor::handle<Redo>(const Redo&) {
 }
 
 template<> Outcome Editor::handle<Checkout>(const Checkout& intent) {
-    sync_history_events();
+    sync_history();
     const std::optional<HistoryCheckout> moved = document_.checkout(intent.commit);
     if (!moved) return refused(Kind::Change, fault::UnknownCommit{intent.commit});
 
@@ -48,5 +48,5 @@ template<> Outcome Editor::handle<Checkout>(const Checkout& intent) {
     const HistoryView timeline = history(intent.limit);
     return happened(Kind::Change,
                     event::CheckedOut{moved->position, document_.depth(), moved->touched, intent.commit,
-                                      timeline.baseline, timeline.entries, moved->no_effect});
+                                      document_.baseline_commit(), timeline, moved->no_effect});
 }

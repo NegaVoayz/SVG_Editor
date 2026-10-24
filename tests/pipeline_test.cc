@@ -1049,10 +1049,17 @@ int main() {
     // The canvas is the root element's own size, and setting it is a checkpoint: the
     // frame behind the drawing is what the document is now, so nothing before it can
     // be undone.
+    const Outcome before_canvas = planner.dispatch(ShowHistory{});
+    CHECK(before_canvas.ok());
     CHECK(planner.dispatch(SetCanvas{Length{1024.0F, Length::Unit::UserUnit}, std::nullopt}).ok());
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
     CHECK(document.undo_barred_by_io());
+    if (std::holds_alternative<HistoryView>(before_canvas.view())) {
+        const HistoryView& history = std::get<HistoryView>(before_canvas.view());
+        CHECK(history.cursor.get().depth == 0);
+        CHECK(history.entries.get().empty());
+    }
     const std::optional<Node> root_payload = document.node(document.root());
     CHECK(root_payload.has_value());
     if (root_payload && std::holds_alternative<SVGNode>(*root_payload)) {
@@ -1077,11 +1084,20 @@ int main() {
     const std::filesystem::path save_directory = std::filesystem::temp_directory_path() / "svg_editor_pipeline";
     std::filesystem::create_directories(save_directory);
     const std::string save_path = (save_directory / "pipeline_out.svg").string();
+    CHECK(planner.dispatch(Create{CreateGroup{"saved-layer"}}).ok());
+    const Outcome before_save = planner.dispatch(ShowHistory{});
+    CHECK(before_save.ok());
+    CHECK(document.depth() == 1);
     const Outcome saved = planner.dispatch(Save{save_path});
     CHECK(saved.ok());
     CHECK(happened_with<event::Saved>(saved));
     if (happened_with<event::Saved>(saved)) {
         CHECK(std::get<event::Saved>(saved.event()).elements == document.element_count());
+    }
+    if (std::holds_alternative<HistoryView>(before_save.view())) {
+        const HistoryView& history = std::get<HistoryView>(before_save.view());
+        CHECK(history.cursor.get().depth == 0);
+        CHECK(history.entries.get().empty());
     }
     const Outcome undo_at_save = planner.dispatch(Undo{});
     CHECK(!undo_at_save.ok());
@@ -1326,19 +1342,21 @@ int main() {
         CHECK(std::holds_alternative<HistoryView>(listed.view()));
         if (std::holds_alternative<HistoryView>(listed.view())) {
             const HistoryView& history = std::get<HistoryView>(listed.view());
-            CHECK(history.baseline == baseline);
-            CHECK(history.head == class_commit);
-            CHECK(history.position == 3);
-            CHECK(history.depth == 3);
-            CHECK(history.entries.size() == 3);
-            if (history.entries.size() == 3) {
-                CHECK(history.entries[0].commit == created_commit);
-                CHECK(history.entries[0].position == 1);
-                CHECK(history.entries[1].commit == moved_commit);
-                CHECK(history.entries[1].position == 2);
-                CHECK(history.entries[2].commit == class_commit);
-                CHECK(history.entries[2].position == 3);
-                CHECK(history.entries[2].outcome != nullptr);
+            const event::HistoryCursor& cursor = history.cursor.get();
+            const event::HistoryEntries& entries = history.entries.get();
+            CHECK(cursor.baseline == baseline);
+            CHECK(cursor.head == class_commit);
+            CHECK(cursor.position == 3);
+            CHECK(cursor.depth == 3);
+            CHECK(entries.size() == 3);
+            if (entries.size() == 3) {
+                CHECK(entries[0].commit == created_commit);
+                CHECK(entries[0].position == 1);
+                CHECK(entries[1].commit == moved_commit);
+                CHECK(entries[1].position == 2);
+                CHECK(entries[2].commit == class_commit);
+                CHECK(entries[2].position == 3);
+                CHECK(std::holds_alternative<event::AttributeSet>(entries[2].outcome));
             }
         }
 
@@ -1346,10 +1364,13 @@ int main() {
         CHECK(recent.ok());
         if (std::holds_alternative<HistoryView>(recent.view())) {
             const HistoryView& history = std::get<HistoryView>(recent.view());
-            CHECK(history.entries.size() == 2);
-            if (history.entries.size() == 2) {
-                CHECK(history.entries[0].commit == moved_commit);
-                CHECK(history.entries[1].commit == class_commit);
+            const event::HistoryEntries& entries = history.entries.get();
+            CHECK(history.limit == 1);
+            CHECK(entries.size() == 3);
+            if (entries.size() == 3) {
+                CHECK(entries[0].commit == created_commit);
+                CHECK(entries[1].commit == moved_commit);
+                CHECK(entries[2].commit == class_commit);
             }
         }
 
@@ -1360,7 +1381,7 @@ int main() {
             CHECK(checkout.commit == moved_commit);
             CHECK(checkout.position == 2);
             CHECK(checkout.baseline == baseline);
-            CHECK(checkout.timeline.size() == 3);
+            CHECK(checkout.timeline.entries.get().size() == 3);
             CHECK(!checkout.no_effect);
         }
         CHECK(replay_document.commit_id() == moved_commit);
@@ -1372,13 +1393,15 @@ int main() {
         CHECK(centered.ok());
         if (std::holds_alternative<HistoryView>(centered.view())) {
             const HistoryView& history = std::get<HistoryView>(centered.view());
-            CHECK(history.baseline == baseline);
-            CHECK(history.head == moved_commit);
-            CHECK(history.entries.size() == 3);
-            if (history.entries.size() == 3) {
-                CHECK(history.entries[0].position == 1);
-                CHECK(history.entries[1].position == 2);
-                CHECK(history.entries[2].position == 3);
+            const event::HistoryCursor& cursor = history.cursor.get();
+            const event::HistoryEntries& entries = history.entries.get();
+            CHECK(cursor.baseline == baseline);
+            CHECK(cursor.head == moved_commit);
+            CHECK(entries.size() == 3);
+            if (entries.size() == 3) {
+                CHECK(entries[0].position == 1);
+                CHECK(entries[1].position == 2);
+                CHECK(entries[2].position == 3);
             }
         }
 
@@ -1388,11 +1411,12 @@ int main() {
         CHECK(anchored.ok());
         if (std::holds_alternative<HistoryView>(anchored.view())) {
             const HistoryView& history = std::get<HistoryView>(anchored.view());
-            CHECK(history.entries.size() == 3);
-            if (history.entries.size() == 3) {
-                CHECK(history.entries[0].position == 1);
-                CHECK(history.entries[1].position == 2);
-                CHECK(history.entries[2].position == 3);
+            const event::HistoryEntries& entries = history.entries.get();
+            CHECK(entries.size() == 3);
+            if (entries.size() == 3) {
+                CHECK(entries[0].position == 1);
+                CHECK(entries[1].position == 2);
+                CHECK(entries[2].position == 3);
             }
         }
 
@@ -1408,7 +1432,7 @@ int main() {
             CHECK(checkout.position == 3);
             CHECK(checkout.no_effect);
             CHECK(checkout.touched.empty());
-            CHECK(checkout.timeline.size() == 3);
+            CHECK(checkout.timeline.entries.get().size() == 3);
         }
 
         // The baseline is not an edit, so it is absent from the entry list, but the view
@@ -1420,7 +1444,7 @@ int main() {
             CHECK(checkout.commit == baseline);
             CHECK(checkout.position == 0);
             CHECK(!checkout.no_effect);
-            CHECK(checkout.timeline.size() == 3);
+            CHECK(checkout.timeline.entries.get().size() == 3);
         }
         CHECK(replay_document.commit_id() == baseline);
         CHECK(replay_document.position() == 0);
@@ -1462,6 +1486,22 @@ int main() {
             CHECK(original != nullptr);
             if (original) CHECK(std::holds_alternative<event::Moved>(*original));
         }
+
+        // Views already returned by `history` and `checkout` refer to the live log.
+        // Branching truncated the old redo tail, and both views see the replacement.
+        if (std::holds_alternative<HistoryView>(listed.view())) {
+            const HistoryView& history = std::get<HistoryView>(listed.view());
+            CHECK(history.cursor.get().position == 1);
+            CHECK(history.cursor.get().depth == 3);
+            CHECK(history.entries.get().size() == 3);
+            CHECK(history.entries.get()[2].commit == branch_commit);
+        }
+        if (happened_with<event::CheckedOut>(jumped)) {
+            const HistoryView& timeline = std::get<event::CheckedOut>(jumped.event()).timeline;
+            CHECK(timeline.cursor.get().position == 1);
+            CHECK(timeline.cursor.get().depth == 3);
+            CHECK(timeline.entries.get()[2].commit == branch_commit);
+        }
     }
 
     // `history` has a screen-sized default cap while still reporting the total depth and
@@ -1486,14 +1526,16 @@ int main() {
         CHECK(capped.ok());
         if (std::holds_alternative<HistoryView>(capped.view())) {
             const HistoryView& history = std::get<HistoryView>(capped.view());
-            CHECK(history.baseline == baseline);
-            CHECK(history.head == capped_document.commit_id());
-            CHECK(history.depth == Editor::default_history_limit + 6);
-            CHECK(history.entries.size() == Editor::default_history_limit + 1);
-            CHECK(history.depth - history.entries.size() == 5);
-            if (!history.entries.empty()) {
-                CHECK(history.entries.front().position == 6);
-                CHECK(history.entries.back().position == 26);
+            const event::HistoryCursor& cursor = history.cursor.get();
+            const event::HistoryEntries& entries = history.entries.get();
+            CHECK(cursor.baseline == baseline);
+            CHECK(cursor.head == capped_document.commit_id());
+            CHECK(cursor.depth == Editor::default_history_limit + 6);
+            CHECK(history.limit == Editor::default_history_limit);
+            CHECK(entries.size() == Editor::default_history_limit + 6);
+            if (!entries.empty()) {
+                CHECK(entries.front().position == 1);
+                CHECK(entries.back().position == 26);
             }
         }
 
@@ -1501,7 +1543,8 @@ int main() {
         CHECK(happened_with<event::CheckedOut>(checkout_default));
         if (happened_with<event::CheckedOut>(checkout_default)) {
             const event::CheckedOut& checkout = std::get<event::CheckedOut>(checkout_default.event());
-            CHECK(checkout.timeline.size() == Editor::default_history_limit + 1);
+            CHECK(checkout.timeline.limit == Editor::default_history_limit);
+            CHECK(checkout.timeline.entries.get().size() == Editor::default_history_limit + 6);
         }
     }
 

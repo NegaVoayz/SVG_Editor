@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -452,9 +453,7 @@ struct EventText {
     std::string operator()(const event::CheckedOut& checkout) const {
         std::string message = "checked out " + std::to_string(checkout.commit);
         if (checkout.no_effect) message += " (no effect)";
-        const HistoryView timeline{checkout.baseline, checkout.commit, checkout.position, checkout.depth,
-                                   checkout.timeline};
-        return message + "\n" + render(timeline);
+        return message + "\n" + render(checkout.timeline);
     }
     std::string operator()(const event::NothingMoved&) const { return "the offset is zero, nothing moved"; }
     std::string operator()(const event::AlreadyFront& front) const {
@@ -686,18 +685,53 @@ std::string render(const HistoryView& view) {
     struct HistoryRow {
         std::size_t position;
         CommitId commit;
-        std::shared_ptr<const event::EditEvent> outcome;
+        std::optional<std::size_t> entry;
         bool baseline;
     };
 
-    std::vector<HistoryRow> rows;
-    if (view.baseline != 0) rows.push_back({0, view.baseline, nullptr, true});
-    for (const event::HistoryEntry& entry : view.entries) {
-        rows.push_back({entry.position, entry.commit, entry.outcome, false});
+    const event::HistoryEntries& entries = view.entries.get();
+    const event::HistoryCursor& cursor = view.cursor.get();
+    const std::size_t checkpoints = cursor.depth + 1;
+
+    // Select up to `limit` neighboring checkpoints around HEAD, split as evenly as
+    // possible. If one side reaches an end of the branch, the other side grows. The
+    // baseline, newest commit, and HEAD remain anchors outside the ordinary window.
+    std::vector<bool> selected(checkpoints, view.limit >= checkpoints - 1);
+    if (view.limit < checkpoints - 1 && view.limit != 0) {
+        selected[cursor.position] = true;
+        const std::size_t above_target = view.limit / 2;
+        std::size_t above = std::min(above_target, cursor.depth - cursor.position);
+        std::size_t below = std::min(view.limit - above, cursor.position);
+        std::size_t remaining = view.limit - above - below;
+
+        const std::size_t extra_below = std::min(remaining, cursor.position - below);
+        below += extra_below;
+        remaining -= extra_below;
+        const std::size_t extra_above =
+            std::min(remaining, cursor.depth - cursor.position - above);
+        above += extra_above;
+
+        for (std::size_t offset = 1; offset <= above; ++offset) {
+            selected[cursor.position + offset] = true;
+        }
+        for (std::size_t offset = 1; offset <= below; ++offset) {
+            selected[cursor.position - offset] = true;
+        }
     }
-    std::stable_sort(rows.begin(), rows.end(), [](const HistoryRow& left, const HistoryRow& right) {
-        return left.position > right.position;
-    });
+    if (view.limit < checkpoints - 1) {
+        selected[0] = true;
+        selected[cursor.position] = true;
+        selected[cursor.depth] = true;
+    }
+
+    std::vector<HistoryRow> rows;
+    for (std::size_t position = cursor.depth; position != 0; --position) {
+        if (!selected[position] || position > entries.size()) continue;
+        const event::HistoryEntry& entry = entries[position - 1];
+        if (entry.position != position) continue;
+        rows.push_back({position, entry.commit, position - 1, false});
+    }
+    if (cursor.baseline != 0) rows.push_back({0, cursor.baseline, std::nullopt, true});
 
     std::size_t commit_width = 0;
     for (const HistoryRow& row : rows) {
@@ -726,10 +760,10 @@ std::string render(const HistoryView& view) {
         append_commit(row.commit);
         if (row.baseline) {
             out += "  baseline";
-        } else if (row.outcome) {
-            out += "  " + std::visit(EventText{}, *row.outcome);
+        } else if (row.entry) {
+            out += "  " + std::visit(EventText{}, entries[*row.entry].outcome);
         }
-        if (row.commit == view.head) out += " (HEAD)";
+        if (row.commit == cursor.head) out += " (HEAD)";
     }
     return out.empty() ? "no history" : out;
 }
