@@ -149,6 +149,18 @@ int main() {
     CHECK(exact_number_text(1.0e20F).size() < 16);
     CHECK(svg_text(Length{1.0e-7F, Length::Unit::UserUnit}) == exact_number_text(1.0e-7F));
 
+    // Absence has its own alternative, while present lengths retain their exact type.
+    CHECK(std::holds_alternative<Unset>(MaybeLengthPercentage{}));
+    CHECK(!present_length_percentage(Unset{}).has_value());
+    const MaybeLengthPercentage length = Length{12.0F, Length::Unit::Px};
+    const std::optional<LengthPercentage> present_length = present_length_percentage(length);
+    CHECK(present_length && std::holds_alternative<Length>(*present_length));
+    if (present_length) CHECK(std::get<Length>(*present_length).value == 12.0F);
+    const MaybeLengthPercentage percentage = Percentage{25.0F};
+    const std::optional<LengthPercentage> present_percentage = present_length_percentage(percentage);
+    CHECK(present_percentage && std::holds_alternative<Percentage>(*present_percentage));
+    if (present_percentage) CHECK(std::get<Percentage>(*present_percentage).value == 25.0F);
+
     Document document;
     CHECK(!document.has_document());
     CHECK(document.root() == no_id);
@@ -157,7 +169,7 @@ int main() {
     CHECK(!document.can_undo());
     CHECK(throws([&] { auto edit = document.transaction(); }));
     // `init` is what makes the first root; before it there is no document to edit.
-    document.reset(std::nullopt, std::nullopt);
+    document.reset(Unset{}, Unset{});
     const Id root = document.root();
     CHECK(document.undo_barred_by_io());
 
@@ -178,10 +190,12 @@ int main() {
         const std::optional<Container::SVG> canvas = canvas_of(document);
         CHECK(canvas.has_value());
         if (canvas) {
-            CHECK(canvas->width.has_value());
-            CHECK(canvas->height.has_value());
-            if (canvas->width) CHECK(to_text(*canvas->width) == "800");
-            if (canvas->height) CHECK(to_text(*canvas->height) == "600");
+            const std::optional<LengthPercentage> width = present_length_percentage(canvas->width);
+            const std::optional<LengthPercentage> height = present_length_percentage(canvas->height);
+            CHECK(width.has_value());
+            CHECK(height.has_value());
+            if (width) CHECK(to_text(*width) == "800");
+            if (height) CHECK(to_text(*height) == "600");
         }
     }
 
@@ -499,7 +513,7 @@ int main() {
     // A reset is a fresh document: an empty tree, the canvas it was given for
     // whichever sides it was given, the virtual ids from the start again, and
     // nothing to undo back into.
-    document.reset(Length{1024.0F, Length::Unit::Px}, std::nullopt);
+    document.reset(Length{1024.0F, Length::Unit::Px}, Unset{});
     CHECK(document.children(document.root()).empty());
     CHECK(document.find("after-failure") == std::nullopt);
     CHECK(document.commit_id() != 0);
@@ -511,9 +525,11 @@ int main() {
         const std::optional<Container::SVG> canvas = canvas_of(document);
         CHECK(canvas.has_value());
         if (canvas) {
-            if (canvas->width) CHECK(to_text(*canvas->width) == "1024px");
+            const std::optional<LengthPercentage> width = present_length_percentage(canvas->width);
+            const std::optional<LengthPercentage> height = present_length_percentage(canvas->height);
+            if (width) CHECK(to_text(*width) == "1024px");
             // the side that was left out keeps the default
-            if (canvas->height) CHECK(to_text(*canvas->height) == "600");
+            if (height) CHECK(to_text(*height) == "600");
         }
     }
 
@@ -567,7 +583,7 @@ int main() {
     // real edit after undo must branch without needing a snapshot to pin the old tail.
     {
         Document branch;
-        branch.reset(std::nullopt, std::nullopt);
+        branch.reset(Unset{}, Unset{});
         const Id branch_root = branch.root();
         const CommitId baseline = branch.commit_id();
         CHECK(baseline != 0);
@@ -623,7 +639,7 @@ int main() {
     // and leaves the redo tail available.
     {
         Document document;
-        document.reset(std::nullopt, std::nullopt);
+        document.reset(Unset{}, Unset{});
         const CommitId baseline = document.commit_id();
 
         Id a = no_id;
@@ -687,8 +703,8 @@ int main() {
     {
         Document left;
         Document right;
-        left.reset(std::nullopt, std::nullopt);
-        right.reset(std::nullopt, std::nullopt);
+        left.reset(Unset{}, Unset{});
+        right.reset(Unset{}, Unset{});
 
         const CommitId shared = next_commit_id();
         {

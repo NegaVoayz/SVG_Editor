@@ -48,24 +48,27 @@ std::string canvas_unit_suffix(Length::Unit unit) {
     return " " + std::string{unit_text(unit)};
 }
 
-std::string canvas_side_text(const std::optional<LengthPercentage>& value) {
-    if (!value) return "unset";
-    if (std::holds_alternative<Length>(*value)) {
-        const Length& length = std::get<Length>(*value);
+std::string canvas_side_text(const MaybeLengthPercentage& value) {
+    const std::optional<LengthPercentage> present = present_length_percentage(value);
+    if (!present) return "unset";
+    if (std::holds_alternative<Length>(*present)) {
+        const Length& length = std::get<Length>(*present);
         if (length.unit == Length::Unit::UserUnit) return number_text(length.value) + " user units";
     }
-    return to_text(*value);
+    return to_text(*present);
 }
 
 // The canvas of a document, as one value. A unit shared by both sides is inside the
 // parentheses, next to the numbers it describes; a partial canvas still names the unit of
 // the side that is present.
 std::string canvas_text(const Container::SVG& canvas) {
-    if (!canvas.width && !canvas.height) return "(unsized)";
-    if (canvas.width && canvas.height && std::holds_alternative<Length>(*canvas.width) &&
-        std::holds_alternative<Length>(*canvas.height)) {
-        const Length& width = std::get<Length>(*canvas.width);
-        const Length& height = std::get<Length>(*canvas.height);
+    const std::optional<LengthPercentage> width_value = present_length_percentage(canvas.width);
+    const std::optional<LengthPercentage> height_value = present_length_percentage(canvas.height);
+    if (!width_value && !height_value) return "(unsized)";
+    if (width_value && height_value && std::holds_alternative<Length>(*width_value) &&
+        std::holds_alternative<Length>(*height_value)) {
+        const Length& width = std::get<Length>(*width_value);
+        const Length& height = std::get<Length>(*height_value);
         if (width.unit == height.unit) {
             return "(" + number_text(width.value) + " x " + number_text(height.value) +
                    canvas_unit_suffix(width.unit) + ")";
@@ -76,19 +79,21 @@ std::string canvas_text(const Container::SVG& canvas) {
 
 // The size an `init` created, without the tree's parentheses. Both sides are always
 // present because the Planner reads them back from the new root.
-std::string canvas_size_text(const std::optional<LengthPercentage>& width_value,
-                             const std::optional<LengthPercentage>& height_value) {
-    if (width_value && height_value && std::holds_alternative<Length>(*width_value) &&
-        std::holds_alternative<Length>(*height_value)) {
-        const Length& width = std::get<Length>(*width_value);
-        const Length& height = std::get<Length>(*height_value);
-        if (width.unit == height.unit) {
-            return number_text(width.value) + "x" + number_text(height.value) + std::string{unit_text(width.unit)};
+std::string canvas_size_text(const MaybeLengthPercentage& width_value,
+                             const MaybeLengthPercentage& height_value) {
+    const std::optional<LengthPercentage> width = present_length_percentage(width_value);
+    const std::optional<LengthPercentage> height = present_length_percentage(height_value);
+    if (width && height && std::holds_alternative<Length>(*width) &&
+        std::holds_alternative<Length>(*height)) {
+        const Length& width_length = std::get<Length>(*width);
+        const Length& height_length = std::get<Length>(*height);
+        if (width_length.unit == height_length.unit) {
+            return number_text(width_length.value) + "x" + number_text(height_length.value) +
+                   std::string{unit_text(width_length.unit)};
         }
     }
-    const std::string width = width_value ? to_text(*width_value) : "unset";
-    const std::string height = height_value ? to_text(*height_value) : "unset";
-    return width + " x " + height;
+    return (width ? to_text(*width) : std::string{"unset"}) + " x " +
+           (height ? to_text(*height) : std::string{"unset"});
 }
 
 // A container carries nothing of its own, except the root, whose size is the canvas.
@@ -116,9 +121,11 @@ struct ContainerText {
 // A text's position reads as a point: SVG writes its two values apart, and that is what
 // they are together.
 std::string position_text(const TextShape& text) {
-    if (!text.common.x) return {};
-    if (!text.common.y) return "x=" + to_text(*text.common.x);
-    return "(" + to_text(*text.common.x) + "," + to_text(*text.common.y) + ")";
+    const std::optional<LengthPercentage> x = present_length_percentage(text.common.x);
+    const std::optional<LengthPercentage> y = present_length_percentage(text.common.y);
+    if (!x) return {};
+    if (!y) return "x=" + to_text(*x);
+    return "(" + to_text(*x) + "," + to_text(*y) + ")";
 }
 
 std::string text_details(const TextShape& text) {
@@ -128,9 +135,10 @@ std::string text_details(const TextShape& text) {
         out += "text-anchor=";
         out += text_anchor_text(*text.common.text_anchor);
     }
-    if (text.common.font_size) {
+    if (const std::optional<LengthPercentage> font_size =
+            present_length_percentage(text.common.font_size)) {
         if (!out.empty()) out += ' ';
-        out += "font-size=" + to_text(*text.common.font_size);
+        out += "font-size=" + to_text(*font_size);
     }
     return out;
 }
@@ -232,8 +240,9 @@ Words element_words(const ElementShape& element, const Transform& transform, con
         const std::string paint = to_text(*element.paint_attr.stroke);
         if (!paint.empty()) append_detail(words, "stroke=" + paint);
     }
-    if (element.paint_attr.stroke_width) {
-        append_detail(words, "stroke-width=" + to_text(*element.paint_attr.stroke_width));
+    if (const std::optional<LengthPercentage> stroke_width =
+            present_length_percentage(element.paint_attr.stroke_width)) {
+        append_detail(words, "stroke-width=" + to_text(*stroke_width));
     }
 
     const std::string transform_text_value = transform_text(transform);
@@ -444,8 +453,12 @@ struct EventText {
         return element_label(set.node) + " updated: text=" + quoted(set.content);
     }
     std::string operator()(const event::CanvasSet& canvas) const {
-        const std::string width = canvas.width ? to_text(*canvas.width) : "unset";
-        const std::string height = canvas.height ? to_text(*canvas.height) : "unset";
+        const std::optional<LengthPercentage> width_value =
+            present_length_percentage(canvas.width);
+        const std::optional<LengthPercentage> height_value =
+            present_length_percentage(canvas.height);
+        const std::string width = width_value ? to_text(*width_value) : "unset";
+        const std::string height = height_value ? to_text(*height_value) : "unset";
         return "the canvas is now " + width + " x " + height + ", and the history starts from here";
     }
     std::string operator()(const event::Undone& undo) const;

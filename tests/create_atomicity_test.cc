@@ -62,7 +62,7 @@ int main() {
         Editor editor{document};
         FileSystem file_system{document};
         Planner planner{document, editor, file_system};
-        document.reset(std::nullopt, std::nullopt);
+        document.reset(Unset{}, Unset{});
         const std::size_t before_depth = document.depth();
         const std::size_t before_position = document.position();
 

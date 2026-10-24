@@ -54,19 +54,20 @@ Transform composed_transform(std::initializer_list<Transform> steps) {
 
 // The root element, which is where the canvas of the document lives.
 ElementShape root_with(LengthPercentage width, LengthPercentage height) {
-    return element("", ContainerShape{Container::SVG{width, height}});
+    return element("", ContainerShape{Container::SVG{
+                           maybe_length_percentage(width), maybe_length_percentage(height)}});
 }
 
 ElementShape unsized_root_with(Container::ViewBox view_box) {
-    Container::SVG canvas{std::nullopt, std::nullopt};
+    Container::SVG canvas;
     canvas.view_box = view_box;
     return element("", ContainerShape{std::move(canvas)});
 }
 
 ElementShape text_element(std::string id, float x, float y) {
     TextShape text;
-    text.common.x = units(x);
-    text.common.y = units(y);
+    text.common.x = maybe_length_percentage(units(x));
+    text.common.y = maybe_length_percentage(units(y));
     text.specific = Text::Wrapper{};
     return element(std::move(id), std::move(text));
 }
@@ -206,10 +207,12 @@ int main() {
     CHECK(render(NodeView{0, root_with(Length{2.0F, Length::Unit::Cm}, Length{3.0F, Length::Unit::Mm}), {}}) ==
           "svg (2cm x 3mm)");
     CHECK(render(NodeView{0,
-                          element("", ContainerShape{Container::SVG{units(300), std::nullopt}}),
+                          element("", ContainerShape{Container::SVG{
+                                            maybe_length_percentage(units(300)), Unset{}}}),
                           {}}) == "svg (300 user units x unset)");
     CHECK(render(NodeView{0,
-                          element("", ContainerShape{Container::SVG{std::nullopt, units(300)}}),
+                          element("", ContainerShape{Container::SVG{
+                                            Unset{}, maybe_length_percentage(units(300))}}),
                           {}}) == "svg (unset x 300 user units)");
 
     // Character data asked for by handle has no id and no kind of its own: it is the
@@ -295,7 +298,7 @@ int main() {
           "text#title updated: text=\"Hello World\"");
     CHECK(render(event::ContentSet{{"text", "title"}, "a \"q\" b\\c"}) ==
           "text#title updated: text=\"a \\\"q\\\" b\\\\c\"");
-    CHECK(render(event::CanvasSet{units(300), std::nullopt}) ==
+    CHECK(render(event::CanvasSet{maybe_length_percentage(units(300)), Unset{}}) ==
           "the canvas is now 300 x unset, and the history starts from here");
     CHECK(render(event::Deleted{{"rect", "box"}, 0}) == "rect#box deleted");
     CHECK(render(event::Deleted{{"g", "markers"}, 2}) == "g#markers deleted (2 elements)");
@@ -326,7 +329,9 @@ int main() {
           "checked out 11 (no effect)\n11  baseline (HEAD)");
     CHECK(render(event::AlreadyFront{{"rect", "box"}}) == "rect#box is already in front");
     CHECK(render(event::AlreadyBack{{"rect", "box"}}) == "rect#box is already at the back");
-    CHECK(render(event::Initialized{units(800), units(600)}) == "canvas 800x600 created");
+    CHECK(render(event::Initialized{maybe_length_percentage(units(800)),
+                                    maybe_length_percentage(units(600))}) ==
+          "canvas 800x600 created");
     CHECK(render(event::Opened{"a.svg", {{"rect1", "rect", ""}}, 3}) ==
           "read a.svg (3 elements)\nwarning: assigned id rect1 to unnamed <rect>");
     CHECK(render(event::Opened{"a.svg", {{"rect2", "rect", "svg"}}, 3}) ==
@@ -363,7 +368,9 @@ int main() {
           "error: no such shape: \"id with space\"");
     CHECK(render(Outcome{Kind::Change, Event{event::NothingMoved{}}}) ==
           "the offset is zero, nothing moved");
-    CHECK(render(Outcome{Kind::Context, Event{event::Initialized{units(800), units(600)}}}) ==
+    CHECK(render(Outcome{Kind::Context,
+                         Event{event::Initialized{maybe_length_percentage(units(800)),
+                                                 maybe_length_percentage(units(600))}}}) ==
           "canvas 800x600 created");
     CHECK(render(Outcome{Kind::Unknown, Refusal{fault::InternalError{}}}) == "error: internal error");
 

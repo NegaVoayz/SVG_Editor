@@ -232,8 +232,10 @@ int main() {
         CHECK(svg->identity_attr.id.empty());
         const Container& container = std::get<Container>(svg->data);
         const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
-        CHECK(canvas.width && to_text(*canvas.width) == "320mm");
-        CHECK(canvas.height && to_text(*canvas.height) == "200mm");
+        const std::optional<LengthPercentage> width = present_length_percentage(canvas.width);
+        const std::optional<LengthPercentage> height = present_length_percentage(canvas.height);
+        CHECK(width && to_text(*width) == "320mm");
+        CHECK(height && to_text(*height) == "200mm");
         CHECK(canvas.xmlns == "http://www.w3.org/2000/svg");
         CHECK(canvas.view_box.has_value());
         if (canvas.view_box) {
@@ -320,8 +322,10 @@ int main() {
         if (payload && std::holds_alternative<Text>(payload->data)) {
             const Text& value = std::get<Text>(payload->data);
             CHECK(value.common.text_anchor == Text::Anchor::Middle);
-            CHECK(value.common.font_size.has_value());
-            if (value.common.font_size) CHECK(to_text(*value.common.font_size) == "12pt");
+            const std::optional<LengthPercentage> font_size =
+                present_length_percentage(value.common.font_size);
+            CHECK(font_size.has_value());
+            if (font_size) CHECK(to_text(*font_size) == "12pt");
         }
     }
 
@@ -428,8 +432,10 @@ int main() {
         if (payload && std::holds_alternative<Text>(payload->data)) {
             const Text& value = std::get<Text>(payload->data);
             CHECK(value.common.text_anchor == Text::Anchor::Middle);
-            CHECK(value.common.font_size.has_value());
-            if (value.common.font_size) CHECK(to_text(*value.common.font_size) == "12pt");
+            const std::optional<LengthPercentage> font_size =
+                present_length_percentage(value.common.font_size);
+            CHECK(font_size.has_value());
+            if (font_size) CHECK(to_text(*font_size) == "12pt");
         }
     }
     const std::optional<Id> saved_layer = named(reread, "layer");
@@ -553,9 +559,11 @@ int main() {
             const Shape::Rect& rect = std::get<Shape::Rect>(std::get<Shape>(tiny_element->data).specific);
             CHECK(std::get<Length>(rect.x).value == 4.0e-7F);
             CHECK(std::get<Length>(rect.y).value == 0.0F);
-            CHECK(tiny_element->paint_attr.stroke_width.has_value());
-            if (tiny_element->paint_attr.stroke_width) {
-                CHECK(std::get<Length>(*tiny_element->paint_attr.stroke_width).value == 4.5e-7F);
+            const std::optional<LengthPercentage> stroke_width =
+                present_length_percentage(tiny_element->paint_attr.stroke_width);
+            CHECK(stroke_width.has_value());
+            if (stroke_width) {
+                CHECK(std::get<Length>(*stroke_width).value == 4.5e-7F);
             }
         }
     }

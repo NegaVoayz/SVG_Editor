@@ -111,32 +111,37 @@ std::optional<Refusal> translate_shape(Shape& shape, LengthPercentage dx, Length
 // adjustments are relative offsets and are not rewritten by a move.
 std::optional<Refusal> translate_text(Text& text, LengthPercentage dx, LengthPercentage dy) {
     const bool owns_origin = std::holds_alternative<Text::Wrapper>(text.specific);
+    const std::optional<LengthPercentage> x = present_length_percentage(text.common.x);
+    const std::optional<LengthPercentage> y = present_length_percentage(text.common.y);
     std::optional<LengthPercentage> moved_x;
-    if (!text.common.x) {
+    if (!x) {
         if (owns_origin) moved_x = dx;
     } else {
-        moved_x = sum(*text.common.x, dx);
-        if (!moved_x) return Refusal{fault::IncompatibleLengths{dx, *text.common.x}};
+        moved_x = sum(*x, dx);
+        if (!moved_x) return Refusal{fault::IncompatibleLengths{dx, *x}};
     }
     if (moved_x && !is_finite(*moved_x)) return Refusal{fault::NonFiniteValue{"moved coordinate"}};
 
     std::optional<LengthPercentage> moved_y;
-    if (!text.common.y) {
+    if (!y) {
         if (owns_origin) moved_y = dy;
     } else {
-        moved_y = sum(*text.common.y, dy);
-        if (!moved_y) return Refusal{fault::IncompatibleLengths{dy, *text.common.y}};
+        moved_y = sum(*y, dy);
+        if (!moved_y) return Refusal{fault::IncompatibleLengths{dy, *y}};
     }
     if (moved_y && !is_finite(*moved_y)) return Refusal{fault::NonFiniteValue{"moved coordinate"}};
 
-    if (moved_x) text.common.x = *moved_x;
-    if (moved_y) text.common.y = *moved_y;
+    if (moved_x) text.common.x = maybe_length_percentage(*moved_x);
+    if (moved_y) text.common.y = maybe_length_percentage(*moved_y);
     return std::nullopt;
 }
 
-std::optional<Refusal> scale_optional(std::optional<LengthPercentage>& value, float factor) {
-    if (!value) return std::nullopt;
-    return scale_value(*value, factor);
+std::optional<Refusal> scale_optional(MaybeLengthPercentage& value, float factor) {
+    std::optional<LengthPercentage> present = present_length_percentage(value);
+    if (!present) return std::nullopt;
+    if (std::optional<Refusal> problem = scale_value(*present, factor)) return problem;
+    value = maybe_length_percentage(*present);
+    return std::nullopt;
 }
 
 // Position, relative offsets and font size are all lengths the text owns. Scaling them
@@ -195,10 +200,7 @@ std::optional<Refusal> scale_params(Node& payload, float factor) {
 
     // Stroke width is a drawn dimension like a radius or a side. A scale changes it with
     // the geometry; a transform-based scale already covers it through the transform.
-    if (element.paint_attr.stroke_width) {
-        return scale_value(*element.paint_attr.stroke_width, factor);
-    }
-    return std::nullopt;
+    return scale_optional(element.paint_attr.stroke_width, factor);
 }
 
 }  // namespace Geometry

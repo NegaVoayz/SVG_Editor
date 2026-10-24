@@ -280,9 +280,10 @@ LengthPercentage read_attribute_value<LengthPercentage>(const SvgReader& reader,
 }
 
 template<>
-std::optional<LengthPercentage> read_attribute_value<std::optional<LengthPercentage>>(
+MaybeLengthPercentage read_attribute_value<MaybeLengthPercentage>(
     const SvgReader& reader, const XmlNode& node, const XmlAttribute& attribute, bool nonnegative) {
-    return read_attribute_value<LengthPercentage>(reader, node, attribute, nonnegative);
+    return maybe_length_percentage(
+        read_attribute_value<LengthPercentage>(reader, node, attribute, nonnegative));
 }
 
 template<>

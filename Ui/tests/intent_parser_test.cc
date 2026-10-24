@@ -355,14 +355,18 @@ int main() {
     const Request resized = parse("canvas 1024 768");
     CHECK(holds<SetCanvas>(resized));
     if (holds<SetCanvas>(resized)) {
-        CHECK(std::get<Length>(*as<SetCanvas>(resized).width).value == 1024.0F);
-        CHECK(std::get<Length>(*as<SetCanvas>(resized).height).value == 768.0F);
+        const std::optional<LengthPercentage> width =
+            present_length_percentage(as<SetCanvas>(resized).width);
+        const std::optional<LengthPercentage> height =
+            present_length_percentage(as<SetCanvas>(resized).height);
+        CHECK(width && std::get<Length>(*width).value == 1024.0F);
+        CHECK(height && std::get<Length>(*height).value == 768.0F);
     }
     const Request widened = parse("canvas 800");
     CHECK(holds<SetCanvas>(widened));
     if (holds<SetCanvas>(widened)) {
-        CHECK(as<SetCanvas>(widened).width.has_value());
-        CHECK(!as<SetCanvas>(widened).height.has_value());
+        CHECK(present_length_percentage(as<SetCanvas>(widened).width).has_value());
+        CHECK(!present_length_percentage(as<SetCanvas>(widened).height).has_value());
     }
 
     // history reads the current branch; checkout takes one of its commit ids.
@@ -395,12 +399,16 @@ int main() {
     const Request fresh = parse("init");
     CHECK(holds<Init>(fresh));
     if (holds<Init>(fresh)) {
-        CHECK(!as<Init>(fresh).width.has_value());
-        CHECK(!as<Init>(fresh).height.has_value());
+        CHECK(!present_length_percentage(as<Init>(fresh).width).has_value());
+        CHECK(!present_length_percentage(as<Init>(fresh).height).has_value());
     }
     const Request sized = parse("init 400mm 300mm");
     CHECK(holds<Init>(sized));
-    if (holds<Init>(sized)) CHECK(std::get<Length>(*as<Init>(sized).height).unit == Length::Unit::Mm);
+    if (holds<Init>(sized)) {
+        const std::optional<LengthPercentage> height =
+            present_length_percentage(as<Init>(sized).height);
+        CHECK(height && std::get<Length>(*height).unit == Length::Unit::Mm);
+    }
 
     CHECK(holds<Read>(parse("read plan.svg")));
     const Request keep = parse("save");

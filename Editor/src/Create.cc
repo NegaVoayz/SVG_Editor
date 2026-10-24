@@ -149,8 +149,8 @@ Subtree Editor::new_element(const CreateLine& intent) const {
 
 Subtree Editor::new_element(const CreateText& intent) const {
     Text text;
-    text.common.x = intent.x;
-    text.common.y = intent.y;
+    text.common.x = maybe_length_percentage(intent.x);
+    text.common.y = maybe_length_percentage(intent.y);
     text.child_attr = ChildAttr{};  // an empty child list, filled when children arrive
     return Subtree{element(intent.id, std::move(text)),
                    {Subtree{characters(intent.content), {}}}};
@@ -163,8 +163,8 @@ Subtree Editor::new_element(const CreateBox& intent) const {
     fill(outline, intent.fill);
 
     Text label;
-    label.common.x = intent.x;
-    label.common.y = intent.y;
+    label.common.x = maybe_length_percentage(intent.x);
+    label.common.y = maybe_length_percentage(intent.y);
     label.child_attr = ChildAttr{};
     Subtree label_node{element(intent.id + "-label", std::move(label)),
                        {Subtree{characters(intent.label), {}}}};

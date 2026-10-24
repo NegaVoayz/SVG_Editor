@@ -52,16 +52,18 @@ FileSystem::FileSystem(Document& document) : document_(document) {}
 
 template<>
 Outcome FileSystem::handle<Init>(const Init& intent) {
-    if (intent.width && !is_finite(*intent.width)) {
+    const std::optional<LengthPercentage> width = present_length_percentage(intent.width);
+    const std::optional<LengthPercentage> height = present_length_percentage(intent.height);
+    if (width && !is_finite(*width)) {
         return refused(Kind::Context, fault::NonFiniteValue{"width"});
     }
-    if (intent.height && !is_finite(*intent.height)) {
+    if (height && !is_finite(*height)) {
         return refused(Kind::Context, fault::NonFiniteValue{"height"});
     }
-    if (intent.width && numeric_value(*intent.width) <= 0.0F) {
+    if (width && numeric_value(*width) <= 0.0F) {
         return refused(Kind::Context, fault::NonPositiveCanvas{"width"});
     }
-    if (intent.height && numeric_value(*intent.height) <= 0.0F) {
+    if (height && numeric_value(*height) <= 0.0F) {
         return refused(Kind::Context, fault::NonPositiveCanvas{"height"});
     }
 

@@ -33,15 +33,15 @@ struct Text {
     enum class Anchor { Start, Middle, End };
 
     struct Common {
-        std::optional<LengthPercentage> x, y, dx, dy;
+        MaybeLengthPercentage x, y, dx, dy;
         std::optional<Anchor> text_anchor;
-        std::optional<LengthPercentage> font_size;
+        MaybeLengthPercentage font_size;
     } common;
 
     ChildAttr child_attr;
     struct Wrapper {};
     struct Span {};
-    struct Path { std::optional<LengthPercentage> startOffset; std::string href; };
+    struct Path { MaybeLengthPercentage startOffset; std::string href; };
     using Kinds = std::variant<Wrapper,Span,Path>;
     Kinds specific;
 };
@@ -69,7 +69,7 @@ struct Container {
         // and an empty value means the file declared none; the writer supplies the
         // standard declaration rather than producing a root that is not SVG.
         static constexpr std::string_view default_xmlns = "http://www.w3.org/2000/svg";
-        std::optional<LengthPercentage> width, height;
+        MaybeLengthPercentage width, height;
         std::string xmlns = std::string{default_xmlns};
         std::optional<ViewBox> view_box = std::nullopt;
     };

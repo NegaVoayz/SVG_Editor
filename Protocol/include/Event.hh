@@ -100,8 +100,8 @@ struct ContentSet {
 };
 
 struct CanvasSet {
-    std::optional<LengthPercentage> width;
-    std::optional<LengthPercentage> height;
+    MaybeLengthPercentage width;
+    MaybeLengthPercentage height;
 };
 
 struct NothingMoved {};
@@ -115,8 +115,8 @@ struct AlreadyBack {
 };
 
 struct Initialized {
-    std::optional<LengthPercentage> width;
-    std::optional<LengthPercentage> height;
+    MaybeLengthPercentage width;
+    MaybeLengthPercentage height;
 };
 
 struct Opened {

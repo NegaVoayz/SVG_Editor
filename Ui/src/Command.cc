@@ -172,16 +172,16 @@ Request parse_canvas(const Words& words) {
     if (words.size() == 1) return Show{RootRef{}};
     expect_between(words.size(), 2, 3, "canvas takes a new width, with an optional height");
     SetCanvas intent;
-    intent.width = length_of(words[1]);
-    if (words.size() == 3) intent.height = length_of(words[2]);
+    intent.width = maybe_length_percentage(length_of(words[1]));
+    if (words.size() == 3) intent.height = maybe_length_percentage(length_of(words[2]));
     return intent;
 }
 
 Request parse_init(const Words& words) {
     expect_between(words.size(), 1, 3, "init takes an optional width and height, 800x600 by default");
     Init intent;
-    if (words.size() >= 2) intent.width = length_of(words[1]);
-    if (words.size() == 3) intent.height = length_of(words[2]);
+    if (words.size() >= 2) intent.width = maybe_length_percentage(length_of(words[1]));
+    if (words.size() == 3) intent.height = maybe_length_percentage(length_of(words[2]));
     return intent;
 }
 

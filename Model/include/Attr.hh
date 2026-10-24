@@ -305,7 +305,7 @@ inline std::string svg_text(const Transform& transform) {
 // What an element is called. Where it sits in the tree is not part of this: a parent is a
 // link stored beside the node in the hive, not an SVG attribute.
 struct IdentityAttr { std::string id, class_; };
-struct PaintAttr { std::optional<Paint> fill, stroke; std::optional<LengthPercentage> stroke_width; };
+struct PaintAttr { std::optional<Paint> fill, stroke; MaybeLengthPercentage stroke_width; };
 // The element's transform. The identity is the absence of a transform attribute, so a
 // node version carries everything an undo snapshot needs.
 struct TransformAttr { Transform transform{}; };

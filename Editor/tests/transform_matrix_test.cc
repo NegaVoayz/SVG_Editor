@@ -42,7 +42,7 @@ bool near(float left, float right) { return std::fabs(left - right) <= 1.0e-5F; 
 
 int main() {
     Document document;
-    document.reset(std::nullopt, std::nullopt);
+    document.reset(Unset{}, Unset{});
 
     Id layer = no_id;
     {

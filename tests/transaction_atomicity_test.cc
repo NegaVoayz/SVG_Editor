@@ -142,7 +142,8 @@ int main() {
                                Create{CreateRect{"painted", units(0), units(0), units(1), units(1), std::nullopt}}));
          },
          Set{SetFill{SvgIdRef{"painted"}, Paint{Color{Color::Named{Color::NamedColorId::Red}}}}}},
-        {"canvas", [](Planner&) {}, SetCanvas{units(1024), units(768)}},
+        {"canvas", [](Planner&) {},
+         SetCanvas{maybe_length_percentage(units(1024)), maybe_length_percentage(units(768))}},
     };
 
     for (const EditSample& sample : samples) check_one_commit(sample);

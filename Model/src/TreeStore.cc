@@ -90,12 +90,15 @@ std::optional<ChildAttr> child_attr_in(Edit& edit, Id id) {
 
 // The payload of the root element. The root is part of the baseline, so erasing
 // everything leaves an empty document rather than no document.
-Node make_root_payload(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
+Node make_root_payload(MaybeLengthPercentage width, MaybeLengthPercentage height) {
+    const std::optional<LengthPercentage> requested_width = present_length_percentage(width);
+    const std::optional<LengthPercentage> requested_height = present_length_percentage(height);
     SVGNode element;
     element.identity_attr = IdentityAttr{"", ""};
     element.data = Container{ChildAttr{no_id, no_id},
-                             Container::SVG{width ? std::move(width) : fresh_canvas_width,
-                                            height ? std::move(height) : fresh_canvas_height}};
+                             Container::SVG{
+                                 maybe_length_percentage(requested_width ? *requested_width : fresh_canvas_width),
+                                 maybe_length_percentage(requested_height ? *requested_height : fresh_canvas_height)}};
     return Node{std::move(element)};
 }
 
@@ -126,7 +129,7 @@ bool set_child_attr(Node& node, const ChildAttr& attr) {
 
 TreeStore::TreeStore() = default;
 
-void TreeStore::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
+void TreeStore::reset(MaybeLengthPercentage width, MaybeLengthPercentage height) {
     // Forgetting everything means releasing the current snapshot too: its guard would
     // keep the old generation alive, and none of it can be reached from this document.
     view_.reset();

@@ -56,7 +56,7 @@ public:
     std::optional<Node> node(Id id) const;
 
     // Whether a live document node lives at that handle, without copying its payload.
-    // Resolving a `#<handle>` needs only the answer, and a payload is 416 bytes today.
+    // Resolving a `#<handle>` needs only the answer, not a relatively large payload copy.
     bool has_node(Id id) const;
 
     // The children of a node, in document order. Empty for a handle that holds
@@ -122,7 +122,7 @@ public:
 
     // Back to a fresh document: an empty tree, the canvas it is given (default 800x600
     // for whichever side is missing), no history, and no file behind it.
-    void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
+    void reset(MaybeLengthPercentage width, MaybeLengthPercentage height);
 
     // Forget the history: the tree stays as it is and becomes the baseline, so
     // nothing before this point can be undone or redone. A saved document and a

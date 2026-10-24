@@ -38,7 +38,7 @@ public:
 
     // Back to a fresh document: one root element, the canvas it is given (the default
     // for whichever side is missing), and no history at all.
-    void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
+    void reset(MaybeLengthPercentage width, MaybeLengthPercentage height);
 
     // Clear the arena without creating the throwaway root commit that reset() needs for
     // an interactive document. The loader uses this so its first bounded chunk can create

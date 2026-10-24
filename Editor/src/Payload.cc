@@ -252,16 +252,18 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
 }
 
 template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {
-    if (intent.width && !is_finite(*intent.width)) {
+    const std::optional<LengthPercentage> width = present_length_percentage(intent.width);
+    const std::optional<LengthPercentage> height = present_length_percentage(intent.height);
+    if (width && !is_finite(*width)) {
         return refused(Kind::Change, fault::NonFiniteValue{"width"});
     }
-    if (intent.height && !is_finite(*intent.height)) {
+    if (height && !is_finite(*height)) {
         return refused(Kind::Change, fault::NonFiniteValue{"height"});
     }
-    if (intent.width && numeric_value(*intent.width) <= 0.0F) {
+    if (width && numeric_value(*width) <= 0.0F) {
         return refused(Kind::Change, fault::NonPositiveCanvas{"width"});
     }
-    if (intent.height && numeric_value(*intent.height) <= 0.0F) {
+    if (height && numeric_value(*height) <= 0.0F) {
         return refused(Kind::Change, fault::NonPositiveCanvas{"height"});
     }
 
@@ -280,8 +282,8 @@ template<> Outcome Editor::handle<SetCanvas>(const SetCanvas& intent) {
         return refused(Kind::Change, fault::RootIsNotSvg{});
     }
     Container::SVG& size = std::get<Container::SVG>(container.specific);
-    if (intent.width) size.width = intent.width;
-    if (intent.height) size.height = intent.height;
+    if (width) size.width = maybe_length_percentage(*width);
+    if (height) size.height = maybe_length_percentage(*height);
 
     Transaction edit = document_.transaction();
     edit.update(root, std::move(*payload));

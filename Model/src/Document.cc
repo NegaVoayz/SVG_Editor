@@ -89,7 +89,7 @@ void Document::replace(StagedTree tree) {
     io_barrier_ = true;
 }
 
-void Document::reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height) {
+void Document::reset(MaybeLengthPercentage width, MaybeLengthPercentage height) {
     store_.reset(std::move(width), std::move(height));
     io_barrier_ = true;
 }

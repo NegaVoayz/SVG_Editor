@@ -4,7 +4,10 @@
 #include <cstdint>
 #include <string>
 #include <optional>
+#include <type_traits>
 #include <variant>
+
+#include "Exhaustive.hh"
 
 // The same width as an MVCCHive virtual id: a handle is never narrowed on the way
 // into or out of the hive.
@@ -24,6 +27,71 @@ struct Percentage {
 };
 
 using LengthPercentage = std::variant<Length,Percentage>;
+
+// A length or percentage that may be absent. Absence is an alternative rather than an
+// optional wrapper so the type takes the same 12 bytes as LengthPercentage while every
+// state remains explicit and exhaustively dispatchable.
+struct Unset {};
+using MaybeLengthPercentage = std::variant<Unset, Length, Percentage>;
+
+// The primary template is the single compile-time failure point for conversion in either
+// direction. Specializations below enumerate every alternative that has a meaning at the
+// destination; adding another alternative cannot silently pass through.
+template<typename T>
+std::optional<LengthPercentage> present_length_percentage(const T&) {
+    static_assert(always_false<T>,
+                  "a MaybeLengthPercentage alternative has no LengthPercentage form");
+    return std::nullopt;
+}
+
+template<>
+inline std::optional<LengthPercentage> present_length_percentage<Unset>(const Unset&) {
+    return std::nullopt;
+}
+
+template<>
+inline std::optional<LengthPercentage> present_length_percentage<Length>(const Length& value) {
+    return LengthPercentage{value};
+}
+
+template<>
+inline std::optional<LengthPercentage> present_length_percentage<Percentage>(const Percentage& value) {
+    return LengthPercentage{value};
+}
+
+inline std::optional<LengthPercentage> present_length_percentage(const MaybeLengthPercentage& value) {
+    return std::visit(
+        [](const auto& alternative) -> std::optional<LengthPercentage> {
+            using T = std::remove_cvref_t<decltype(alternative)>;
+            return present_length_percentage<T>(alternative);
+        },
+        value);
+}
+
+template<typename T>
+MaybeLengthPercentage maybe_length_percentage(const T&) {
+    static_assert(always_false<T>, "a LengthPercentage alternative has no MaybeLengthPercentage form");
+    return Unset{};
+}
+
+template<>
+inline MaybeLengthPercentage maybe_length_percentage<Length>(const Length& value) {
+    return value;
+}
+
+template<>
+inline MaybeLengthPercentage maybe_length_percentage<Percentage>(const Percentage& value) {
+    return value;
+}
+
+inline MaybeLengthPercentage maybe_length_percentage(const LengthPercentage& value) {
+    return std::visit(
+        [](const auto& alternative) -> MaybeLengthPercentage {
+            using T = std::remove_cvref_t<decltype(alternative)>;
+            return maybe_length_percentage<T>(alternative);
+        },
+        value);
+}
 
 // The number a length or a percentage carries, without its unit. Validation and
 // sign checks need the magnitude; rendering still uses to_text() so the unit survives.

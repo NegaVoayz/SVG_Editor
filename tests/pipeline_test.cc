@@ -126,8 +126,9 @@ int main() {
     CHECK(refused_with<fault::CannotReadFile>(read_before_init));
     CHECK(!document.has_document());
 
-    const Outcome bad_init = planner.dispatch(Init{Length{-5.0F, Length::Unit::UserUnit},
-                                                   Length{600.0F, Length::Unit::UserUnit}});
+    const Outcome bad_init = planner.dispatch(Init{
+        maybe_length_percentage(Length{-5.0F, Length::Unit::UserUnit}),
+        maybe_length_percentage(Length{600.0F, Length::Unit::UserUnit})});
     CHECK(!bad_init.ok());
     CHECK(bad_init.kind == Kind::Context);
     CHECK(refused_with<fault::NonPositiveCanvas>(bad_init));
@@ -139,7 +140,8 @@ int main() {
     CHECK(!undo_at_init.ok());
     CHECK(refused_with<fault::UndoAfterIo>(undo_at_init));
 
-    const Outcome zero_canvas = planner.dispatch(SetCanvas{Length{0.0F, Length::Unit::UserUnit}, std::nullopt});
+    const Outcome zero_canvas = planner.dispatch(
+        SetCanvas{maybe_length_percentage(Length{0.0F, Length::Unit::UserUnit}), Unset{}});
     CHECK(!zero_canvas.ok());
     CHECK(refused_with<fault::NonPositiveCanvas>(zero_canvas));
     const Outcome negative_rect =
@@ -824,9 +826,11 @@ int main() {
                 CHECK(to_text(geometry.r) == "15");
                 CHECK(to_text(geometry.cx) == "30");
             }
-            CHECK(grown_dot->paint_attr.stroke_width.has_value());
-            if (grown_dot->paint_attr.stroke_width) {
-                CHECK(to_text(*grown_dot->paint_attr.stroke_width) == "6");
+            const std::optional<LengthPercentage> stroke_width =
+                present_length_percentage(grown_dot->paint_attr.stroke_width);
+            CHECK(stroke_width.has_value());
+            if (stroke_width) {
+                CHECK(to_text(*stroke_width) == "6");
             }
         }
         CHECK(planner.dispatch(Undo{}).ok());
@@ -947,8 +951,10 @@ int main() {
         const ElementShape& element = std::get<ElementShape>(std::get<NodeView>(painted.view()).shape);
         CHECK(element.identity_attr.class_ == "highlight");
         CHECK(element.paint_attr.fill.has_value());
-        CHECK(element.paint_attr.stroke_width.has_value());
-        if (element.paint_attr.stroke_width) CHECK(to_text(*element.paint_attr.stroke_width) == "2");
+        const std::optional<LengthPercentage> stroke_width =
+            present_length_percentage(element.paint_attr.stroke_width);
+        CHECK(stroke_width.has_value());
+        if (stroke_width) CHECK(to_text(*stroke_width) == "2");
         if (element.paint_attr.fill) {
             CHECK(std::holds_alternative<Color>(*element.paint_attr.fill));
             if (std::holds_alternative<Color>(*element.paint_attr.fill)) {
@@ -981,8 +987,9 @@ int main() {
         CHECK(std::holds_alternative<Container::SVG>(container.specific));
         if (std::holds_alternative<Container::SVG>(container.specific)) {
             const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
-            CHECK(canvas.width.has_value());
-            if (canvas.width) CHECK(to_text(*canvas.width) == "1024");
+            const std::optional<LengthPercentage> width = present_length_percentage(canvas.width);
+            CHECK(width.has_value());
+            if (width) CHECK(to_text(*width) == "1024");
         }
     }
     // `width` is the SVG spelling of a rect's side too; `w` is the short form
@@ -1051,7 +1058,9 @@ int main() {
     // be undone.
     const Outcome before_canvas = planner.dispatch(ShowHistory{});
     CHECK(before_canvas.ok());
-    CHECK(planner.dispatch(SetCanvas{Length{1024.0F, Length::Unit::UserUnit}, std::nullopt}).ok());
+    CHECK(planner.dispatch(
+              SetCanvas{maybe_length_percentage(Length{1024.0F, Length::Unit::UserUnit}), Unset{}})
+              .ok());
     CHECK(document.depth() == 0);
     CHECK(!document.can_undo());
     CHECK(document.undo_barred_by_io());
@@ -1067,9 +1076,11 @@ int main() {
         CHECK(std::holds_alternative<Container::SVG>(container.specific));
         if (std::holds_alternative<Container::SVG>(container.specific)) {
             const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
-            CHECK(canvas.width.has_value() && canvas.height.has_value());
-            if (canvas.width) CHECK(to_text(*canvas.width) == "1024");
-            if (canvas.height) CHECK(to_text(*canvas.height) == "600");
+            const std::optional<LengthPercentage> width = present_length_percentage(canvas.width);
+            const std::optional<LengthPercentage> height = present_length_percentage(canvas.height);
+            CHECK(width.has_value() && height.has_value());
+            if (width) CHECK(to_text(*width) == "1024");
+            if (height) CHECK(to_text(*height) == "600");
         }
     }
 
@@ -1106,7 +1117,8 @@ int main() {
     // `init` replaces the document instead of editing it: the tree, the history, the
     // file behind it and the canvas all start over, and the canvas it names is what
     // the new root carries.
-    const Outcome fresh = planner.dispatch(Init{Length{400.0F, Length::Unit::UserUnit}, std::nullopt});
+    const Outcome fresh = planner.dispatch(
+        Init{maybe_length_percentage(Length{400.0F, Length::Unit::UserUnit}), Unset{}});
     CHECK(fresh.ok());
     CHECK(fresh.kind == Kind::Context);
     CHECK(document.children(document.root()).empty());
@@ -1117,9 +1129,11 @@ int main() {
     if (const std::optional<Node> payload = document.node(document.root())) {
         const Container& container = std::get<Container>(std::get<SVGNode>(*payload).data);
         const Container::SVG& canvas = std::get<Container::SVG>(container.specific);
-        CHECK(canvas.width.has_value() && canvas.height.has_value());
-        if (canvas.width) CHECK(to_text(*canvas.width) == "400");
-        if (canvas.height) CHECK(to_text(*canvas.height) == "600");  // the side left out
+        const std::optional<LengthPercentage> width = present_length_percentage(canvas.width);
+        const std::optional<LengthPercentage> height = present_length_percentage(canvas.height);
+        CHECK(width.has_value() && height.has_value());
+        if (width) CHECK(to_text(*width) == "400");
+        if (height) CHECK(to_text(*height) == "600");  // the side left out
     }
 
     // A group directly under <svg> is a top-level container; it cannot be ungrouped

@@ -31,9 +31,9 @@ std::string serialize_attribute<LengthPercentage>(const LengthPercentage& value)
 }
 
 template<>
-std::string serialize_attribute<std::optional<LengthPercentage>>(
-    const std::optional<LengthPercentage>& value) {
-    return value ? svg_text(*value) : std::string{};
+std::string serialize_attribute<MaybeLengthPercentage>(const MaybeLengthPercentage& value) {
+    const std::optional<LengthPercentage> present = present_length_percentage(value);
+    return present ? svg_text(*present) : std::string{};
 }
 
 template<>

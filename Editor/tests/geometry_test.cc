@@ -43,9 +43,9 @@ Node plain_text() { return Node{PlainText{"hello"}}; }
 
 Node text_element() {
     Text text;
-    text.common.x = user_units(1);
-    text.common.y = user_units(2);
-    text.common.font_size = user_units(10);
+    text.common.x = maybe_length_percentage(user_units(1));
+    text.common.y = maybe_length_percentage(user_units(2));
+    text.common.font_size = maybe_length_percentage(user_units(10));
     text.child_attr = ChildAttr{};
     return Node{element_with(std::move(text))};
 }
@@ -154,8 +154,10 @@ int main() {
     CHECK(moved(label, user_units(2), user_units(3)));
     {
         const Text& moved_label = std::get<Text>(std::get<SVGNode>(label).data);
-        CHECK(to_text(*moved_label.common.x) == "3");
-        CHECK(to_text(*moved_label.common.y) == "5");
+        const std::optional<LengthPercentage> x = present_length_percentage(moved_label.common.x);
+        const std::optional<LengthPercentage> y = present_length_percentage(moved_label.common.y);
+        CHECK(x && to_text(*x) == "3");
+        CHECK(y && to_text(*y) == "5");
     }
 
     // A span with no x or y inherits where the text before it ended; a move must not
@@ -164,8 +166,8 @@ int main() {
     CHECK(moved(inherited_span, user_units(2), user_units(3)));
     {
         const Text& span = std::get<Text>(std::get<SVGNode>(inherited_span).data);
-        CHECK(!span.common.x.has_value());
-        CHECK(!span.common.y.has_value());
+        CHECK(!present_length_percentage(span.common.x).has_value());
+        CHECK(!present_length_percentage(span.common.y).has_value());
     }
 
     // --- scale ---
@@ -197,11 +199,14 @@ int main() {
 
     // Stroke width is a drawn dimension, so it grows with the geometry.
     Node stroked = rect(user_units(0), user_units(0));
-    std::get<SVGNode>(stroked).paint_attr.stroke_width = user_units(2);
+    std::get<SVGNode>(stroked).paint_attr.stroke_width =
+        maybe_length_percentage(user_units(2));
     CHECK(resized(stroked, 3.0F));
-    CHECK(std::get<SVGNode>(stroked).paint_attr.stroke_width.has_value());
-    if (std::get<SVGNode>(stroked).paint_attr.stroke_width) {
-        CHECK(to_text(*std::get<SVGNode>(stroked).paint_attr.stroke_width) == "6");
+    const std::optional<LengthPercentage> stroke_width =
+        present_length_percentage(std::get<SVGNode>(stroked).paint_attr.stroke_width);
+    CHECK(stroke_width.has_value());
+    if (stroke_width) {
+        CHECK(to_text(*stroke_width) == "6");
     }
 
     // a percentage is a percentage at any size
@@ -219,9 +224,13 @@ int main() {
     CHECK(resized(grown_text, 2.0F));
     {
         const Text& text = std::get<Text>(std::get<SVGNode>(grown_text).data);
-        CHECK(to_text(*text.common.x) == "2");
-        CHECK(to_text(*text.common.y) == "4");
-        CHECK(to_text(*text.common.font_size) == "20");
+        const std::optional<LengthPercentage> x = present_length_percentage(text.common.x);
+        const std::optional<LengthPercentage> y = present_length_percentage(text.common.y);
+        const std::optional<LengthPercentage> font_size =
+            present_length_percentage(text.common.font_size);
+        CHECK(x && to_text(*x) == "2");
+        CHECK(y && to_text(*y) == "4");
+        CHECK(font_size && to_text(*font_size) == "20");
     }
 
     // a factor of nothing, or a negative one, is not written yet: SVG can mirror and

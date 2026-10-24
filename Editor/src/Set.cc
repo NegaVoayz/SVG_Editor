@@ -149,11 +149,11 @@ Outcome set_shape(Document& document, Id node, const Attribute& intent, Assign a
 }
 
 template<typename Member>
-bool set_canvas_member(SVGNode& element, Member member, LengthPercentage value) {
+bool set_canvas_member(SVGNode& element, Member member, MaybeLengthPercentage value) {
     if (!std::holds_alternative<Container>(element.data)) return false;
     return std::visit(
         [&member, &value](auto& specific) -> bool {
-            if constexpr (requires { specific.*member = std::optional<LengthPercentage>{value}; }) {
+            if constexpr (requires { specific.*member = value; }) {
                 specific.*member = value;
                 return true;
             } else {
@@ -169,7 +169,7 @@ Outcome apply(Document& document, Id node, const SetX& intent) {
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
         if (std::holds_alternative<Text>(element.data)) {
-            std::get<Text>(element.data).common.x = value;
+            std::get<Text>(element.data).common.x = maybe_length_percentage(value);
             return true;
         }
         return on_shape(element, [value](auto& specific) -> bool {
@@ -189,7 +189,7 @@ Outcome apply(Document& document, Id node, const SetY& intent) {
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
         if (std::holds_alternative<Text>(element.data)) {
-            std::get<Text>(element.data).common.y = value;
+            std::get<Text>(element.data).common.y = maybe_length_percentage(value);
             return true;
         }
         return on_shape(element, [value](auto& specific) -> bool {
@@ -368,7 +368,7 @@ Outcome apply(Document& document, Id node, const SetDx& intent) {
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
         if (!std::holds_alternative<Text>(element.data)) return false;
-        std::get<Text>(element.data).common.dx = value;
+        std::get<Text>(element.data).common.dx = maybe_length_percentage(value);
         return true;
     });
 }
@@ -379,7 +379,7 @@ Outcome apply(Document& document, Id node, const SetDy& intent) {
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
         if (!std::holds_alternative<Text>(element.data)) return false;
-        std::get<Text>(element.data).common.dy = value;
+        std::get<Text>(element.data).common.dy = maybe_length_percentage(value);
         return true;
     });
 }
@@ -389,7 +389,7 @@ Outcome apply(Document& document, Id node, const SetStrokeWidth& intent) {
         return refused(Kind::Change, std::move(*problem));
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
-        element.paint_attr.stroke_width = value;
+        element.paint_attr.stroke_width = maybe_length_percentage(value);
         return true;
     });
 }
@@ -399,7 +399,7 @@ Outcome apply(Document& document, Id node, const SetWidth& intent) {
         return refused(Kind::Change, std::move(*problem));
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
-        if (set_canvas_member(element, &Container::SVG::width, value)) return true;
+        if (set_canvas_member(element, &Container::SVG::width, maybe_length_percentage(value))) return true;
         // `width` is the SVG name; `w` is the spelling `create` and the tree use. Both
         // reach the same side of a rect.
         return on_shape(element, [value](auto& specific) -> bool {
@@ -418,7 +418,7 @@ Outcome apply(Document& document, Id node, const SetHeight& intent) {
         return refused(Kind::Change, std::move(*problem));
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
-        if (set_canvas_member(element, &Container::SVG::height, value)) return true;
+        if (set_canvas_member(element, &Container::SVG::height, maybe_length_percentage(value))) return true;
         return on_shape(element, [value](auto& specific) -> bool {
             if constexpr (requires { specific.h = value; }) {
                 specific.h = value;
@@ -438,7 +438,7 @@ Outcome apply(Document& document, Id node, const SetStartOffset& intent) {
         if (!std::holds_alternative<Text>(element.data)) return false;
         Text& text = std::get<Text>(element.data);
         if (!std::holds_alternative<Text::Path>(text.specific)) return false;
-        std::get<Text::Path>(text.specific).startOffset = value;
+        std::get<Text::Path>(text.specific).startOffset = maybe_length_percentage(value);
         return true;
     });
 }
@@ -480,7 +480,7 @@ Outcome apply(Document& document, Id node, const SetFontSize& intent) {
     }
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
         if (!std::holds_alternative<Text>(element.data)) return false;
-        std::get<Text>(element.data).common.font_size = value;
+        std::get<Text>(element.data).common.font_size = maybe_length_percentage(value);
         return true;
     });
 }
