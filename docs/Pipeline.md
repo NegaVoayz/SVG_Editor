@@ -45,7 +45,8 @@ The text front end prints it as `undo: <original edit>` or `redo: <original edit
 The event also carries the commit id of the checkout it landed on. The Editor commits
 explicitly with one shared id, so every participating hive's native checkout reports
 that same value. The Editor keeps one entry per history position in a `std::deque`,
-with the commit id stored beside the outcome and checked when the outcome is replayed.
+with the commit id stored beside the outcome by value and checked when the outcome is
+replayed.
 
 A view is a projection, not a checkout record. `ElementShape` carries the identity,
 paint, and an `ElementData` projected from the model; `ContainerShape` and `TextShape`
@@ -54,6 +55,15 @@ Neither a node's parent/sibling ids nor a container's first/last-child links cro
 Model boundary, and a view adds only the public node handle and display facts around
 that projection. Model storage can therefore change without making those internal
 links part of the front-end contract.
+
+`HistoryView` is the one live view. It holds a reference to the Editor's history deque,
+a reference to the cursor containing the baseline, HEAD and depth, and the display limit;
+it does not copy entries or outcomes. The Editor refreshes that cursor after every change,
+and the Planner also refreshes it after a successful FileSystem context command. A
+history view retained across a branch edit therefore sees the truncated redo tail and its
+replacement, and one retained across `save`, `read` or `init` sees the new baseline. A
+checkout event carries the same live view rather than a second timeline vector. The view
+is non-owning, so it must not outlive the Editor.
 
 ## How an intent is dispatched
 
