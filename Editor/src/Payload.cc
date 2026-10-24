@@ -132,7 +132,7 @@ template<> Outcome Editor::handle<Move>(const Move& intent) {
     if (zero_offset) return happened(Kind::Change, event::NothingMoved{});
 
     const event::NodeName named = name_of(document_, *node);
-    const fault::EmptyContainer empty{named.element, named.svg_id};
+    const fault::EmptyContainer empty{std::string{named.element}, named.svg_id};
 
     if ((*mode == EditMode::Transform || *mode == EditMode::ContainerTransform) && is_container(*payload) &&
         document_.children(*node).empty()) {
@@ -203,7 +203,7 @@ template<> Outcome Editor::handle<ScaleBy>(const ScaleBy& intent) {
     if (!mode) return refused(Kind::Change, mode.error());
 
     const event::NodeName named = name_of(document_, *node);
-    const fault::EmptyContainer empty{named.element, named.svg_id};
+    const fault::EmptyContainer empty{std::string{named.element}, named.svg_id};
 
     if ((*mode == EditMode::Transform || *mode == EditMode::ContainerTransform) && is_container(*payload) &&
         document_.children(*node).empty()) {

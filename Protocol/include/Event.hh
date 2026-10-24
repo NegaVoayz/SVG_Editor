@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -28,7 +29,9 @@ namespace event {
 // hive's virtual id is deliberately absent; it is an implementation detail of storage,
 // not a name a front end can print or a user can type.
 struct NodeName {
-    std::string element;
+    // Element names come from the static element-name table, so a non-owning view is
+    // sufficient and avoids duplicating the same short literal in every event.
+    std::string_view element;
     std::string svg_id;
 };
 
