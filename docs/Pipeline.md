@@ -266,6 +266,20 @@ mean the root's canvas or a rect's side, and `w`/`h` are the short spellings the
 `xmlns` and `viewBox` belong to the root `<svg>`; `text-anchor` (`start`, `middle`, `end`)
 and `font-size` belong to text nodes, including `tspan` and `textPath`.
 
+`create polygon` is `CreatePolygon`, and `set <id> points` is `SetPoints`; both carry an
+ordered `std::vector<Shape::Point>` all the way through the protocol. The text reader is
+the only place that turns the quoted point text into typed coordinates. Creation requires
+at least three coordinate pairs, while `set points` accepts any even number of coordinate
+values. Each coordinate is a `LengthPercentage`, so a point's x and y retain the unit or
+percentage they were written with.
+
+The Editor handles `SetPoints` through the same compile-time shape-member dispatch as the
+other shape attributes: a polygon accepts it because `Shape::Polygon` has `points`, and a
+different shape refuses it as an unknown attribute. `show` and the SVG writer format the
+vector as one quoted `points` value, without appending a copy of the first point because
+SVG polygons close implicitly. Reading `<polygon points="...">` restores the same ordered
+vector.
+
 `front` and `back` follow SVG's paint order: the last child is painted last, so it is
 the front, and the first child is the back. The tree prints children in that same chain
 order, so a later line is nearer the front.

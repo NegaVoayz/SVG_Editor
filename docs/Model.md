@@ -147,6 +147,19 @@ stop at `no_id`. A parent keeps both ends, so appending is O(1); a node keeps bo
 of its sibling links, so placing it in front of another child or removing it is
 O(1) too. There is no backwards edge table to consult.
 
+`Shape` is a closed variant of `Rect`, `Circle`, `Ellipse`, `Line` and `Polygon`.
+A polygon stores `std::vector<Shape::Point>`, where each point is two explicit
+`LengthPercentage` values. This is the one variable-sized shape payload: the vector's
+allocation lives outside the hive record, while replacing the list still replaces one
+`Node` version in one transaction. Coordinates keep their written units, and `move` or
+`scale` reconstructs the vector point by point without collapsing lengths and percentages
+into a runtime-tagged generic value.
+
+SVG stores the list in one `points` attribute and closes a polygon implicitly. The model
+does not add the first point again at the end. A newly created polygon needs at least
+three pairs; a file may supply any valid even coordinate count because an empty or
+degenerate polygon is legal SVG that simply draws nothing.
+
 Forgetting a node is a hive erase, not an SVG payload. An older snapshot still
 holds the immutable versions that showed the node, so undo brings the same
 virtual id back without allocating a new one. The live model never contains a

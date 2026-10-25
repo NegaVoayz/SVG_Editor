@@ -130,10 +130,40 @@ and setting its `text` updates its label, in the same commit. A marked composite
 be ungrouped: `ungroup status` is refused as `cannot ungroup composite shape: status`.
 A collision with either derived id is refused before the box writes anything.
 
-Polygon points are coordinate pairs separated by spaces or commas, and the list is quoted
-as one command word: `create polygon tri "0,0 10,0 5,10" red`. Points use the same length
-syntax as other geometry, so units are accepted per coordinate. `set tri points "..."`
-replaces the list. `move` and `scale` change every point in the polygon's params.
+### Polygon elements
+
+A polygon is a closed shape defined by an ordered list of points. Create one with
+`create polygon <id> "<points>" [fill] [in <gid>]`, where the quoted points list contains
+coordinate pairs separated by spaces or commas:
+
+```text
+svg> init
+canvas 800x600 created
+svg> create polygon tri "0,0 10,0 5,10" #336699
+polygon#tri created
+svg> show tri
+polygon#tri  parent=svg
+  points="0,0 10,0 5,10"
+  fill=#336699
+```
+
+Each coordinate uses the normal geometry syntax, including user units, percentages and
+named length units. Coordinates can therefore retain units independently per point value.
+A new polygon needs at least three coordinate pairs; an odd number of coordinate values
+is invalid. The closing edge back to the first point is implicit, so the first point must
+not be repeated at the end of the list.
+
+Replace the list with `set <id> points "<points>"`:
+
+```text
+svg> set tri points "0,0 20,0 10,20"
+polygon#tri updated: points="0,0 20,0 10,20"
+```
+
+`move` and `scale` update every point when they edit the polygon's parameters. A polygon
+that already carries a transform follows the transform-boundary rule described below.
+The point list appears in `show` and `save`, and reading the saved `<polygon>` restores the
+same ordered points.
 
 Every SVG element accepts `opacity` from `0` through `1`:
 `set tri opacity 0.5`. The value is stored and serialized independently of fill alpha, and
