@@ -376,6 +376,13 @@ add_test(NAME cli_box_marker COMMAND $<TARGET_FILE:Cli>
 set_tests_properties(cli_box_marker PROPERTIES
     PASS_REGULAR_EXPRESSION "g#status \\(box\\)  parent=svg\nsvg \\(800 x 600 user units\\)\n└── g#status \\(box\\)")
 
+add_test(NAME cli_box_missing_label COMMAND $<TARGET_FILE:Cli>
+    "read ${CMAKE_SOURCE_DIR}/tests/fixtures/box-without-label.svg; set b content \"x\"; set b fill red")
+set_tests_properties(cli_box_missing_label PROPERTIES
+    PASS_REGULAR_EXPRESSION
+        "error: composite g#b has no label child\ng#b updated: fill=red"
+    FAIL_REGULAR_EXPRESSION "unknown attribute")
+
 # The marker makes a saved composite editable as one named box after it is read back.
 add_test(NAME cli_create_box_roundtrip COMMAND $<TARGET_FILE:Cli>
     "init; create box status 10 20 120 40 \"Ready\" #00ff00; save ${CMAKE_CURRENT_BINARY_DIR}/cli_box.svg; read ${CMAKE_CURRENT_BINARY_DIR}/cli_box.svg; set status fill blue; show status-rect")

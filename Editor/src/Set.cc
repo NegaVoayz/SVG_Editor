@@ -513,6 +513,16 @@ std::optional<Id> box_outline(Document& document, Id node) { return box_child(do
 
 std::optional<Id> box_label(Document& document, Id node) { return box_child(document, node, "-label"); }
 
+bool is_marked_box(Document& document, Id node) {
+    const std::optional<Node> payload = document.node(node);
+    if (!payload || !std::holds_alternative<SVGNode>(*payload)) return false;
+    const SVGNode& element = std::get<SVGNode>(*payload);
+    if (!std::holds_alternative<Container>(element.data)) return false;
+    const Container& container = std::get<Container>(element.data);
+    if (!std::holds_alternative<Container::Group>(container.specific)) return false;
+    return std::get<Container::Group>(container.specific).data_kind == "box";
+}
+
 Outcome apply(Document& document, Id node, const SetFill& intent) {
     const std::optional<Id> outline = box_outline(document, node);
     if (!outline) {
@@ -577,16 +587,20 @@ Outcome apply(Document& document, Id node, const SetHref& intent) {
 // document may have, keeps its first and drops the rest so the words are said once. A
 // PlainText handle names the character data directly and needs no walk.
 Outcome set_text(Document& document, Id node, const std::string& value, std::string_view attribute) {
-    if (const std::optional<Id> label = box_label(document, node)) {
-        Outcome result = set_text(document, *label, value, attribute);
-        if (result.ok() && std::holds_alternative<Event>(result.result)) {
-            Event& event = std::get<Event>(result.result);
-            if (std::holds_alternative<event::ContentSet>(event)) {
-                event::ContentSet& changed = std::get<event::ContentSet>(event);
-                changed.node = name_of(document, node);
+    if (is_marked_box(document, node)) {
+        if (const std::optional<Id> label = box_label(document, node)) {
+            Outcome result = set_text(document, *label, value, attribute);
+            if (result.ok() && std::holds_alternative<Event>(result.result)) {
+                Event& event = std::get<Event>(result.result);
+                if (std::holds_alternative<event::ContentSet>(event)) {
+                    event::ContentSet& changed = std::get<event::ContentSet>(event);
+                    changed.node = name_of(document, node);
+                }
             }
+            return result;
         }
-        return result;
+        return refused(Kind::Change,
+                       fault::CompositeMissingChild{name_of(document, node), "label"});
     }
 
     std::optional<Node> payload = document.node(node);

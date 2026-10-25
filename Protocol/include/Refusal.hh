@@ -4,6 +4,7 @@
 #include <string>
 #include <variant>
 
+#include "Event.hh"
 #include "History.hh"
 #include "NodeRef.hh"
 #include "SVGNode.hh"
@@ -47,6 +48,11 @@ struct DuplicateGroupMember {
 
 struct UnknownAttribute {
     std::string name;
+};
+
+struct CompositeMissingChild {
+    event::NodeName composite;
+    std::string child;
 };
 
 struct NegativeDimension {
@@ -162,7 +168,8 @@ struct InternalError {};
 
 using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::MissingContainer, fault::NotContainer,
                              fault::DuplicateId, fault::InvalidId, fault::ReservedId, fault::DuplicateGroupMember,
-                             fault::UnknownAttribute, fault::NegativeDimension, fault::InvalidPoints,
+                             fault::UnknownAttribute, fault::CompositeMissingChild, fault::NegativeDimension,
+                             fault::InvalidPoints,
                              fault::OpacityOutOfRange, fault::NonPositiveCanvas,
                              fault::NonFiniteValue,
                              fault::CannotUngroupNonContainer,

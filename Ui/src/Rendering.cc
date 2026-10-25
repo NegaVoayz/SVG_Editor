@@ -554,6 +554,10 @@ struct RefusalText {
     std::string operator()(const fault::UnknownAttribute& attribute) const {
         return "error: unknown attribute: " + quote_if_needed(attribute.name);
     }
+    std::string operator()(const fault::CompositeMissingChild& missing) const {
+        return "error: composite " + element_label(missing.composite) + " has no " +
+               quote_if_needed(missing.child) + " child";
+    }
     std::string operator()(const fault::NegativeDimension& dimension) const {
         return "error: " + quote_if_needed(dimension.attribute) + " must not be negative";
     }

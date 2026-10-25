@@ -135,6 +135,9 @@ with `data-kind="box"`, so reading the file restores the same editable box. `tre
 and setting its `text` updates its label, in the same commit. A marked composite cannot
 be ungrouped: `ungroup status` is refused as `cannot ungroup composite shape: status`.
 A collision with either derived id is refused before the box writes anything.
+If a file marks a group as a box but omits its label child, editing the box's text is
+refused as `error: composite g#<id> has no label child` rather than reporting that
+`content` is an unknown attribute.
 
 ### Polygon elements
 

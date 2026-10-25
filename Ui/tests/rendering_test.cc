@@ -355,6 +355,8 @@ int main() {
     CHECK(render(event::Saved{"one.svg", 1}) == "saved to one.svg (1 element)");
     CHECK(render(fault::CannotUngroupNonContainer{SvgIdRef{"n1"}}) ==
           "error: cannot ungroup a shape or text node: n1");
+    CHECK(render(fault::CompositeMissingChild{{"g", "n1"}, "label"}) ==
+          "error: composite g#n1 has no label child");
     CHECK(render(fault::CannotUngroupComposite{SvgIdRef{"n1"}}) ==
           "error: cannot ungroup composite shape: n1");
     CHECK(render(fault::CannotAddToOwnDescendant{SvgIdRef{"layer"}}) ==

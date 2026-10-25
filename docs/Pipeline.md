@@ -286,6 +286,11 @@ vector as one quoted `points` value, without appending a copy of the first point
 SVG polygons close implicitly. Reading `<polygon points="...">` restores the same ordered
 vector.
 
+A `data-kind="box"` group routes text edits to its derived label. If the marker is present
+but the label child is missing, the Editor returns `CompositeMissingChild` and the text
+front end says `error: composite g#<id> has no label child`; it does not fall through to
+the unrelated `UnknownAttribute` refusal.
+
 `front` and `back` follow SVG's paint order: the last child is painted last, so it is
 the front, and the first child is the back. The tree prints children in that same chain
 order, so a later line is nearer the front.
