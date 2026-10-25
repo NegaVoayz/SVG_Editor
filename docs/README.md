@@ -165,9 +165,34 @@ that already carries a transform follows the transform-boundary rule described b
 The point list appears in `show` and `save`, and reading the saved `<polygon>` restores the
 same ordered points.
 
-Every SVG element accepts `opacity` from `0` through `1`:
-`set tri opacity 0.5`. The value is stored and serialized independently of fill alpha, and
-an out-of-range value is refused without changing the element.
+### Element opacity
+
+Every SVG element represented by the editor supports `opacity`. Set it with
+`set <id> opacity <number>`, where the number is finite and lies in the inclusive range
+`0` through `1`. A value of `0` makes the element fully transparent; `1` is fully opaque.
+
+```text
+svg> set tri opacity 0.5
+polygon#tri updated: opacity=0.5
+svg> show tri
+polygon#tri  parent=svg
+  points="0,0 20,0 10,20"
+  fill=#336699
+  opacity=0.5
+```
+
+The value is a property of the whole element, not of its fill or stroke colour. On a
+group it applies to the composited group and therefore to its rendered descendants, as
+SVG defines. It is independent of colour alpha; this supported SVG subset does not accept
+alpha-bearing colour values such as `rgba(...)`.
+
+Omitting `opacity` means SVG's initial value of `1`. Setting or reading it stores the
+attribute explicitly, including `opacity=1`, and `save` serializes that stored value.
+Values below `0` or above `1` are refused before a transaction with
+`error: opacity must be between 0 and 1, not <value>`. Text that is not a finite floating
+point number, such as `nan` or `inf`, is rejected at the command boundary with
+`error: cannot read '<value>' as opacity: a finite number from 0 to 1`. In either case,
+the element and its history remain unchanged.
 
 Quotes group words that contain spaces, which is how text content and file paths are
 written. A quote or backslash inside one is written `\"` or `\\`, and the same escaping

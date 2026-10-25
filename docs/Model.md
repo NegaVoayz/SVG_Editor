@@ -160,6 +160,13 @@ does not add the first point again at the end. A newly created polygon needs at 
 three pairs; a file may supply any valid even coordinate count because an empty or
 degenerate polygon is legal SVG that simply draws nothing.
 
+`PaintAttr` stores `fill`, `stroke`, `stroke-width` and an optional opacity. Opacity is an
+`std::optional<float>` rather than a bare float because absence is the SVG initial value
+of `1`, while an explicitly stored value must survive a show/save/read round trip. The
+optional therefore preserves a distinction the rendered result does not need but the
+document representation does. It is separate from colour alpha, which the model's colour
+values do not carry.
+
 Forgetting a node is a hive erase, not an SVG payload. An older snapshot still
 holds the immutable versions that showed the node, so undo brings the same
 virtual id back without allocating a new one. The live model never contains a

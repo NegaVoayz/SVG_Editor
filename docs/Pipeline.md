@@ -324,9 +324,18 @@ Inside a quoted run, `\"` writes a quote and `\\` writes a backslash.
 A line whose first non-space character is `#` is a comment and runs to the end of the
 line, including any semicolons in it.
 
-`opacity` is a finite plain number from `0` through `1`. It belongs to every SVG element
-and is stored as a paint attribute; `set r opacity 0.5` changes only the named element.
-A value outside that interval is a structured refusal.
+`set <id> opacity <value>` is the typed `SetOpacity` intent. The front end parses and
+narrows the value once to a finite `float`; text such as `nan` or `inf` is refused there.
+The Editor then checks the inclusive range `0` through `1`. An out-of-range value produces
+`fault::OpacityOutOfRange` before a transaction starts, so it cannot change the element or
+append history.
+
+Opacity belongs to every `SVGNode`, including the root, groups, shapes and text. It is
+stored as `std::optional<float>` in `PaintAttr`; the optional distinguishes an absent
+attribute from an explicitly stored value. This is not fill or stroke alpha. In the saved
+SVG it is the common `opacity` attribute, and group opacity applies to the composited
+group according to SVG semantics. The fixed writer order is fill, stroke, stroke-width,
+opacity and transform.
 
 A canvas side must be positive: `init -5 -5` and `canvas 0` are refused. A shape
 dimension or radius may be zero, as SVG allows, but a negative value is refused.
