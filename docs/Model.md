@@ -474,6 +474,4 @@ path is checked rather than only relying on the fixture's current attributes.
   the latter at checkpoints. It holds only the current checkout snapshot, not one per
   history step. A retention policy that drops old commits and then prunes the hive is
   still not exposed.
-- escaping in the front end: a quoted run is one word and there is no way to put a quote
-  inside one, so a text cannot spell `"` yet.
 
