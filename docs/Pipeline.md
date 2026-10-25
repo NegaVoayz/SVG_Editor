@@ -205,7 +205,7 @@ failure rather than a warning that a normal test run can miss.
 | `create circle <id> <cx> <cy> <r> [fill]`        | a circle                                               | the Editor, one transaction |
 | `create ellipse <id> <cx> <cy> <rx> <ry> [fill]` | an ellipse                                             | the Editor, one transaction |
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]`  | a line, which has no inside to fill                    | the Editor, one transaction |
-| `create polygon <id> "<x,y ...>" [fill]`         | a closed polygon with at least three points            | the Editor, one transaction |
+| `create polygon <id> "<x,y ...>" \| <x> <y> ... [fill]` | a closed polygon with at least three points | the Editor, one transaction |
 | `create text <id> <x> <y> "content"`             | a text element and the character data inside it        | the Editor, one transaction |
 | `create g <id>`                                  | a group                                                | the Editor, one transaction |
 | `create box <id> <x> <y> <w> <h> "label" [fill]` | a marked group, its outline and its label in one edit  | the Editor, one transaction |
@@ -268,10 +268,11 @@ and `font-size` belong to text nodes, including `tspan` and `textPath`.
 
 `create polygon` is `CreatePolygon`, and `set <id> points` is `SetPoints`; both carry an
 ordered `std::vector<Shape::Point>` all the way through the protocol. The text reader is
-the only place that turns the quoted point text into typed coordinates. Creation requires
-at least three coordinate pairs, while `set points` accepts any even number of coordinate
-values. Each coordinate is a `LengthPercentage`, so a point's x and y retain the unit or
-percentage they were written with.
+the only place that turns point text into typed coordinates. It accepts a quoted list and
+the equivalent bare coordinate words, including pair words such as `0,0`; an optional
+trailing fill follows the complete coordinate sequence. Creation requires at least three
+coordinate pairs. Each coordinate is a `LengthPercentage`, so a point's x and y retain the
+unit or percentage they were written with.
 
 The Editor handles `SetPoints` through the same compile-time shape-member dispatch as the
 other shape attributes: a polygon accepts it because `Shape::Polygon` has `points`, and a

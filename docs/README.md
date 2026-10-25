@@ -98,7 +98,7 @@ The instructions are:
 | `create circle <id> <cx> <cy> <r> [fill]`       | a circle                                                   |
 | `create ellipse <id> <cx> <cy> <rx> <ry> [fill]` | an ellipse                                                |
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]` | a line                                                     |
-| `create polygon <id> "<x,y ...>" [fill]`        | a closed polygon from at least three coordinate pairs      |
+| `create polygon <id> "<x,y ...>" \| <x> <y> ... [fill]` | a closed polygon from at least three coordinate pairs |
 | `create text <id> <x> <y> "content"`            | a text element, and the character data inside it           |
 | `create g <id>`                                 | a group                                                    |
 | `create box <id> <x> <y> <w> <h> "label" [fill]` | a labelled box: a marked group with a rectangle and text |
@@ -132,20 +132,26 @@ A collision with either derived id is refused before the box writes anything.
 
 ### Polygon elements
 
-A polygon is a closed shape defined by an ordered list of points. Create one with
-`create polygon <id> "<points>" [fill] [in <gid>]`, where the quoted points list contains
-coordinate pairs separated by spaces or commas:
+A polygon is a closed shape defined by an ordered list of points. Both forms below create
+the same polygon:
 
 ```text
 svg> init
 canvas 800x600 created
 svg> create polygon tri "0,0 10,0 5,10" #336699
 polygon#tri created
+svg> create polygon bare 0 0 10 0 5 10 red
+polygon#bare created
 svg> show tri
 polygon#tri  parent=svg
   points="0,0 10,0 5,10"
   fill=#336699
 ```
+
+The quoted form is `create polygon <id> "<x,y ...>" [fill] [in <gid>]`; the bare form is
+`create polygon <id> <x> <y> ... [fill] [in <gid>]`. In the bare form, pair words such as
+`0,0 10,0 5,10` are accepted too. A trailing fill is recognized after a complete sequence
+of coordinate pairs, so the two forms produce identical structured intents and saved SVG.
 
 Each coordinate uses the normal geometry syntax, including user units, percentages and
 named length units. Coordinates can therefore retain units independently per point value.

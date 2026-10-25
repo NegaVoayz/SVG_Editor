@@ -56,6 +56,12 @@ add_test(NAME cli_polygon
 set_tests_properties(cli_polygon PROPERTIES PASS_REGULAR_EXPRESSION
     "polygon#tri  parent=svg\n  points=\"0,0 20,0 10,20\"\n  fill=red")
 
+add_test(NAME cli_polygon_bare
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create polygon bare 0 0 10 0 5 10 red; show bare")
+set_tests_properties(cli_polygon_bare PROPERTIES PASS_REGULAR_EXPRESSION
+    "polygon#bare  parent=svg\n  points=\"0,0 10,0 5,10\"\n  fill=red")
+
 add_test(NAME cli_polygon_invalid
     COMMAND $<TARGET_FILE:Cli> "init; create polygon pair \"0,0 10,0\"")
 set_tests_properties(cli_polygon_invalid PROPERTIES PASS_REGULAR_EXPRESSION

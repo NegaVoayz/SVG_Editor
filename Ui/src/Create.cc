@@ -13,6 +13,7 @@
 
 #include "Exhaustive.hh"
 #include "Quoting.hh"
+#include "SvgValue.hh"
 
 namespace {
 
@@ -67,13 +68,41 @@ Create build_line(const std::string& id, const Words& values, const NodeRef& par
 }
 
 Create build_polygon(const std::string& id, const Words& values, const NodeRef& parent) {
-    expect_between(values.size(), 1, 2,
-                   "create polygon takes '<id> \"<x,y ...>\" [fill] [in <gid>]'");
-    CreatePolygon intent{id, points_of(values[0]), std::nullopt};
+    expect_least(values.size(), 1,
+                 "create polygon takes '<id> \"<x,y ...>\" [fill] [in <gid>]', or "
+                 "'<id> <x> <y> ... [fill] [in <gid>]'");
+
+    std::string points;
+    std::optional<Color> fill;
+
+    // A quoted list is one word and may be followed by one fill word. Everything else is
+    // read as bare coordinate words; an odd word count leaves the last word as the
+    // optional fill after a complete sequence of coordinate pairs.
+    const std::optional<std::vector<Shape::Point>> quoted = SvgValue::parse_points(values.front());
+    if (quoted) {
+        expect_between(values.size(), 1, 2,
+                       "create polygon takes one quoted points list and an optional fill");
+        points = values.front();
+        if (values.size() == 2) fill = color_of(values[1]);
+    } else {
+        std::size_t coordinate_words = values.size();
+        if (coordinate_words % 2 != 0) {
+            const std::optional<Color> trailing = SvgValue::parse_color(values.back());
+            if (trailing) {
+                fill = trailing;
+                --coordinate_words;
+            }
+        }
+        for (std::size_t index = 0; index < coordinate_words; ++index) {
+            if (!points.empty()) points.push_back(' ');
+            points += values[index];
+        }
+    }
+
+    CreatePolygon intent{id, points_of(points), std::move(fill)};
     if (intent.points.size() < 3) {
         throw ParseFailed{"a polygon needs at least three coordinate pairs"};
     }
-    if (values.size() == 2) intent.fill = color_of(values[1]);
     intent.parent = parent;
     return intent;
 }

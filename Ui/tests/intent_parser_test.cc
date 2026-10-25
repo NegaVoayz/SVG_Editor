@@ -159,6 +159,18 @@ int main() {
     CHECK(refuses(parse("create polygon pair \"0,0 10,0\"")));
     CHECK(refuses(parse("create polygon odd \"0,0 10,0 5\"")));
 
+    const Request bare_polygon = parse("create polygon bare 0 0 10 0 5 10 red in layer");
+    CHECK(holds<CreatePolygon>(bare_polygon));
+    if (holds<CreatePolygon>(bare_polygon)) {
+        const CreatePolygon& intent = as<CreatePolygon>(bare_polygon);
+        CHECK(intent.points.size() == 3);
+        CHECK(intent.fill.has_value());
+        CHECK(name_in(intent.parent) == "layer");
+    }
+    const Request pair_words = parse("create polygon pairs 0,0 10,0 5,10");
+    CHECK(holds<CreatePolygon>(pair_words));
+    if (holds<CreatePolygon>(pair_words)) CHECK(as<CreatePolygon>(pair_words).points.size() == 3);
+
     // A text is a quoted run, so its words may hold spaces, and it is one instruction
     // even though the model writes two nodes for it.
     const Request words = parse("create text title 20 40 \"hello world\" in layer");
