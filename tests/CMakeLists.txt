@@ -31,6 +31,17 @@ add_test(NAME transaction_atomicity COMMAND transaction_atomicity_test)
 add_test(NAME layering
     COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -P ${CMAKE_SOURCE_DIR}/cmake/CheckLayering.cmake)
 
+# The submission's mechanical self-check: documentation links, source references,
+# recorded measurements and selected command transcripts are compared with the tree and
+# the freshly generated CTest index.
+add_test(NAME consistency
+    COMMAND ${CMAKE_COMMAND}
+        "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+        "-DBINARY_DIR=${CMAKE_BINARY_DIR}"
+        "-DCTEST_COMMAND=${CMAKE_CTEST_COMMAND}"
+        "-DCLI=$<TARGET_FILE:Cli>"
+        -P ${CMAKE_SOURCE_DIR}/cmake/CheckDocumentation.cmake)
+
 # The cli on its own: every run starts without a document, so `init` is the first
 # instruction of a session and a chain of instructions is handed over in one argument.
 add_test(NAME cli_no_document COMMAND $<TARGET_FILE:Cli> "tree")
