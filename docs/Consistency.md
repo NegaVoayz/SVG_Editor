@@ -11,7 +11,7 @@ test index:
 
 | metric | recorded value |
 | --- | ---: |
-| Source commits at the validated snapshot | 166 |
+| Source commits at the validated snapshot | 167 |
 | CTest registrations | 128 |
 | static_assert occurrences | 67 |
 | source files containing static_assert | 21 |
@@ -46,7 +46,7 @@ claims, failure modes, and whether tests exercise the right invariant.
 ## Running only the check
 
 ```sh
-ctest --test-dir build/ninja-clang-local-dep -R '^consistency$' --output-on-failure
+ctest --preset local-dep -R '^consistency$' --output-on-failure
 ```
 
 When a check fails, fix the documentation or the implementation until they describe the
