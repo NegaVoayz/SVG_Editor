@@ -11,7 +11,7 @@ test index:
 
 | metric | recorded value |
 | --- | ---: |
-| Source commits at the validated snapshot | 165 |
+| Source commits at the validated snapshot | 166 |
 | CTest registrations | 128 |
 | static_assert occurrences | 67 |
 | source files containing static_assert | 21 |
@@ -27,7 +27,8 @@ test index:
 7. Recorded commit, test, and compile-time-assertion counts match fresh measurements.
 8. Representative documented CLI transcripts are executed against the built CLI and
    matched as substrings. These cover polygons, box reuse, zoom, and malformed-composite
-   diagnostics.
+   diagnostics. A CLI that cannot be launched is reported as an environment failure,
+   separately from a transcript mismatch.
 
 ## Why this exists
 

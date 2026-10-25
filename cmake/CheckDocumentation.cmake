@@ -188,6 +188,12 @@ function(expect_cli label command expected)
         OUTPUT_VARIABLE output
         ERROR_VARIABLE error
         RESULT_VARIABLE cli_status)
+    if(NOT cli_status MATCHES "^-?[0-9]+$" OR
+       (NOT cli_status EQUAL 0 AND output STREQUAL "" AND error STREQUAL ""))
+        message(FATAL_ERROR
+            "documentation: cannot run CLI transcript '${label}' "
+            "(status ${cli_status}): ${error}")
+    endif()
     string(FIND "${output}" "${expected}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR
