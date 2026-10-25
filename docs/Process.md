@@ -4,6 +4,8 @@ This record describes how the SVG editor was specified, changed and checked. It 
 the submission, not a tutorial: [README.md](README.md) explains how to use the program,
 [QualityAssurance.md](QualityAssurance.md) records the verification strategy, and
 [Consistency.md](Consistency.md) describes the automated self-check. The
+[project construction log](Process.md#project-construction-log) traces the architecture
+from the first module map through the released structure. The
 [AI-assisted iteration review](Process.md#ai-assisted-iteration-review) records
 representative problems found in AI-produced advice, documents and code and the evidence
 used to correct them. [Submission.md](Submission.md) records how the tagged archive is
@@ -38,11 +40,56 @@ Each issue followed the same loop:
 
 This kept fixes reviewable and made regressions attributable to a single decision.
 
+## Project construction log
+
+This log groups the commit history into architecture-level phases. It is deliberately not
+a list of every feature: each row records what shape the system had, what structural work
+moved it forward, and which problem or violated boundary forced the next correction. The
+commit sequence can be reconstructed with:
+
+```sh
+git log --reverse --date=short --format='%h %ad %s'
+```
+
+| period | structure and work | problem or design correction | key commits |
+| --- | --- | --- | --- |
+| 2026-10-16: designed skeleton | The project began as a module map and empty CMake targets. The initial design had a typed `Ui -> Planner -> Editor -> Model -> SwapDiffHive` pipeline, an RAII transaction around every user edit, Protocol values shared across the boundary, and the text front end as composition root. Model alone could use the hive. | The design claims had no executable counterpart yet. The first vertical slice and pipeline test made the ownership and routing rules testable instead of aspirational. | `f6e121f`, `d744116`, `8b60141`, `1857581`, `91418f5`, `602eae6`, `ba7b012` |
+| 2026-10-16: first vertical feature path | Model gained a tree, lengths, canvas resets, sibling order and shape vocabulary. Views became data rather than pre-rendered strings, so UI alone owned wording. The Editor vocabulary expanded to create, move, scale, group, ungroup and reorder operations. | The first files mixed several decisions as features accumulated. Handlers, protocol types and parsing responsibilities needed smaller structural boundaries before more commands were added. | `d24a646`, `0ebc161`, `05becb9`, `8648fec`, `282b23b`, `b16a985`, `2ce964f` |
+| 2026-10-16 to 2026-10-17: modular decomposition | The Editor was split by the decision being made: create, history, payload and structure. Protocol was split into intents, node references, outcomes and views. The UI parser was split into command, create, syntax and value files; verb readers became table rows, and create became one intent with six element alternatives. | Per-command `if` chains and declaration-only helper layers made additions easy to route inconsistently. Explicit tables and primary-template `static_assert` failures replaced duplication, while the help test made the verb table observable. | `92bb10a`, `bb05270`, `9bbbcfb`, `d5b837c`, `7017912`, `e6b5abc`, `4612f2e`, `bd7608d` |
+| 2026-10-18: storage-engine pivot | The original node-and-link records spread across multiple `SwapDiffHive` arenas became one MVCCHive whose records carry their tree links. Diff ids became hive virtual ids, and history moved to an exact checkout rather than synchronized stepping across separate stores. | Separate hives could disagree about block boundaries, and checkpoint retention had reservation and growth problems. One record store and one checkout removed that class of synchronization defect. | `0a2b289`, `073f25a`, `ded772b`, `2e8b9e0`, `ad3b588`, `ae5d53a`, `55162dd` |
+| 2026-10-18: protocol semantics and temporary I/O debt | The protocol gained structured outcomes and refusals, set-attribute intents and touched-node results for undo/redo. A tinyxml2 adapter, SVG reader, writer and assigned-id reporting were added under `Model/FileSystem`, so file I/O could grow behind a seam. | Model still owned the tree, and the temporary placement gave Model knowledge of XML, file paths and a parser dependency. This was usable feature growth but violated the intended top-level I/O role and became explicit architectural debt. | `eed2a6e`, `d2449ef`, `a71ca99`, `f1a3ef1`, `2fb35bf`, `60ac415`, `42695c6`, `50945e9`, `dd36a1b` |
+| 2026-10-19: coordinate systems and history semantics | Transform lists became linked semantic operations that materialize as matrices. The Editor distinguished `params`, `transform`, `cascade` and `restrict`, stopped cascades at transformed descendants, and added rotate-center and skew support with stable decomposition and formatting. | Early moves mixed local and parent spaces, transformed containers behaved differently from leaves, and empty or restricted container edits could be invisible. The corrected rule is that a coordinate-system boundary receives the operation in its own matrix. | `dcb5ef1`, `7968156`, `a489d01`, `01e03bd`, `2c2d7cd`, `5ac82f2`, `2eeb662`, `20642d7`, `878851f` |
+| 2026-10-19 to 2026-10-22: replayable history and one output model | History gained replayable edit outcomes, explicit global commit ids, checkout, baseline windows and capped timelines. Node fields, event targets, tree/show/save order and user-facing sentences were unified around Protocol data. | The UI and Model had drifted in field order and message forms, while undo/redo could lose the event that described a commit. Global commit identity and retained outcomes made history replayable without parsing prose. | `9b7236a`, `90b828c`, `d56184e`, `d6beeff`, `f1eedb6`, `37970cc`, `435284d`, `adf7b3b`, `cface72` |
+| 2026-10-22: compile-time and ownership audit | Element naming became an explicit type-to-name template; exhaustive dispatch was enforced across visitors; source audit fixes removed nullable or accidental paths. Floating and transform formatting gained exact read-back behavior. | An earlier nested `of()` table looked checked but failed through overload resolution instead of the project's dependent `static_assert`. The public primary template became the single failure point, and audit rules were written into the structure. | `0cd4efb`, `d754d9e`, `95db9b5`, `87c1424` |
+| 2026-10-23: composites, schema and the I/O boundary repair | Atomic box creation introduced a composite that writes several nodes in one transaction. SVG kind registration and composite edits were made exhaustive. A reflection-cpp schema attempt was replaced by shared, compile-checked field identifiers; line rendering moved toward FileSystem. Staged tree replacement then let FileSystem become a top-level peer of Editor, with Planner routing typed file intents. | The accepted Model-owned I/O debt became the main violation to repair. The final graph has one write owner for tree edits and another for context/file operations, while both reach Model through explicit APIs. | `e32b68c`, `585da16`, `cb406ef`, `31ef2d1`, `89ba608`, `94dbc1e`, `299451a`, `dd132b5`, `c6013ab` |
+| 2026-10-24: value ownership and live views | Nullable schema pointers became optional values, `get_if` inspections became alternative checks, history views became references to the Editor's live deque and cursor, and undo/redo outcomes became `std::optional` values. Absent lengths became explicit, and stored event names were reduced to their required size. | Shared pointers and copied history snapshots obscured ownership and could show stale history after an edit. The corrected model is value ownership for retained entries, references for live views, and explicit alternatives instead of nullable type inspection. | `829c31e`, `137c3f7`, `f49e009`, `ea0ae42`, `4595db4`, `c8b13fb` |
+| 2026-10-25: completed feature set and release engineering | Polygons, opacity, bare polygon coordinates, non-committing zoom and precise malformed-box diagnostics completed the implemented SVG subset. MinGW large-object support made the growing translation units build. Process, quality, consistency and submission chapters introduced executable delivery checks. | The self-check itself exposed stale untracked notes, a misclassified CLI launch failure and a non-reproducible build path. Those were repaired, and A-17 and A-18 added the broader construction record and the moving-tag archive policy. | `1de962e`, `dadf0b2`, `99d3aea`, `4e36e4c`, `0ce542d`, `80ee9d2`, `6b673dd`, `f370c29`, `13ad4ad`, `b399ccd`, `bb18563`, `06313dc` |
+
+The structural trajectory can be read as two graphs:
+
+```text
+initial:  Ui/Cli -> Planner -> Editor -> Model -> SwapDiffHive
+                                \-> Model/FileSystem (I/O seam)
+
+current:  Cli -> Planner -> Editor -----> Model -> MVCCHive
+                          \-> FileSystem -> Model
+                                         -> TinyXml2
+```
+
+The largest decisions were cumulative rather than replacements. The closed `Intent`
+vocabulary and `variant + visit + handle<T>` dispatch survived every phase. The transaction
+boundary became a single MVCCHive edit. The I/O code moved from a nested seam to a peer
+module. Views moved from copied snapshots to a live history reference only where the
+viewport semantics require it. Each change narrowed one ambiguity: who owns the state, who
+may mutate it, and which type makes an invalid route fail before runtime.
+
 ## AI-assisted iteration review
 
-The following episodes are representative of the review loop. Each row records the faulty
-artefact, the evidence that exposed it and the durable correction; commit hashes identify
-the exact changes, while the quoted commands and output make the discovery reviewable.
+The construction log above is the broad project path. This table is a focused evidence
+appendix for representative places where advice, prose or generated code disagreed with
+the structure. Each row records the faulty artefact, the evidence that exposed it and the
+durable correction; commit hashes identify the exact changes, while the quoted commands
+and output make the discovery reviewable.
 
 | proposal or artefact | what was wrong | how it was confirmed | how it was corrected | how it is prevented from recurring |
 | --- | --- | --- | --- | --- |
