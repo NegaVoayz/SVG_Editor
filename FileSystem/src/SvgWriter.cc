@@ -47,6 +47,11 @@ std::string serialize_attribute<std::optional<Paint>>(const std::optional<Paint>
 }
 
 template<>
+std::string serialize_attribute<std::optional<float>>(const std::optional<float>& value) {
+    return value ? exact_number_text(*value) : std::string{};
+}
+
+template<>
 std::string serialize_attribute<std::optional<Text::Anchor>>(const std::optional<Text::Anchor>& value) {
     return value ? std::string{text_anchor_text(*value)} : std::string{};
 }

@@ -36,6 +36,14 @@ Request points_attribute(const NodeRef& node, const std::string& word) {
     return Intent{Set{SetPoints{node, points_of(word)}}};
 }
 
+Request opacity_attribute(const NodeRef& node, const std::string& word) {
+    const std::optional<float> value = SvgValue::parse_number(word);
+    if (!value) {
+        throw ParseFailed{"cannot read '" + word + "' as opacity: a finite number from 0 to 1"};
+    }
+    return Intent{Set{SetOpacity{node, *value}}};
+}
+
 template<typename Attribute>
 Request text_attribute(const NodeRef& node, const std::string& word) {
     return Intent{Set{Attribute{node, word}}};
@@ -101,6 +109,7 @@ constexpr AttributeReader attributes[] = {
     {SetClass::name, text_attribute<SetClass>},
     {SetFill::name, paint_attribute<SetFill>},
     {SetStroke::name, paint_attribute<SetStroke>},
+    {SetOpacity::name, opacity_attribute},
     {SetTransform::name, transform_attribute},
     {SetHref::name, text_attribute<SetHref>},
     {SetText::name, text_attribute<SetText>},

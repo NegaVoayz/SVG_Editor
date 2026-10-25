@@ -342,4 +342,10 @@ std::optional<std::vector<Shape::Point>> points(std::string_view text) {
     return result;
 }
 
+std::optional<float> opacity(std::string_view text) {
+    const std::optional<float> value = number(text);
+    if (!value || *value < 0.0F || *value > 1.0F) return std::nullopt;
+    return value;
+}
+
 }  // namespace SvgValueReader

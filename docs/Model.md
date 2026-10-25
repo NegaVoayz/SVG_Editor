@@ -195,9 +195,9 @@ own subtree, and an update cannot change whether a node holds children.
 A `set` is the smallest write: one changed virtual id, one new `Node` version, one
 row-version node and one commit diff. Nothing scales with the number of fields in the
 record or with the old diff-hive's parallel tables. The record itself is the unit of
-copying, though: `Node` is 432 bytes with the current Clang/libstdc++ layout, mostly
+copying, though: `Node` is 440 bytes with the current Clang/libstdc++ layout, mostly
 `Text`'s length fields and the strings, so a one-field edit still constructs a
-432-byte version. If that becomes the hot path, the lever is the record layout rather
+440-byte version. If that becomes the hot path, the lever is the record layout rather
 than another hive.
 
 Current-view reads resolve a virtual id to one target, O(1), and then pay for the payload
@@ -211,7 +211,7 @@ for the copy.
 History is the other axis. MVCCHive 2.2.0 keeps commit records and diffs in fixed-size
 blocked vectors, so appending a commit no longer copies the retained commit log. The
 remaining history cost is block reclamation: `VersionStore::drain_retirements()` calls `release_empty_blocks()`,
-which scans every owned version block on every commit. With a 432-byte `Node`, version
+which scans every owned version block on every commit. With a 440-byte `Node`, version
 blocks hold fewer records, so per-edit latency still rises with retained history even
 though each edit writes one version. Tracking only the blocks a retirement actually
 empties, or putting a cap on retained history, is the next step before very long sessions.
@@ -384,7 +384,7 @@ remembered source path untouched.
 
 The accepted element set is `svg`, `g`, `defs`, `symbol`, `switch`, `rect`, `circle`,
 `ellipse`, `line`, `polygon`, `text`, `tspan` and `textPath`. Common attributes are `id`, `class`,
-`fill`, `stroke`, `stroke-width` and `transform`; the geometry, text, canvas size,
+`fill`, `stroke`, `stroke-width`, `opacity` and `transform`; the geometry, text, canvas size,
 `startOffset` and `href` attributes follow the element. The root stores its default
 `xmlns` and an optional `viewBox`; text elements store `text-anchor` and `font-size`.
 Prefixed namespace declarations are ignored. Everything else is refused: there is no

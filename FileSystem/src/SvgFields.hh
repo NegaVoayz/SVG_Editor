@@ -57,6 +57,7 @@ inline constexpr auto paint_fields = std::tuple{
     field("fill", &PaintAttr::fill),
     field("stroke", &PaintAttr::stroke),
     field("stroke-width", &PaintAttr::stroke_width, {.nonnegative = true}),
+    field("opacity", &PaintAttr::opacity),
 };
 
 inline constexpr auto transform_fields = std::tuple{

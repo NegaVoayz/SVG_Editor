@@ -135,6 +135,10 @@ as one command word: `create polygon tri "0,0 10,0 5,10" red`. Points use the sa
 syntax as other geometry, so units are accepted per coordinate. `set tri points "..."`
 replaces the list. `move` and `scale` change every point in the polygon's params.
 
+Every SVG element accepts `opacity` from `0` through `1`:
+`set tri opacity 0.5`. The value is stored and serialized independently of fill alpha, and
+an out-of-range value is refused without changing the element.
+
 Quotes group words that contain spaces, which is how text content and file paths are
 written. A quote or backslash inside one is written `\"` or `\\`, and the same escaping
 is used when the front end prints a value, so the displayed field can be pasted back

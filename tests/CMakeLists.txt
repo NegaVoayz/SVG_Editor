@@ -67,6 +67,19 @@ add_test(NAME cli_polygon_roundtrip
 set_tests_properties(cli_polygon_roundtrip PROPERTIES PASS_REGULAR_EXPRESSION
     "saved to .*polygon\\.svg \\(1 element\\)\nread .*polygon\\.svg \\(1 element\\)\npolygon#tri  parent=svg\n  points=\"0,0 10,0 5,10\"\n  fill=blue")
 
+add_test(NAME cli_opacity
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create rect r 0 0 1 1; set r opacity 0.5; save ${CMAKE_CURRENT_BINARY_DIR}/opacity.svg; read ${CMAKE_CURRENT_BINARY_DIR}/opacity.svg; show r")
+set_tests_properties(cli_opacity PROPERTIES PASS_REGULAR_EXPRESSION
+    "rect#r updated: opacity=0\\.5\nsaved to .*opacity\\.svg \\(1 element\\)\nread .*opacity\\.svg \\(1 element\\)\nrect#r  parent=svg\n  x=0 y=0 w=1 h=1\n  opacity=0\\.5")
+
+add_test(NAME cli_opacity_out_of_range
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create rect r 0 0 1 1; set r opacity 1.5; show r")
+set_tests_properties(cli_opacity_out_of_range PROPERTIES
+    PASS_REGULAR_EXPRESSION "error: opacity must be between 0 and 1, not 1\\.5"
+    FAIL_REGULAR_EXPRESSION "opacity=1\\.5")
+
 # `move` and `scale` can change a leaf's transform, a leaf's own params, or a
 # container's descendants' params. The mismatched combinations are refused.
 add_test(NAME cli_move_transform
@@ -505,14 +518,14 @@ set_tests_properties(cli_show_class PROPERTIES PASS_REGULAR_EXPRESSION "class=\"
 
 # `tree` and `show` list the fields in the order `save` writes them.
 add_test(NAME cli_tree_attribute_order COMMAND $<TARGET_FILE:Cli>
-    "init; create rect r 1 2 3 4 red; set r class c; set r stroke blue; set r stroke-width 2; set r transform \"translate(5 6)\"; tree")
+    "init; create rect r 1 2 3 4 red; set r class c; set r stroke blue; set r stroke-width 2; set r opacity 0.5; set r transform \"translate(5 6)\"; tree")
 set_tests_properties(cli_tree_attribute_order PROPERTIES PASS_REGULAR_EXPRESSION
-    "class=c x=1 y=2 w=3 h=4 fill=red stroke=blue stroke-width=2 transform=translate\\(5 6\\)")
+    "class=c x=1 y=2 w=3 h=4 fill=red stroke=blue stroke-width=2 opacity=0\\.5 transform=translate\\(5 6\\)")
 
 add_test(NAME cli_show_attribute_order COMMAND $<TARGET_FILE:Cli>
-    "init; create rect r 1 2 3 4 red; set r class c; set r stroke blue; set r stroke-width 2; set r transform \"translate(5 6)\"; show r")
+    "init; create rect r 1 2 3 4 red; set r class c; set r stroke blue; set r stroke-width 2; set r opacity 0.5; set r transform \"translate(5 6)\"; show r")
 set_tests_properties(cli_show_attribute_order PROPERTIES PASS_REGULAR_EXPRESSION
-    "class=c\n  x=1 y=2 w=3 h=4\n  fill=red\n  stroke=blue\n  stroke-width=2\n  transform=translate\\(5 6\\)")
+    "class=c\n  x=1 y=2 w=3 h=4\n  fill=red\n  stroke=blue\n  stroke-width=2\n  opacity=0\\.5\n  transform=translate\\(5 6\\)")
 
 add_test(NAME cli_quoted_path COMMAND $<TARGET_FILE:Cli> "read \"no such file.svg\"")
 set_tests_properties(cli_quoted_path PROPERTIES PASS_REGULAR_EXPRESSION "error: cannot read file: \"no such file.svg\"")

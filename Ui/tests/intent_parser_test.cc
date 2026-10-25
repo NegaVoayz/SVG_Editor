@@ -271,6 +271,10 @@ int main() {
     CHECK(holds<SetPoints>(set_points));
     if (holds<SetPoints>(set_points)) CHECK(as<SetPoints>(set_points).value.size() == 3);
 
+    const Request set_opacity = parse("set p opacity 0.5");
+    CHECK(holds<SetOpacity>(set_opacity));
+    if (holds<SetOpacity>(set_opacity)) CHECK(as<SetOpacity>(set_opacity).value == 0.5F);
+
     const Request set_class = parse("set box class \"layer one\"");
     CHECK(holds<SetClass>(set_class));
     if (holds<SetClass>(set_class)) CHECK(as<SetClass>(set_class).value == "layer one");

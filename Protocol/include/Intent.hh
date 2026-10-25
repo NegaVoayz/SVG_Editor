@@ -250,6 +250,11 @@ struct SetStroke {
     NodeRef node;
     Paint value;
 };
+struct SetOpacity {
+    static constexpr std::string_view name = "opacity";
+    NodeRef node;
+    float value;
+};
 // `none` clears the transform rather than writing a transform called none, which is the
 // one attribute whose absence is a value a user can ask for.
 struct SetTransform {
@@ -288,7 +293,7 @@ struct SetPoints {
 using Set = std::variant<SetX, SetY, SetW, SetH, SetCx, SetCy, SetR, SetRx, SetRy, SetX1, SetY1, SetX2, SetY2, SetDx,
                          SetDy, SetStrokeWidth, SetWidth, SetHeight, SetStartOffset, SetXmlns, SetViewBox,
                          SetTextAnchor, SetFontSize, SetClass, SetFill, SetStroke, SetTransform, SetHref, SetText,
-                         SetContent, SetPoints>;
+                         SetContent, SetPoints, SetOpacity>;
 
 struct Undo {};
 struct Redo {};

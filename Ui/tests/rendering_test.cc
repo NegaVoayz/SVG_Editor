@@ -164,6 +164,12 @@ int main() {
           "rect#float x=1.234567 y=0 w=1 h=1");
     CHECK(render(NodeView{3, polygon("tri"), {}}) ==
           "polygon#tri points=\"0,0 10,0 5,10\"");
+    ElementShape faded_polygon = polygon("faded");
+    faded_polygon.paint_attr.fill = Paint{Color{Color::Named{Color::NamedColorId::Red}}};
+    faded_polygon.paint_attr.stroke_width = maybe_length_percentage(units(2));
+    faded_polygon.paint_attr.opacity = 0.5F;
+    CHECK(render(NodeView{3, faded_polygon, {}}) ==
+          "polygon#faded\n  points=\"0,0 10,0 5,10\"\n  fill=red\n  stroke-width=2\n  opacity=0.5");
     CHECK(render(NodeView{3, rect("turned", 0, 0, 1, 1, std::nullopt), {}, std::nullopt,
                           composed_transform(
                               {scaled(2.0F, 2.0F), *rotation_about(30.0F, units(10), units(20)),

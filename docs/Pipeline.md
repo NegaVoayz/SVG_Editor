@@ -310,6 +310,10 @@ Inside a quoted run, `\"` writes a quote and `\\` writes a backslash.
 A line whose first non-space character is `#` is a comment and runs to the end of the
 line, including any semicolons in it.
 
+`opacity` is a finite plain number from `0` through `1`. It belongs to every SVG element
+and is stored as a paint attribute; `set r opacity 0.5` changes only the named element.
+A value outside that interval is a structured refusal.
+
 A canvas side must be positive: `init -5 -5` and `canvas 0` are refused. A shape
 dimension or radius may be zero, as SVG allows, but a negative value is refused.
 Printed floats use up to six decimal places, with the exact spelling used when rounding

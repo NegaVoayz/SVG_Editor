@@ -89,7 +89,7 @@ constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"
     <circle cx="50" cy="60" r="10" stroke="darkslategrey" stroke-width="2"/>
     <ellipse cx="70" cy="80" rx="12" ry="8"/>
     <line x1="0" y1="0" x2="20" y2="30" stroke="rgb(1, 2, 3)"/>
-    <polygon points="0,0 10,0 5,10"/>
+    <polygon points="0,0 10,0 5,10" opacity="0.5"/>
   </g>
   <defs><symbol id="mark"/></defs>
   <switch><g id="fallback"/></switch>
@@ -129,6 +129,7 @@ int main() {
     CHECK(!svg_schema::is_element("path"));
     CHECK(svg_schema::accepts_attribute("rect", "x"));
     CHECK(svg_schema::accepts_attribute("rect", "fill"));
+    CHECK(svg_schema::accepts_attribute("rect", "opacity"));
     CHECK(svg_schema::accepts_attribute("svg", "viewBox"));
     CHECK(svg_schema::accepts_attribute("g", "class"));
     CHECK(svg_schema::accepts_attribute("g", "data-kind"));
@@ -315,6 +316,8 @@ int main() {
         CHECK(payload.has_value());
         if (payload) {
             CHECK(element_name(*payload) == "polygon");
+            CHECK(payload->paint_attr.opacity.has_value());
+            if (payload->paint_attr.opacity) CHECK(*payload->paint_attr.opacity == 0.5F);
             CHECK(std::holds_alternative<Shape>(payload->data));
             if (std::holds_alternative<Shape>(payload->data)) {
                 const Shape::Polygon& value = std::get<Shape::Polygon>(std::get<Shape>(payload->data).specific);
@@ -401,6 +404,7 @@ int main() {
         R"(<svg viewBox="0 0 -10 10"/>)",
         R"(<svg><rect style="fill:red"/></svg>)",
         R"(<svg><polygon points="0,0 10"/></svg>)",
+        R"(<svg><rect width="1" height="1" opacity="1.5"/></svg>)",
         R"(<svg><rect width="wide" height="2"/></svg>)",
         R"(<svg><g>words</g></svg>)",
         R"(<svg><g id="same"/><rect id="same"/></svg>)",
@@ -434,11 +438,17 @@ int main() {
     const std::string saved_svg = read_text(saved_path);
     CHECK(saved_svg.find("href=\"#mark\"") != std::string::npos);
     CHECK(saved_svg.find("xlink:href") == std::string::npos);
+    CHECK(saved_svg.find("opacity=\"0.5\"") != std::string::npos);
 
     Document reread;
     CHECK(open(reread, saved_path.string()).ok());
     CHECK(named(reread, "rect1").has_value());
     CHECK(named(reread, "polygon1").has_value());
+    if (const std::optional<Id> saved_polygon = named(reread, "polygon1")) {
+        const std::optional<SVGNode> payload = element_at(reread, *saved_polygon);
+        CHECK(payload.has_value());
+        if (payload) CHECK(payload->paint_attr.opacity == 0.5F);
+    }
     CHECK(named(reread, "small").has_value());
     if (const std::optional<SVGNode> root = element_at(reread, reread.root())) {
         const Container& container = std::get<Container>(root->data);

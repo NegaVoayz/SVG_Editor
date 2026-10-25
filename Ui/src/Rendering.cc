@@ -247,6 +247,9 @@ Words element_words(const ElementShape& element, const Transform& transform, con
             present_length_percentage(element.paint_attr.stroke_width)) {
         append_detail(words, "stroke-width=" + to_text(*stroke_width));
     }
+    if (element.paint_attr.opacity) {
+        append_detail(words, "opacity=" + number_text(*element.paint_attr.opacity));
+    }
 
     const std::string transform_text_value = transform_text(transform);
     if (!transform_text_value.empty()) append_detail(words, "transform=" + transform_text_value);
@@ -555,6 +558,9 @@ struct RefusalText {
     }
     std::string operator()(const fault::InvalidPoints&) const {
         return "error: a polygon needs at least three coordinate pairs";
+    }
+    std::string operator()(const fault::OpacityOutOfRange& opacity) const {
+        return "error: opacity must be between 0 and 1, not " + number_text(opacity.value);
     }
     std::string operator()(const fault::NonPositiveCanvas& dimension) const {
         return "error: canvas " + quote_if_needed(dimension.attribute) + " must be positive";

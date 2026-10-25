@@ -327,6 +327,16 @@ std::optional<Container::ViewBox> read_attribute_value<std::optional<Container::
 }
 
 template<>
+std::optional<float> read_attribute_value<std::optional<float>>(
+    const SvgReader& reader, const XmlNode& node, const XmlAttribute& attribute, bool) {
+    const std::optional<float> value = SvgValueReader::opacity(attribute.value);
+    if (!value) {
+        reader.fail(SvgProblem::InvalidAttributeValue, node, attribute.name, attribute.value, "opacity");
+    }
+    return value;
+}
+
+template<>
 Transform read_attribute_value<Transform>(const SvgReader& reader, const XmlNode& node,
                                           const XmlAttribute& attribute, bool) {
     const std::optional<Transform> value = SvgValueReader::transform(attribute.value);

@@ -92,6 +92,7 @@ std::optional<Refusal> canvas_or_rect_dimension(const Document& document, Id nod
 // The value as the tree spells it. The event carries this spelling, not the typed value,
 // because an undo or redo replay has no intent to format again.
 std::string attribute_value_text(const LengthPercentage& value) { return to_text(value); }
+std::string attribute_value_text(float value) { return number_text(value); }
 std::string attribute_value_text(const std::string& value) { return value; }
 std::string attribute_value_text(const Paint& value) { return to_text(value); }
 std::string attribute_value_text(const std::vector<Shape::Point>& value) { return points_text(value, false); }
@@ -539,6 +540,16 @@ Outcome apply(Document& document, Id node, const SetFill& intent) {
 Outcome apply(Document& document, Id node, const SetStroke& intent) {
     return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
         element.paint_attr.stroke = value;
+        return true;
+    });
+}
+
+Outcome apply(Document& document, Id node, const SetOpacity& intent) {
+    if (!std::isfinite(intent.value) || intent.value < 0.0F || intent.value > 1.0F) {
+        return refused(Kind::Change, fault::OpacityOutOfRange{intent.value});
+    }
+    return set_element(document, node, intent, [value = intent.value](SVGNode& element) {
+        element.paint_attr.opacity = value;
         return true;
     });
 }
