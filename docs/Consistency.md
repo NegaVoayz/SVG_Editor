@@ -11,7 +11,7 @@ test index:
 
 | metric | recorded value |
 | --- | ---: |
-| Source commits at the validated snapshot | 170 |
+| Source commits at the validated snapshot | 172 |
 | CTest registrations | 128 |
 | static_assert occurrences | 67 |
 | source files containing static_assert | 21 |
