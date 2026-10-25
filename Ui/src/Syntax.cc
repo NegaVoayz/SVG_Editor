@@ -17,6 +17,8 @@ constexpr std::string_view length_syntax =
 constexpr std::string_view color_syntax =
     "a fill is #rgb, #rrggbb, rgb(r,g,b), a named or system colour, none or currentColor";
 constexpr std::string_view factor_syntax = "a scale is a finite plain number greater than zero";
+constexpr std::string_view points_syntax =
+    "points are coordinate pairs separated by spaces or commas";
 
 }  // namespace
 
@@ -41,6 +43,12 @@ LengthPercentage length_of(const std::string& word) {
 Color color_of(const std::string& word) {
     const std::optional<Color> value = SvgValue::parse_color(word);
     if (!value) throw ParseFailed{"cannot read '" + word + "' as a fill: " + std::string{color_syntax}};
+    return *value;
+}
+
+std::vector<Shape::Point> points_of(const std::string& word) {
+    const std::optional<std::vector<Shape::Point>> value = SvgValue::parse_points(word);
+    if (!value) throw ParseFailed{"cannot read '" + word + "' as points: " + std::string{points_syntax}};
     return *value;
 }
 

@@ -147,6 +147,18 @@ int main() {
         CHECK(std::get<Length>(as<CreateLine>(line).x2).value == 10.0F);
     }
 
+    const Request polygon = parse("create polygon tri \"0,0 10,0 5,10\" red in layer");
+    CHECK(holds<CreatePolygon>(polygon));
+    if (holds<CreatePolygon>(polygon)) {
+        const CreatePolygon& intent = as<CreatePolygon>(polygon);
+        CHECK(intent.points.size() == 3);
+        CHECK(std::get<Length>(intent.points[2].y).value == 10.0F);
+        CHECK(intent.fill.has_value());
+        CHECK(name_in(intent.parent) == "layer");
+    }
+    CHECK(refuses(parse("create polygon pair \"0,0 10,0\"")));
+    CHECK(refuses(parse("create polygon odd \"0,0 10,0 5\"")));
+
     // A text is a quoted run, so its words may hold spaces, and it is one instruction
     // even though the model writes two nodes for it.
     const Request words = parse("create text title 20 40 \"hello world\" in layer");
@@ -254,6 +266,10 @@ int main() {
         CHECK(std::holds_alternative<Color>(as<SetFill>(set_fill).value));
         CHECK(std::holds_alternative<Color::RGB>(std::get<Color>(as<SetFill>(set_fill).value).specific));
     }
+
+    const Request set_points = parse("set p points \"0,0 10,0 5,10\"");
+    CHECK(holds<SetPoints>(set_points));
+    if (holds<SetPoints>(set_points)) CHECK(as<SetPoints>(set_points).value.size() == 3);
 
     const Request set_class = parse("set box class \"layer one\"");
     CHECK(holds<SetClass>(set_class));

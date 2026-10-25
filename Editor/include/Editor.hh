@@ -87,6 +87,7 @@ private:
     Subtree new_element(const CreateCircle& intent) const;
     Subtree new_element(const CreateEllipse& intent) const;
     Subtree new_element(const CreateLine& intent) const;
+    Subtree new_element(const CreatePolygon& intent) const;
     Subtree new_element(const CreateText& intent) const;
     Subtree new_element(const CreateGroup& intent) const;
     Subtree new_element(const CreateBox& intent) const;

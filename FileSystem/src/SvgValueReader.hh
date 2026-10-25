@@ -18,5 +18,6 @@ std::optional<Paint> paint(std::string_view text);
 std::optional<Transform> transform(std::string_view text);
 std::optional<Container::ViewBox> view_box(std::string_view text);
 std::optional<Text::Anchor> text_anchor(std::string_view text);
+std::optional<std::vector<Shape::Point>> points(std::string_view text);
 
 }  // namespace SvgValueReader

@@ -1,4 +1,4 @@
-// Building an element. Seven kinds share one body, because what differs between them is
+// Building an element. Eight kinds share one body, because what differs between them is
 // only the detached subtree they bring: one element, text character data, or a composite
 // tree whose nodes are written together.
 //
@@ -82,6 +82,15 @@ std::optional<Refusal> dimension_problem(const CreateLine& intent) {
     return finite_length("y2", intent.y2);
 }
 
+std::optional<Refusal> dimension_problem(const CreatePolygon& intent) {
+    if (intent.points.size() < 3) return fault::InvalidPoints{};
+    for (const Shape::Point& point : intent.points) {
+        if (std::optional<Refusal> problem = finite_length("x", point.x)) return problem;
+        if (std::optional<Refusal> problem = finite_length("y", point.y)) return problem;
+    }
+    return std::nullopt;
+}
+
 std::optional<Refusal> dimension_problem(const CreateText& intent) {
     if (std::optional<Refusal> problem = finite_length("x", intent.x)) return problem;
     return finite_length("y", intent.y);
@@ -144,6 +153,12 @@ Subtree Editor::new_element(const CreateEllipse& intent) const {
 Subtree Editor::new_element(const CreateLine& intent) const {
     Node payload = element(intent.id, Shape{Shape::Line{intent.x1, intent.y1, intent.x2, intent.y2}});
     stroke(payload, intent.stroke);
+    return Subtree{std::move(payload), {}};
+}
+
+Subtree Editor::new_element(const CreatePolygon& intent) const {
+    Node payload = element(intent.id, Shape{Shape::Polygon{intent.points}});
+    fill(payload, intent.fill);
     return Subtree{std::move(payload), {}};
 }
 

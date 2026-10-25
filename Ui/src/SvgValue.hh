@@ -35,4 +35,8 @@ std::optional<Container::ViewBox> parse_view_box(std::string_view text);
 // "start", "middle" or "end".
 std::optional<Text::Anchor> parse_text_anchor(std::string_view text);
 
+// Coordinate pairs separated by commas or whitespace. Each coordinate may use the same
+// length spelling as a geometry attribute.
+std::optional<std::vector<Shape::Point>> parse_points(std::string_view text);
+
 }  // namespace SvgValue

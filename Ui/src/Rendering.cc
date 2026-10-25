@@ -36,6 +36,9 @@ struct GeometryText {
         return "x1=" + to_text(line.x1) + " y1=" + to_text(line.y1) + " x2=" + to_text(line.x2) +
                " y2=" + to_text(line.y2);
     }
+    std::string operator()(const Shape::Polygon& polygon) const {
+        return "points=\"" + points_text(polygon.points, false) + "\"";
+    }
     template <class T>
     std::string operator()(const T&) const {
         static_assert(always_false<T>, "no text for this shape alternative");
@@ -549,6 +552,9 @@ struct RefusalText {
     }
     std::string operator()(const fault::NegativeDimension& dimension) const {
         return "error: " + quote_if_needed(dimension.attribute) + " must not be negative";
+    }
+    std::string operator()(const fault::InvalidPoints&) const {
+        return "error: a polygon needs at least three coordinate pairs";
     }
     std::string operator()(const fault::NonPositiveCanvas& dimension) const {
         return "error: canvas " + quote_if_needed(dimension.attribute) + " must be positive";

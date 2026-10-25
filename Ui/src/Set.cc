@@ -32,6 +32,10 @@ Request paint_attribute(const NodeRef& node, const std::string& word) {
     return Intent{Set{Attribute{node, Paint{color_of(word)}}}};
 }
 
+Request points_attribute(const NodeRef& node, const std::string& word) {
+    return Intent{Set{SetPoints{node, points_of(word)}}};
+}
+
 template<typename Attribute>
 Request text_attribute(const NodeRef& node, const std::string& word) {
     return Intent{Set{Attribute{node, word}}};
@@ -101,6 +105,7 @@ constexpr AttributeReader attributes[] = {
     {SetHref::name, text_attribute<SetHref>},
     {SetText::name, text_attribute<SetText>},
     {SetContent::name, text_attribute<SetContent>},
+    {SetPoints::name, points_attribute},
 };
 
 }  // namespace

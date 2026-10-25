@@ -46,5 +46,6 @@ void expect_least(std::size_t count, std::size_t least, std::string_view sentenc
 // the three ways a word names a node.
 LengthPercentage length_of(const std::string& word);
 Color color_of(const std::string& word);
+std::vector<Shape::Point> points_of(const std::string& word);
 float factor_of(const std::string& word);
 NodeRef reference_of(const std::string& word);

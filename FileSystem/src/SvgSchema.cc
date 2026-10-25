@@ -63,6 +63,9 @@ inline constexpr SchemaRow rows[] = {
     {"line", {ElementFamily::Shape}, [](std::string_view attr) {
          return accepts(svg_fields::line_fields, attr);
      }},
+    {"polygon", {ElementFamily::Shape}, [](std::string_view attr) {
+         return accepts(svg_fields::polygon_fields, attr);
+     }},
     {"text", {ElementFamily::Text}, [](std::string_view attr) {
          return accepts(svg_fields::text_common_fields, attr);
      }},

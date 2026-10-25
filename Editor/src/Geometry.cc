@@ -37,9 +37,10 @@ std::optional<Refusal> scale_value(LengthPercentage& value, float factor) {
 }
 
 // Every value a shape owns: a rect's corner and sides, a circle's centre and radius, an
-// ellipse's two radii, and both ends of a line. A shape's transform is left alone here for
-// the same reason a translation does not touch one: the values are what the shape is made
-// of, and a transform would be a second answer to the same question.
+// ellipse's two radii, both ends of a line, and every point of a polygon. A shape's
+// transform is left alone here for the same reason a translation does not touch one: the
+// values are what the shape is made of, and a transform would be a second answer to the
+// same question.
 struct ScaleShape {
     float factor;
 
@@ -66,6 +67,13 @@ struct ScaleShape {
         if (std::optional<Refusal> problem = scale_value(line.x2, factor)) return problem;
         return scale_value(line.y2, factor);
     }
+    std::optional<Refusal> operator()(Shape::Polygon& polygon) const {
+        for (Shape::Point& point : polygon.points) {
+            if (std::optional<Refusal> problem = scale_value(point.x, factor)) return problem;
+            if (std::optional<Refusal> problem = scale_value(point.y, factor)) return problem;
+        }
+        return std::nullopt;
+    }
     template <class T>
     std::optional<Refusal> operator()(T&) const {
         static_assert(always_false<T>, "no scaling rule for this shape alternative");
@@ -90,6 +98,12 @@ struct TranslateShape {
         if (std::optional<Refusal> problem = move_point(line.x1, dx, line.y1, dy)) return problem;
         return move_point(line.x2, dx, line.y2, dy);
     }
+    std::optional<Refusal> operator()(Shape::Polygon& polygon) const {
+        for (Shape::Point& point : polygon.points) {
+            if (std::optional<Refusal> problem = move_point(point.x, dx, point.y, dy)) return problem;
+        }
+        return std::nullopt;
+    }
     template <class T>
     std::optional<Refusal> operator()(T&) const {
         static_assert(always_false<T>, "no translation rule for this shape alternative");
@@ -99,8 +113,8 @@ struct TranslateShape {
 
 std::optional<Refusal> translate_shape(Shape& shape, LengthPercentage dx, LengthPercentage dy) {
     // Every shape moves its own coordinates and nothing else: a rect its corner, a circle
-    // and an ellipse their centre, a line both of its ends. Radii and sides stay where they
-    // are, because a translation is not a scale.
+    // and an ellipse their centre, a line both of its ends, and a polygon every point.
+    // Radii and sides stay where they are, because a translation is not a scale.
     return std::visit(TranslateShape{dx, dy}, shape.specific);
 }
 

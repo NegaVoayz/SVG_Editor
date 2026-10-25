@@ -14,7 +14,7 @@
 // has not met by the point where std::visit instantiates handle<T> is not a
 // specialization at all, and what comes out instead is the primary template's build
 // error. The element kinds are not on this list: their one instruction is, and one body
-// answers all seven of them.
+// answers all eight of them.
 
 // Create.cc: the second level - a create is one instruction, and its element kind is the
 // next question. The kinds themselves come back through the primary template, which is

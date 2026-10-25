@@ -49,6 +49,13 @@ struct CreateLine {
     NodeRef parent = RootRef{};
     bool parent_named = false;
 };
+struct CreatePolygon {
+    std::string id;
+    std::vector<Shape::Point> points;
+    std::optional<Color> fill;
+    NodeRef parent = RootRef{};
+    bool parent_named = false;
+};
 // A text element and the character data inside it are two nodes, which is why the content
 // travels here as its own string and becomes a child: a <text> holds text the way a group
 // holds elements.
@@ -269,6 +276,11 @@ struct SetContent {
     NodeRef node;
     std::string value;
 };
+struct SetPoints {
+    static constexpr std::string_view name = "points";
+    NodeRef node;
+    std::vector<Shape::Point> value;
+};
 
 // The attributes, one variant. `set` is one instruction, as `create` is, and which
 // attribute it names is the second question - asked where the node that has to carry it is
@@ -276,7 +288,7 @@ struct SetContent {
 using Set = std::variant<SetX, SetY, SetW, SetH, SetCx, SetCy, SetR, SetRx, SetRy, SetX1, SetY1, SetX2, SetY2, SetDx,
                          SetDy, SetStrokeWidth, SetWidth, SetHeight, SetStartOffset, SetXmlns, SetViewBox,
                          SetTextAnchor, SetFontSize, SetClass, SetFill, SetStroke, SetTransform, SetHref, SetText,
-                         SetContent>;
+                         SetContent, SetPoints>;
 
 struct Undo {};
 struct Redo {};
@@ -301,7 +313,7 @@ struct Save { std::optional<std::string> path; };
 // question for the layer that builds one, so the Planner only has to know that a line is a
 // create, and the Editor asks the second question when it is the one holding the line.
 using Create =
-    std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreateText, CreateGroup, CreateBox>;
+    std::variant<CreateRect, CreateCircle, CreateEllipse, CreateLine, CreatePolygon, CreateText, CreateGroup, CreateBox>;
 
 // One instruction, of exactly one of those types: the front end produces it and both the
 // Planner and the Editor dispatch on it with std::visit, so every case is answered by a

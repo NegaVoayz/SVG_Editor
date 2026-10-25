@@ -292,4 +292,30 @@ std::optional<Text::Anchor> parse_text_anchor(std::string_view text) {
     return std::nullopt;
 }
 
+std::optional<std::vector<Shape::Point>> parse_points(std::string_view text) {
+    std::vector<std::string_view> values;
+    std::size_t index = 0;
+    while (index < text.size()) {
+        while (index < text.size() && (text[index] == ' ' || text[index] == '\t' || text[index] == ',')) {
+            ++index;
+        }
+        const std::size_t start = index;
+        while (index < text.size() && text[index] != ' ' && text[index] != '\t' && text[index] != ',') {
+            ++index;
+        }
+        if (start != index) values.push_back(text.substr(start, index - start));
+    }
+    if (values.size() % 2 != 0) return std::nullopt;
+
+    std::vector<Shape::Point> points;
+    points.reserve(values.size() / 2);
+    for (std::size_t point = 0; point < values.size(); point += 2) {
+        const std::optional<LengthPercentage> x = parse_length(values[point]);
+        const std::optional<LengthPercentage> y = parse_length(values[point + 1]);
+        if (!x || !y) return std::nullopt;
+        points.push_back(Shape::Point{*x, *y});
+    }
+    return points;
+}
+
 }  // namespace SvgValue

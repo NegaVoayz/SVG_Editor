@@ -66,6 +66,18 @@ Create build_line(const std::string& id, const Words& values, const NodeRef& par
     return intent;
 }
 
+Create build_polygon(const std::string& id, const Words& values, const NodeRef& parent) {
+    expect_between(values.size(), 1, 2,
+                   "create polygon takes '<id> \"<x,y ...>\" [fill] [in <gid>]'");
+    CreatePolygon intent{id, points_of(values[0]), std::nullopt};
+    if (intent.points.size() < 3) {
+        throw ParseFailed{"a polygon needs at least three coordinate pairs"};
+    }
+    if (values.size() == 2) intent.fill = color_of(values[1]);
+    intent.parent = parent;
+    return intent;
+}
+
 Create build_text(const std::string& id, const Words& values, const NodeRef& parent) {
     expect(values.size(), 3, "create text takes '<id> <x> <y> \"content\" [in <gid>]'");
     CreateText intent{id, length_of(values[0]), length_of(values[1]), values[2]};
@@ -90,6 +102,7 @@ constexpr auto kinds = std::to_array<ElementKind>({
     {"circle", build_circle},
     {"ellipse", build_ellipse},
     {"line", build_line},
+    {"polygon", build_polygon},
     {"text", build_text},
     {"g", build_group},
     {"box", build_box},

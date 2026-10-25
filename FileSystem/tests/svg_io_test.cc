@@ -89,6 +89,7 @@ constexpr std::string_view full_svg = R"SVG(<?xml version="1.0" encoding="UTF-8"
     <circle cx="50" cy="60" r="10" stroke="darkslategrey" stroke-width="2"/>
     <ellipse cx="70" cy="80" rx="12" ry="8"/>
     <line x1="0" y1="0" x2="20" y2="30" stroke="rgb(1, 2, 3)"/>
+    <polygon points="0,0 10,0 5,10"/>
   </g>
   <defs><symbol id="mark"/></defs>
   <switch><g id="fallback"/></switch>
@@ -108,6 +109,7 @@ int main() {
     CHECK(svg_fields::has_unique_attribute_names(svg_fields::circle_fields));
     CHECK(svg_fields::has_unique_attribute_names(svg_fields::ellipse_fields));
     CHECK(svg_fields::has_unique_attribute_names(svg_fields::line_fields));
+    CHECK(svg_fields::has_unique_attribute_names(svg_fields::polygon_fields));
     CHECK(svg_fields::has_unique_attribute_names(svg_fields::text_common_fields));
     CHECK(svg_fields::has_unique_attribute_names(svg_fields::text_path_attributes));
     CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::svg_fields));
@@ -116,9 +118,11 @@ int main() {
     CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::circle_fields));
     CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::ellipse_fields));
     CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::line_fields));
+    CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::polygon_fields));
     CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::text_common_fields));
     CHECK(svg_fields::disjoint_attribute_names(svg_fields::common_fields, svg_fields::text_path_attributes));
     CHECK(svg_schema::is_element("rect"));
+    CHECK(svg_schema::is_element("polygon"));
     CHECK(svg_schema::is_element("svg"));
     CHECK(svg_schema::is_element("switch"));
     CHECK(svg_schema::is_element("textPath"));
@@ -207,7 +211,7 @@ int main() {
     CHECK(opened.ok() && std::holds_alternative<event::Opened>(opened.event()));
     if (opened.ok() && std::holds_alternative<event::Opened>(opened.event())) {
         const event::Opened& open_success = std::get<event::Opened>(opened.event());
-        CHECK(open_success.assigned_ids.size() == 7);
+        CHECK(open_success.assigned_ids.size() == 8);
         CHECK(open_success.assigned_ids.front().id == "rect1");
         CHECK(open_success.assigned_ids.front().element == "rect");
     }
@@ -276,7 +280,7 @@ int main() {
             CHECK(near(transform.d, 2.0F));
             CHECK(near(numeric_value(transform.e), 23.67949F, 1.0e-3F));
             CHECK(near(numeric_value(transform.f), -2.641016F, 1.0e-3F));
-            CHECK(document.children(*layer).size() == 4);
+            CHECK(document.children(*layer).size() == 5);
         }
     }
 
@@ -284,6 +288,7 @@ int main() {
     CHECK(named(document, "circle1").has_value());
     CHECK(named(document, "ellipse1").has_value());
     CHECK(named(document, "line1").has_value());
+    CHECK(named(document, "polygon1").has_value());
     CHECK(named(document, "defs1").has_value());
     CHECK(named(document, "switch1").has_value());
     CHECK(named(document, "text1").has_value());
@@ -303,6 +308,22 @@ int main() {
     if (const std::optional<Id> path = named(document, "along")) {
         if (const std::optional<SVGNode> payload = element_at(document, *path)) {
             CHECK(element_name(*payload) == "textPath");
+        }
+    }
+    if (const std::optional<Id> polygon = named(document, "polygon1")) {
+        const std::optional<SVGNode> payload = element_at(document, *polygon);
+        CHECK(payload.has_value());
+        if (payload) {
+            CHECK(element_name(*payload) == "polygon");
+            CHECK(std::holds_alternative<Shape>(payload->data));
+            if (std::holds_alternative<Shape>(payload->data)) {
+                const Shape::Polygon& value = std::get<Shape::Polygon>(std::get<Shape>(payload->data).specific);
+                CHECK(value.points.size() == 3);
+                if (value.points.size() == 3) {
+                    CHECK(std::get<Length>(value.points[2].x).value == 5.0F);
+                    CHECK(std::get<Length>(value.points[2].y).value == 10.0F);
+                }
+            }
         }
     }
 
@@ -379,6 +400,7 @@ int main() {
         R"(<svg><path/></svg>)",
         R"(<svg viewBox="0 0 -10 10"/>)",
         R"(<svg><rect style="fill:red"/></svg>)",
+        R"(<svg><polygon points="0,0 10"/></svg>)",
         R"(<svg><rect width="wide" height="2"/></svg>)",
         R"(<svg><g>words</g></svg>)",
         R"(<svg><g id="same"/><rect id="same"/></svg>)",
@@ -416,6 +438,7 @@ int main() {
     Document reread;
     CHECK(open(reread, saved_path.string()).ok());
     CHECK(named(reread, "rect1").has_value());
+    CHECK(named(reread, "polygon1").has_value());
     CHECK(named(reread, "small").has_value());
     if (const std::optional<SVGNode> root = element_at(reread, reread.root())) {
         const Container& container = std::get<Container>(root->data);

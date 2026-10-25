@@ -14,7 +14,9 @@ struct Shape {
     struct Circle { LengthPercentage cx, cy, r; };
     struct Ellipse { LengthPercentage cx, cy, rx, ry; };
     struct Line { LengthPercentage x1, y1, x2, y2; };
-    using Kinds = std::variant<Rect,Circle,Ellipse,Line>;
+    struct Point { LengthPercentage x, y; };
+    struct Polygon { std::vector<Point> points; };
+    using Kinds = std::variant<Rect,Circle,Ellipse,Line,Polygon>;
     Kinds specific;
 };
 
@@ -120,6 +122,17 @@ inline std::string to_text(const Container::ViewBox& box) {
 inline std::string svg_text(const Container::ViewBox& box) {
     return exact_number_text(box.min_x) + " " + exact_number_text(box.min_y) + " " +
            exact_number_text(box.width) + " " + exact_number_text(box.height);
+}
+
+inline std::string points_text(const std::vector<Shape::Point>& points, bool exact) {
+    std::string text;
+    for (const Shape::Point& point : points) {
+        if (!text.empty()) text += ' ';
+        text += exact ? svg_text(point.x) : to_text(point.x);
+        text += ',';
+        text += exact ? svg_text(point.y) : to_text(point.y);
+    }
+    return text;
 }
 
 // The SVG element that can be a parent of shapes and other containers. A text also has

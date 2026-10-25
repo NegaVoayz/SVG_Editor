@@ -80,7 +80,7 @@ The `variant + visit + handle<T>` shape described in [Structure.md](Structure.md
 project's central structural mechanism, not a local convenience.
 
 An instruction is a `std::variant` of one struct per thing a user can ask for - except that
-the seven ways to create an element are one alternative, `Create`, which is a variant of its
+the eight ways to create an element are one alternative, `Create`, which is a variant of its
 own. Every layer that has to answer one does it with `std::visit` over that variant plus one
 function per alternative. Most of those functions are not written by hand, because what
 answers an instruction is a question about its type:
@@ -162,7 +162,7 @@ template<> Outcome handle<Create>(const Create& intent) {
   primary template above, where `new_element()` having an overload for it is what sends it
   to `create()` - so a kind added to `Create` with no builder is the build error naming
   that kind, and one with a builder needs no change to the routing above.
-- One body answers all seven kinds, and what differs is what the instruction brings: the
+- One body answers all eight kinds, and what differs is what the instruction brings: the
   overloads of `new_element()` return a detached `Subtree`, and `Transaction::append_subtree`
   writes it inside the same transaction. A text brings its character data, while a box
   brings a marked group, a rectangle and a labelled text. The visit sits next to that body
@@ -205,6 +205,7 @@ failure rather than a warning that a normal test run can miss.
 | `create circle <id> <cx> <cy> <r> [fill]`        | a circle                                               | the Editor, one transaction |
 | `create ellipse <id> <cx> <cy> <rx> <ry> [fill]` | an ellipse                                             | the Editor, one transaction |
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]`  | a line, which has no inside to fill                    | the Editor, one transaction |
+| `create polygon <id> "<x,y ...>" [fill]`         | a closed polygon with at least three points            | the Editor, one transaction |
 | `create text <id> <x> <y> "content"`             | a text element and the character data inside it        | the Editor, one transaction |
 | `create g <id>`                                  | a group                                                | the Editor, one transaction |
 | `create box <id> <x> <y> <w> <h> "label" [fill]` | a marked group, its outline and its label in one edit  | the Editor, one transaction |
@@ -300,7 +301,9 @@ visible now but would move future children, which is exactly the confusing state
 refusal prevents.
 
 A length is a number with an optional `px`, `pt`, `cm`, `mm`, `in`, `em`, `ex`, or a
-percentage; a fill is `#rgb`, `#rrggbb`, `rgb(r, g, b)`, a CSS named or system colour,
+percentage. A polygon's `points` value is a quoted list of coordinate pairs separated by
+spaces or commas; each coordinate uses that same length syntax. A fill is `#rgb`, `#rrggbb`,
+`rgb(r, g, b)`, a CSS named or system colour,
 `none` or `currentColor`. A bracketed value counts as one word,
 spaces and all, and so does a quoted run - which is what lets a text hold spaces.
 Inside a quoted run, `\"` writes a quote and `\\` writes a backslash.

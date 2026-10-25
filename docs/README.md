@@ -98,6 +98,7 @@ The instructions are:
 | `create circle <id> <cx> <cy> <r> [fill]`       | a circle                                                   |
 | `create ellipse <id> <cx> <cy> <rx> <ry> [fill]` | an ellipse                                                |
 | `create line <id> <x1> <y1> <x2> <y2> [stroke]` | a line                                                     |
+| `create polygon <id> "<x,y ...>" [fill]`        | a closed polygon from at least three coordinate pairs      |
 | `create text <id> <x> <y> "content"`            | a text element, and the character data inside it           |
 | `create g <id>`                                 | a group                                                    |
 | `create box <id> <x> <y> <w> <h> "label" [fill]` | a labelled box: a marked group with a rectangle and text |
@@ -128,6 +129,11 @@ with `data-kind="box"`, so reading the file restores the same editable box. `tre
 and setting its `text` updates its label, in the same commit. A marked composite cannot
 be ungrouped: `ungroup status` is refused as `cannot ungroup composite shape: status`.
 A collision with either derived id is refused before the box writes anything.
+
+Polygon points are coordinate pairs separated by spaces or commas, and the list is quoted
+as one command word: `create polygon tri "0,0 10,0 5,10" red`. Points use the same length
+syntax as other geometry, so units are accepted per coordinate. `set tri points "..."`
+replaces the list. `move` and `scale` change every point in the polygon's params.
 
 Quotes group words that contain spaces, which is how text content and file paths are
 written. A quote or backslash inside one is written `\"` or `\\`, and the same escaping

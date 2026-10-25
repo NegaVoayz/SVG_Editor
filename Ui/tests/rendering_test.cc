@@ -38,6 +38,11 @@ ElementShape circle(std::string id, float cx, float cy, float r) {
     return element(std::move(id), Shape{Shape::Circle{units(cx), units(cy), units(r)}});
 }
 
+ElementShape polygon(std::string id) {
+    return element(std::move(id), Shape{Shape::Polygon{
+                                          {{units(0), units(0)}, {units(10), units(0)}, {units(5), units(10)}}}});
+}
+
 ElementShape group(std::string id) {
     return element(std::move(id), ContainerShape{Container::Group{}});
 }
@@ -157,6 +162,8 @@ int main() {
           "rect#red\n  x=0 y=0 w=1 h=1\n  fill=rebeccapurple");
     CHECK(render(NodeView{3, rect("float", 1.234567F, 0, 1, 1, std::nullopt), {}}) ==
           "rect#float x=1.234567 y=0 w=1 h=1");
+    CHECK(render(NodeView{3, polygon("tri"), {}}) ==
+          "polygon#tri points=\"0,0 10,0 5,10\"");
     CHECK(render(NodeView{3, rect("turned", 0, 0, 1, 1, std::nullopt), {}, std::nullopt,
                           composed_transform(
                               {scaled(2.0F, 2.0F), *rotation_about(30.0F, units(10), units(20)),

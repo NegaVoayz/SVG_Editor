@@ -383,7 +383,7 @@ install that tree. Parse failure therefore leaves the old tree, history and File
 remembered source path untouched.
 
 The accepted element set is `svg`, `g`, `defs`, `symbol`, `switch`, `rect`, `circle`,
-`ellipse`, `line`, `text`, `tspan` and `textPath`. Common attributes are `id`, `class`,
+`ellipse`, `line`, `polygon`, `text`, `tspan` and `textPath`. Common attributes are `id`, `class`,
 `fill`, `stroke`, `stroke-width` and `transform`; the geometry, text, canvas size,
 `startOffset` and `href` attributes follow the element. The root stores its default
 `xmlns` and an optional `viewBox`; text elements store `text-anchor` and `font-size`.
@@ -442,7 +442,7 @@ path is checked rather than only relying on the fixture's current attributes.
 
 ## What is not there yet
 
-- the element kinds the Editor can create are the four shapes, a text, a group and a box.
+- the element kinds the Editor can create are five shapes, a text, a group and a box.
   A box is a group marked with `data-kind="box"` plus derived outline and label children.
   The model has no `path` at all; a `defs`, `symbol` or `switch` can arrive from a file.
 - the strict SVG subset has no path data, gradients or other paint-server definitions,

@@ -36,6 +36,7 @@ constexpr Sample samples[] = {
     {"circle", "c 1 1 1"},
     {"ellipse", "e 1 1 2 1"},
     {"line", "l 0 0 1 1"},
+    {"polygon", "p \"0,0 10,0 5,10\""},
     {"text", "t 0 0 \"hello\""},
     {"g", "g"},
     {"box", "b 0 0 10 10 \"label\""},

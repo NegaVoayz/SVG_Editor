@@ -19,6 +19,7 @@ template <> constexpr std::string_view element_name<Shape::Rect>(const Shape::Re
 template <> constexpr std::string_view element_name<Shape::Circle>(const Shape::Circle&) { return "circle"; }
 template <> constexpr std::string_view element_name<Shape::Ellipse>(const Shape::Ellipse&) { return "ellipse"; }
 template <> constexpr std::string_view element_name<Shape::Line>(const Shape::Line&) { return "line"; }
+template <> constexpr std::string_view element_name<Shape::Polygon>(const Shape::Polygon&) { return "polygon"; }
 
 template <> constexpr std::string_view element_name<Container::SVG>(const Container::SVG&) { return "svg"; }
 template <> constexpr std::string_view element_name<Container::Group>(const Container::Group&) { return "g"; }

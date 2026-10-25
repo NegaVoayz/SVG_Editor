@@ -37,6 +37,11 @@ std::string serialize_attribute<MaybeLengthPercentage>(const MaybeLengthPercenta
 }
 
 template<>
+std::string serialize_attribute<std::vector<Shape::Point>>(const std::vector<Shape::Point>& value) {
+    return points_text(value, true);
+}
+
+template<>
 std::string serialize_attribute<std::optional<Paint>>(const std::optional<Paint>& value) {
     return value ? to_text(*value) : std::string{};
 }
@@ -85,6 +90,9 @@ struct ShapeAttributes {
         append_fields(out, ellipse, svg_fields::ellipse_fields);
     }
     void operator()(const Shape::Line& line) const { append_fields(out, line, svg_fields::line_fields); }
+    void operator()(const Shape::Polygon& polygon) const {
+        append_fields(out, polygon, svg_fields::polygon_fields);
+    }
     template<typename T>
     void operator()(const T&) const {
         static_assert(always_false<T>, "no serialization for this shape alternative");

@@ -53,6 +53,8 @@ struct NegativeDimension {
     std::string attribute;
 };
 
+struct InvalidPoints {};
+
 struct NonPositiveCanvas {
     std::string attribute;
 };
@@ -154,7 +156,8 @@ struct InternalError {};
 
 using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::MissingContainer, fault::NotContainer,
                              fault::DuplicateId, fault::InvalidId, fault::ReservedId, fault::DuplicateGroupMember,
-                             fault::UnknownAttribute, fault::NegativeDimension, fault::NonPositiveCanvas,
+                             fault::UnknownAttribute, fault::NegativeDimension, fault::InvalidPoints,
+                             fault::NonPositiveCanvas,
                              fault::NonFiniteValue,
                              fault::CannotUngroupNonContainer,
                              fault::CannotUngroupComposite,

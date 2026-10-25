@@ -50,6 +50,23 @@ add_test(NAME cli_shape
         "init; create g layer; create rect box 0 0 10 10 #ff0000; addto layer box; move box 5 5 params restrict; tree")
 set_tests_properties(cli_shape PROPERTIES PASS_REGULAR_EXPRESSION "└── rect#box +x=5 y=5 w=10 h=10 fill=#ff0000")
 
+add_test(NAME cli_polygon
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create polygon tri \"0,0 10,0 5,10\" red; move tri 2 3 params restrict; set tri points \"0,0 20,0 10,20\"; show tri")
+set_tests_properties(cli_polygon PROPERTIES PASS_REGULAR_EXPRESSION
+    "polygon#tri  parent=svg\n  points=\"0,0 20,0 10,20\"\n  fill=red")
+
+add_test(NAME cli_polygon_invalid
+    COMMAND $<TARGET_FILE:Cli> "init; create polygon pair \"0,0 10,0\"")
+set_tests_properties(cli_polygon_invalid PROPERTIES PASS_REGULAR_EXPRESSION
+    "a polygon needs at least three coordinate pairs")
+
+add_test(NAME cli_polygon_roundtrip
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create polygon tri \"0,0 10,0 5,10\" blue; save ${CMAKE_CURRENT_BINARY_DIR}/polygon.svg; read ${CMAKE_CURRENT_BINARY_DIR}/polygon.svg; show tri")
+set_tests_properties(cli_polygon_roundtrip PROPERTIES PASS_REGULAR_EXPRESSION
+    "saved to .*polygon\\.svg \\(1 element\\)\nread .*polygon\\.svg \\(1 element\\)\npolygon#tri  parent=svg\n  points=\"0,0 10,0 5,10\"\n  fill=blue")
+
 # `move` and `scale` can change a leaf's transform, a leaf's own params, or a
 # container's descendants' params. The mismatched combinations are refused.
 add_test(NAME cli_move_transform

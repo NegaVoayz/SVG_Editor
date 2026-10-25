@@ -94,6 +94,7 @@ std::optional<Refusal> canvas_or_rect_dimension(const Document& document, Id nod
 std::string attribute_value_text(const LengthPercentage& value) { return to_text(value); }
 std::string attribute_value_text(const std::string& value) { return value; }
 std::string attribute_value_text(const Paint& value) { return to_text(value); }
+std::string attribute_value_text(const std::vector<Shape::Point>& value) { return points_text(value, false); }
 std::string attribute_value_text(const Container::ViewBox& value) { return to_text(value); }
 std::string attribute_value_text(Text::Anchor value) { return std::string{text_anchor_text(value)}; }
 std::string attribute_value_text(const Transform& value) {
@@ -623,6 +624,17 @@ Outcome apply(Document& document, Id node, const SetText& intent) {
 
 Outcome apply(Document& document, Id node, const SetContent& intent) {
     return set_text(document, node, intent.value, SetContent::name);
+}
+
+Outcome apply(Document& document, Id node, const SetPoints& intent) {
+    return set_shape(document, node, intent, [value = intent.value](auto& specific) -> bool {
+        if constexpr (requires { specific.points = value; }) {
+            specific.points = value;
+            return true;
+        } else {
+            return false;
+        }
+    });
 }
 
 }  // namespace

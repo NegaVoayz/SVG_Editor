@@ -39,6 +39,11 @@ Node line() {
         Shape{Shape::Line{user_units(0), user_units(0), user_units(5), user_units(5)}})};
 }
 
+Node polygon() {
+    return Node{element_with(Shape{Shape::Polygon{
+        {{user_units(0), user_units(0)}, {user_units(10), user_units(0)}, {user_units(5), user_units(10)}}}})};
+}
+
 Node plain_text() { return Node{PlainText{"hello"}}; }
 
 Node text_element() {
@@ -91,6 +96,11 @@ int main() {
     CHECK(moved(stroke, user_units(1), user_units(2)));
     CHECK(to_text(std::get<Shape::Line>(shape_of(stroke).specific).x2) == "6");
     CHECK(to_text(std::get<Shape::Line>(shape_of(stroke).specific).y2) == "7");
+
+    Node triangle = polygon();
+    CHECK(moved(triangle, user_units(1), user_units(2)));
+    CHECK(points_text(std::get<Shape::Polygon>(shape_of(triangle).specific).points, false) ==
+          "1,2 11,2 6,12");
 
     // what the unit table does and does not convert: within a system, everything, and
     // across systems, nothing
@@ -196,6 +206,11 @@ int main() {
         CHECK(to_text(ends.x2) == "10");
         CHECK(to_text(ends.y2) == "10");
     }
+
+    Node grown_polygon = polygon();
+    CHECK(resized(grown_polygon, 2.0F));
+    CHECK(points_text(std::get<Shape::Polygon>(shape_of(grown_polygon).specific).points, false) ==
+          "0,0 20,0 10,20");
 
     // Stroke width is a drawn dimension, so it grows with the geometry.
     Node stroked = rect(user_units(0), user_units(0));

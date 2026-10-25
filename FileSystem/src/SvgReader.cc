@@ -287,6 +287,16 @@ MaybeLengthPercentage read_attribute_value<MaybeLengthPercentage>(
 }
 
 template<>
+std::vector<Shape::Point> read_attribute_value<std::vector<Shape::Point>>(
+    const SvgReader& reader, const XmlNode& node, const XmlAttribute& attribute, bool) {
+    const std::optional<std::vector<Shape::Point>> value = SvgValueReader::points(attribute.value);
+    if (!value) {
+        reader.fail(SvgProblem::InvalidAttributeValue, node, attribute.name, attribute.value, "points");
+    }
+    return *value;
+}
+
+template<>
 std::optional<Paint> read_attribute_value<std::optional<Paint>>(const SvgReader& reader, const XmlNode& node,
                                                                const XmlAttribute& attribute, bool) {
     const std::optional<Paint> value = SvgValueReader::paint(attribute.value);
@@ -372,6 +382,13 @@ Shape::Kinds read_shape_payload<Shape::Line>(const SvgReader& reader, const XmlN
     Shape::Line line{zero, zero, zero, zero};
     reader.read_fields(node, line, svg_fields::line_fields);
     return line;
+}
+
+template<>
+Shape::Kinds read_shape_payload<Shape::Polygon>(const SvgReader& reader, const XmlNode& node) {
+    Shape::Polygon polygon;
+    reader.read_fields(node, polygon, svg_fields::polygon_fields);
+    return polygon;
 }
 
 template<typename T>

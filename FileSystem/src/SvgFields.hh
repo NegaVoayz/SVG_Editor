@@ -106,6 +106,10 @@ inline constexpr auto line_fields = std::tuple{
     field("y2", &Shape::Line::y2),
 };
 
+inline constexpr auto polygon_fields = std::tuple{
+    field("points", &Shape::Polygon::points),
+};
+
 inline constexpr auto text_common_fields = std::tuple{
     field("x", &Text::Common::x),
     field("y", &Text::Common::y),
