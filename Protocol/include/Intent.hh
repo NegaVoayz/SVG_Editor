@@ -310,6 +310,11 @@ struct Show { NodeRef node; };
 struct ShowHistory {
     std::optional<std::size_t> limit;
 };
+// A display-scale instruction. It names no document node and is answered by the Planner's
+// view state, so it never reaches the Editor or creates a commit.
+struct Zoom {
+    float factor;
+};
 struct Read { std::string path; };
 // No path: write where the document was read from, which FileSystem remembers.
 struct Save { std::optional<std::string> path; };
@@ -325,7 +330,7 @@ using Create =
 // specialization rather than by a chain over verbs. A create is answered by a second visit,
 // over the kinds it may hold.
 using Intent = std::variant<Create, Delete, Move, ScaleBy, Group, Ungroup, AddTo, Front, Back, Set, Undo, Redo,
-                            Checkout, SetCanvas, Init, ShowTree, Show, ShowHistory, Read, Save>;
+                            Checkout, SetCanvas, Init, ShowTree, Show, ShowHistory, Zoom, Read, Save>;
 
 // The context instructions on their own. FileSystem owns their file syntax, paths and
 // context baselines, so the Planner only has to recognise that a request is one of them.

@@ -360,6 +360,7 @@ std::string render(const View& view) {
     if (std::holds_alternative<TreeView>(view)) return render(std::get<TreeView>(view));
     if (std::holds_alternative<NodeView>(view)) return render(std::get<NodeView>(view));
     if (std::holds_alternative<HistoryView>(view)) return render(std::get<HistoryView>(view));
+    if (std::holds_alternative<ZoomView>(view)) return render(std::get<ZoomView>(view));
     return {};
 }
 
@@ -589,6 +590,9 @@ struct RefusalText {
     std::string operator()(const fault::ScaleFactorNotPositive&) const {
         return "error: scale factor must be positive";
     }
+    std::string operator()(const fault::ZoomFactorNotPositive&) const {
+        return "error: zoom factor must be positive";
+    }
     std::string operator()(const fault::TransformHasNoScope&) const {
         return "error: transform does not take cascade or restrict";
     }
@@ -792,6 +796,8 @@ std::string render(const HistoryView& view) {
     }
     return out.empty() ? "no history" : out;
 }
+
+std::string render(const ZoomView& view) { return "zoom " + number_text(view.factor) + "x"; }
 
 std::string render(const Outcome& outcome) { return std::visit(OutcomeText{}, outcome.result); }
 

@@ -48,4 +48,5 @@ private:
     Document& document_;
     Editor& editor_;
     FileSystem& filesystem_;
+    float zoom_ = 1.0F;
 };

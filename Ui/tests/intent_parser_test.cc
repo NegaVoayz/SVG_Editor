@@ -413,6 +413,12 @@ int main() {
     CHECK(refuses(parse("history two")));
     CHECK(refuses(parse("history -1")));
 
+    const Request zoom = parse("zoom 2");
+    CHECK(holds<Zoom>(zoom));
+    if (holds<Zoom>(zoom)) CHECK(as<Zoom>(zoom).factor == 2.0F);
+    CHECK(refuses(parse("zoom 0")));
+    CHECK(refuses(parse("zoom -1")));
+
     const Request checkout = parse("checkout 42");
     CHECK(holds<Checkout>(checkout));
     if (holds<Checkout>(checkout)) {

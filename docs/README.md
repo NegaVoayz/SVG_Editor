@@ -66,6 +66,11 @@ without a document:
 A create reports the element as `kind#id`. It reports the parent only when the command
 named one: a default root insertion is `g#markers created`, while an explicit position is
 `rect#box created in g#markers`.
+
+`zoom <factor>` sets the text front end's display scale and answers `zoom 2x`, for
+example. The factor must be finite and positive. Zoom is view state: it can be set before
+`init` or `read`, changes no node, and adds no commit to `history`.
+
 `init` makes an empty one, and `read` makes one from a file. Before either, every
 pipeline command is refused with `error: no document. use 'init' or 'read' first`;
 `help` is answered by the front end itself and still works.
@@ -93,6 +98,7 @@ The instructions are:
 | `tree [id]`                                     | the tree, the whole document by default                    |
 | `show <id>`                                     | one element's attributes, and the parent it hangs from     |
 | `history [n]`                                   | edits around HEAD, newest first; 20 by default |
+| `zoom <factor>`                                 | the display scale, without changing the document            |
 | `canvas` / `canvas <w> [h]`                     | read the document's size / set it, and start the history over |
 | `create rect <id> <x> <y> <w> <h> [fill]`       | a rectangle                                                |
 | `create circle <id> <cx> <cy> <r> [fill]`       | a circle                                                   |

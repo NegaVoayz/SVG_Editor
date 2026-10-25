@@ -119,6 +119,14 @@ int main() {
     CHECK(change_before_init.kind == Kind::Change);
     CHECK(refused_with<fault::NoDocument>(change_before_init));
     CHECK(refused_with<fault::NoDocument>(planner.dispatch(Save{std::nullopt})));
+    const Outcome early_zoom = planner.dispatch(Zoom{2.0F});
+    CHECK(early_zoom.ok());
+    CHECK(early_zoom.kind == Kind::View);
+    CHECK(std::holds_alternative<ZoomView>(early_zoom.view()));
+    if (std::holds_alternative<ZoomView>(early_zoom.view())) {
+        CHECK(std::get<ZoomView>(early_zoom.view()).factor == 2.0F);
+    }
+    CHECK(!document.has_document());
 
     // `read` is allowed without a document; a read that fails leaves the absence alone.
     const Outcome read_before_init = planner.dispatch(Read{"no-such-file.svg"});
@@ -136,6 +144,16 @@ int main() {
 
     // `init` is the context instruction that makes the first root.
     CHECK(planner.dispatch(Init{}).ok());
+    const std::size_t zoom_position = document.position();
+    const std::size_t zoom_depth = document.depth();
+    const Outcome reset_zoom = planner.dispatch(Zoom{1.25F});
+    CHECK(reset_zoom.ok());
+    if (std::holds_alternative<ZoomView>(reset_zoom.view())) {
+        CHECK(std::get<ZoomView>(reset_zoom.view()).factor == 1.25F);
+    }
+    CHECK(document.position() == zoom_position);
+    CHECK(document.depth() == zoom_depth);
+    CHECK(refused_with<fault::ZoomFactorNotPositive>(planner.dispatch(Zoom{0.0F})));
     const Outcome undo_at_init = planner.dispatch(Undo{});
     CHECK(!undo_at_init.ok());
     CHECK(refused_with<fault::UndoAfterIo>(undo_at_init));

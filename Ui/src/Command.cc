@@ -154,6 +154,13 @@ Request parse_history(const Words& words) {
     return intent;
 }
 
+Request parse_zoom(const Words& words) {
+    expect(words.size(), 2, "zoom takes '<factor>'");
+    const float factor = factor_of(words[1]);
+    if (factor <= 0.0F) throw ParseFailed{"zoom factor must be greater than zero"};
+    return Zoom{factor};
+}
+
 Request parse_tree(const Words& words) {
     expect_between(words.size(), 1, 2, "tree takes an optional '<id>'");
     ShowTree intent;
@@ -212,13 +219,14 @@ Request parse_exit(const Words& words) {
 // The vocabulary itself: one row per verb, in the order the help lists them - `canvas` is
 // the one row that answers both of the forms the help gives it. A table this size is a
 // scan, not a lookup structure.
-constexpr std::array<Verb, 23> table{{
+constexpr std::array<Verb, 24> table{{
     {"help", parse_help},
     {"exit", parse_exit},
     {"quit", parse_exit},
     {"tree", parse_tree},
     {"show", parse_show},
     {"history", parse_history},
+    {"zoom", parse_zoom},
     {"canvas", parse_canvas},
     {"create", parse_create},
     {"delete", parse_delete},

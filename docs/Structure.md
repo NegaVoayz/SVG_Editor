@@ -13,7 +13,7 @@ history and cost model are in [Model.md](Model.md).
 | `FileSystem/`       | SVG/XML parsing, serialization, file bytes and context history       | Model, Protocol, tinyxml2     |
 | `Protocol/`         | the vocabulary the pipeline passes around: selectors, node names, intents, views, events, read diagnostics, refusals and outcomes | Model (for the values) |
 | `Editor/`           | translates one change intent into tree transactions                 | Model, Protocol               |
-| `Planner/`          | decides what one instruction means                                  | Model, Editor, FileSystem, Protocol |
+| `Planner/`          | decides what one instruction means, and owns display-only view state | Model, Editor, FileSystem, Protocol |
 | `Ui/`               | the text front end: parses one line into an intent and prints the outcome | Planner, Model, Protocol |
 
 Three rules hold the shape together:
@@ -62,6 +62,7 @@ classDiagram
     class Planner {
         <<module>>
         view, change, or context
+        display scale
     }
     class Editor {
         <<module>>
@@ -335,6 +336,8 @@ it is before it is added.
 2. The Planner decides what that intent means, and that is the whole decision:
    [M Planner]
    - a **view** is served by reading the tree directly [M Model]
+   - a **display view**, such as `zoom`, changes Planner-owned view state and
+     creates no commit [M Planner]
    - a **change** goes to the Editor, which translates it into a tree-level
      transaction [M Editor] [M Model]
    - a **context change** goes to FileSystem, which owns parsing, paths and the
@@ -345,8 +348,8 @@ it is before it is added.
    layer turns the structure into words. [M Protocol] [M Ui]
 
 A document starts absent: `Document::root()` is `no_id` until `init` makes one or
-`read` loads one. The Planner answers those two without a document; every other
-instruction, views included, is refused with
+`read` loads one. The Planner answers `init`, `read` and `zoom` without a document; every
+instruction that inspects or changes the tree is refused with
 `error: no document. use 'init' or 'read' first`.
 
 ## Change assumptions

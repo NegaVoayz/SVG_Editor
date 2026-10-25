@@ -1,5 +1,6 @@
 #include "Planner.hh"
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -141,6 +142,14 @@ template<> Outcome Planner::handle<Show>(const Show& intent) {
 template<> Outcome Planner::handle<ShowHistory>(const ShowHistory& intent) {
     if (!document_.has_document()) return no_document(Kind::View);
     return viewed(Kind::View, View{editor_.history(intent.limit)});
+}
+
+template<> Outcome Planner::handle<Zoom>(const Zoom& intent) {
+    if (!std::isfinite(intent.factor) || intent.factor <= 0.0F) {
+        return refused(Kind::View, fault::ZoomFactorNotPositive{});
+    }
+    zoom_ = intent.factor;
+    return viewed(Kind::View, ZoomView{zoom_});
 }
 
 Outcome Planner::dispatch(const Intent& intent) {

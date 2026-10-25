@@ -93,6 +93,8 @@ struct CannotUngroupTopLevelContainer {
 
 struct ScaleFactorNotPositive {};
 
+struct ZoomFactorNotPositive {};
+
 // A selector that cannot apply to the node the Editor resolved.
 struct TransformHasNoScope {};
 
@@ -168,6 +170,7 @@ using Refusal = std::variant<fault::NoDocument, fault::MissingShape, fault::Miss
                              fault::CannotGroupIntoOwnDescendant, fault::CannotAddToOwnDescendant,
                              fault::CannotGroupTopLevelContainer,
                              fault::CannotUngroupTopLevelContainer, fault::ScaleFactorNotPositive,
+                             fault::ZoomFactorNotPositive,
                              fault::TransformHasNoScope,
                              fault::EmptyContainer, fault::NoDirectParams,
                              fault::RootCannotBeErased, fault::RootHasNoSiblings, fault::EmptyGroup,

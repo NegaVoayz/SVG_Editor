@@ -12,6 +12,7 @@
 std::string render(const TreeView& view);
 std::string render(const NodeView& view);
 std::string render(const HistoryView& view);
+std::string render(const ZoomView& view);
 std::string render(const View& view);
 std::string render(const Event& event);
 std::string render(const Refusal& refusal);

@@ -69,6 +69,12 @@ struct NodeView {
     Transform transform = {};
 };
 
+// The text front end's current display scale. This is view state, not document state:
+// changing it cannot alter the tree or add a history entry.
+struct ZoomView {
+    float factor;
+};
+
 // One of the two reads, or nothing: an outcome that is a change or a failure carries its
 // sentence instead of a view.
-using View = std::variant<std::monostate, TreeView, NodeView, HistoryView>;
+using View = std::variant<std::monostate, TreeView, NodeView, HistoryView, ZoomView>;

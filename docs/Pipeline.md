@@ -198,6 +198,7 @@ failure rather than a warning that a normal test run can miss.
 | `tree [id]`                                      | the tree, the whole document by default                | the Planner, Model's viewing API |
 | `show <id>`                                      | one element's attributes and its parent                | the Planner, Model's viewing API |
 | `history [n]`                                    | edits around HEAD, newest first, 20 by default         | the Editor's replay log |
+| `zoom <factor>`                                  | the display scale, without changing the document       | the Planner's view state |
 | `canvas`                                         | the document's size, which is the root element's       | the Planner, Model's viewing API |
 | `help`                                           | the command list                                       | the front end itself    |
 | `exit` / `quit`                                  | leave the editor without changing the document         | the front end itself    |
@@ -234,6 +235,10 @@ FileSystem owns the remembered read path and the SVG parser; Model receives only
 validated `StagedTree`. `init`, `read`, `save`, and `canvas` set an IO baseline. Undo at that baseline is
 refused with `error: undo not allowed after io command`; ordinary edits after it remain
 undoable.
+
+`Zoom` is a view intent answered entirely by `Planner::handle<Zoom>()`. The Planner owns
+the current positive display factor, returns `ZoomView` as the outcome, and touches neither
+the document nor the Editor. It therefore needs no document and creates no history entry.
 
 The verbs themselves are a table rather than a chain of tests: `Ui/src/Command.cc` holds one
 reader per verb - the words of a line in, the instruction out - and the table of them is the

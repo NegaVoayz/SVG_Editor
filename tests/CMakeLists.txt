@@ -468,6 +468,15 @@ add_test(NAME cli_history_limit COMMAND $<TARGET_FILE:Cli>
 set_tests_properties(cli_history_limit PROPERTIES
     PASS_REGULAR_EXPRESSION "3 +rect#r moved by \\(5, 7\\) \\(HEAD\\)\n2 +rect#r created\n1 +baseline")
 
+add_test(NAME cli_zoom COMMAND $<TARGET_FILE:Cli>
+    "init; create rect r 0 0 1 1; zoom 2; history")
+set_tests_properties(cli_zoom PROPERTIES
+    PASS_REGULAR_EXPRESSION "zoom 2x\n2 +rect#r created \\(HEAD\\)\n1 +baseline")
+
+add_test(NAME cli_zoom_invalid COMMAND $<TARGET_FILE:Cli> "zoom 0")
+set_tests_properties(cli_zoom_invalid PROPERTIES PASS_REGULAR_EXPRESSION
+    "error: zoom factor must be greater than zero")
+
 add_test(NAME cli_history_head_after_undo COMMAND $<TARGET_FILE:Cli>
     "init; create rect r 0 0 1 1; move r 5 7; undo; history")
 set_tests_properties(cli_history_head_after_undo PROPERTIES

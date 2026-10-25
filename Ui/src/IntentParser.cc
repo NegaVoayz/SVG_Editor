@@ -86,6 +86,7 @@ std::string_view usage() {
         return "  view     tree [id]              the tree, the whole document by default\n"
                "           show <id>              one element's attributes and parent\n"
                "           history [n]            edits around HEAD, capped at 20 by default\n"
+               "           zoom <factor>          set the display scale without changing the document\n"
                "           canvas                 the document's size, which is the root's\n"
                "           help                   this list\n"
                "           exit | quit            leave the editor\n"

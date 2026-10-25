@@ -274,6 +274,8 @@ int main() {
     const event::HistoryEntries empty_entries;
     const event::HistoryCursor empty_cursor;
     CHECK(render(HistoryView{empty_entries, empty_cursor, 20}) == "no history");
+    CHECK(render(ZoomView{2.0F}) == "zoom 2x");
+    CHECK(render(ZoomView{1.5F}) == "zoom 1.5x");
 
     // The other half of the boundary: an event and a refusal are data until this file
     // turns them into words. Every branch is plain prose; a refusal starts with `error:`.

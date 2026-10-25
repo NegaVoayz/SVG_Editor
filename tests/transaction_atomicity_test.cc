@@ -167,6 +167,10 @@ int main() {
         const CommitId current = document.commit_id();
         CHECK(dispatch(planner, Checkout{current}).ok());
         CHECK(document.depth() == depth);
+
+        CHECK(dispatch_ok(planner, Zoom{2.0F}));
+        CHECK(document.position() == 1);
+        CHECK(document.depth() == depth);
     }
 
     if (failures != 0) {
