@@ -7,15 +7,18 @@ in [Model.md](Model.md).
 
 ## What the protocol is made of
 
-The vocabulary is one thing to the layers that speak it, and six things to a reader, so
-`Protocol/` holds six headers and `Protocol.hh` is the name for all of them together:
+The vocabulary is one thing to the layers that speak it, and eight focused headers to a
+reader. `Protocol/` holds those headers and `Protocol.hh` is the name for all of them
+together:
 
 | header       | what it is                                                                                 |
 | ------------ | ------------------------------------------------------------------------------------------ |
 | `NodeRef.hh` | how an instruction names a node - a handle, the root, an SVG id - and what that name turns out to be |
+| `EditSelectors.hh` | the requested and resolved target/scope of `move` and `scale`                         |
 | `Intent.hh`  | the instructions and the nested variants they form (`Create`, `Set`, `Intent`, `ChangeIntent`) |
 | `View.hh`    | what a read hands back: the rows of a tree, or one node                                     |
 | `Event.hh`   | what a successful change did: user-facing element names, values and the kind of edit       |
+| `SvgDiagnostic.hh` | structured read warnings and parse problems                                           |
 | `Refusal.hh` | why an instruction could not be carried out: a closed set of typed reasons                 |
 | `Outcome.hh` | `Kind`, and the `View` / `Event` / `Refusal` result                                        |
 
@@ -35,12 +38,18 @@ struct Outcome {
 
 An `Event` names the element that moved, the parent it moved under, the attribute that was
 set, or the history position reached. An element's name is its SVG tag and id, not the
-hive's virtual handle. A `Refusal` names the missing node, the duplicate id, the two lengths
-that cannot be added, or the file that could not be read. A graphical front end can react
-to those fields directly; it does not have to recover them from a sentence.
+hive's virtual handle. `NodeName::element` is a non-owning `std::string_view` because all
+element names come from the static element-name mapping (or from static `"unknown"` and
+`"text"` fallbacks); `NodeName::svg_id` remains owned because it comes from the document.
+A `Refusal` names the missing node, the duplicate id, the two lengths that cannot be
+added, or the file that could not be read. A graphical front end can react to those
+fields directly; it does not have to recover them from a sentence.
 `Ui/src/Rendering.cc` is the only place that turns either one into English.
 An `Undone` or `Redone` event also carries the original structured edit event when the
 Editor recorded one, alongside the nodes whose state changed during the history move.
+That field is `std::optional<EditEvent>` stored by value: the optional adds the independent
+"no replayable edit" state, while the nested variant keeps the exact closed event
+vocabulary and costs no heap allocation or borrowed lifetime.
 The text front end prints it as `undo: <original edit>` or `redo: <original edit>`.
 The event also carries the commit id of the checkout it landed on. The Editor commits
 explicitly with one shared id, so every participating hive's native checkout reports

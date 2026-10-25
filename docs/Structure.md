@@ -11,7 +11,7 @@ history and cost model are in [Model.md](Model.md).
 | ------------------- | ----------------------------------------------------------------- | ----------------------------- |
 | `Model/`            | the SVG tree: where it is stored, how it is read, how it is edited  | MVCCHive                      |
 | `FileSystem/`       | SVG/XML parsing, serialization, file bytes and context history       | Model, Protocol, tinyxml2     |
-| `Protocol/`         | the vocabulary the pipeline passes around, in the six parts it is made of: how a node is named, the intents, the views, the events, the refusals, the outcome | Model (for the values) |
+| `Protocol/`         | the vocabulary the pipeline passes around: selectors, node names, intents, views, events, read diagnostics, refusals and outcomes | Model (for the values) |
 | `Editor/`           | translates one change intent into tree transactions                 | Model, Protocol               |
 | `Planner/`          | decides what one instruction means                                  | Model, Editor, FileSystem, Protocol |
 | `Ui/`               | the text front end: parses one line into an intent and prints the outcome | Planner, Model, Protocol |
@@ -158,6 +158,13 @@ An overload set may not be called from a generic `std::visit` without a primary 
 that carries the assertion. This was a real defect in element naming and in `Set`:
 adding an alternative produced a vague overload-resolution error instead of the project's
 exhaustiveness error.
+
+The same rule applies to conversions between domain states. A present length is
+`LengthPercentage = std::variant<Length, Percentage>`; a stored value that may be absent is
+`MaybeLengthPercentage = std::variant<Unset, Length, Percentage>`. Conversions use explicit
+template specializations with a `static_assert` primary template, so `Length`, `Percentage`
+and absence cannot be mixed by an accidental implicit conversion. `std::optional` is
+reserved for temporary or fallible computation, not for SVG fields.
 
 The rule also forbids runtime fallthroughs:
 
@@ -322,8 +329,9 @@ it is before it is added.
 
 1. A line is read and parsed into a typed intent: a `Create` (holding a `CreateRect`, a
    `CreateCircle`, ...), a `Delete`, a `Read` - one of the alternatives of `Intent`. The
-   values in it are model values by then - a `LengthPercentage`, a `Color`, a `NodeRef` - so
-   nothing above this point sees a string a user typed. [M Ui] [M Protocol]
+   values in it are model values by then - a `LengthPercentage` or
+   `MaybeLengthPercentage`, a `Color`, a `NodeRef` - so nothing above this point sees a
+   string a user typed. [M Ui] [M Protocol]
 2. The Planner decides what that intent means, and that is the whole decision:
    [M Planner]
    - a **view** is served by reading the tree directly [M Model]

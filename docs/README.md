@@ -1,9 +1,9 @@
 # SVG Editor
 
 An SVG editor built as a small pipeline: the text front end parses an instruction
-into a typed intent, the Planner decides what it means, and either Model (a view, or
-a file) or the Editor (a tree-level transaction) serves it. The design is split by
-role: [Structure.md](Structure.md) is the overview and dependency map,
+into a typed intent, and the Planner decides what it means. Model serves views, the
+Editor serves tree edits, and FileSystem serves file and context operations. The
+design is split by role: [Structure.md](Structure.md) is the overview and dependency map,
 [Pipeline.md](Pipeline.md) covers the vocabulary and command path, and
 [Model.md](Model.md) covers the tree, history and storage costs.
 

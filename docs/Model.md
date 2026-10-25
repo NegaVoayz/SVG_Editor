@@ -39,7 +39,7 @@ std::optional<CommitId> commit_at(std::size_t position) const;  // one edit's ch
 
 // context: install a fully parsed tree, or reset to a fresh root
 void replace(StagedTree tree);                       // validate, install, and make it the baseline
-void reset(std::optional<LengthPercentage> width, std::optional<LengthPercentage> height);
+void reset(MaybeLengthPercentage width, MaybeLengthPercentage height);
 void clear_history();                                // the tree stays and becomes the baseline
 ```
 
@@ -64,6 +64,31 @@ A `Subtree` is a node and its detached descendants. `append_subtree` recursively
 that tree under a parent within the current transaction, so a composite create needs one
 commit without knowing how links are threaded. The inserted nodes keep the ids in the
 subtree; regenerating them belongs to a future deep-copy operation.
+
+## Present and absent lengths
+
+The model keeps the two questions "which kind of coordinate is this?" and "is there a
+coordinate at all?" as separate, explicit type states:
+
+```C++
+using LengthPercentage = std::variant<Length, Percentage>;
+struct Unset {};
+using MaybeLengthPercentage = std::variant<Unset, Length, Percentage>;
+```
+
+Stored geometry that SVG permits to be absent uses `MaybeLengthPercentage`; an unset value
+is never encoded as zero or as an empty `std::optional`. Both variants occupy 12 bytes with
+the current layout. `present_length_percentage()` narrows a `MaybeLengthPercentage` to the
+two present domain types and returns `std::nullopt` only for `Unset`;
+`maybe_length_percentage()` widens a `LengthPercentage` without losing whether it is a
+length or a percentage. Both directions dispatch every alternative through explicit
+template specializations, and the primary templates fail with `static_assert`: adding a
+new alternative cannot silently pass through a conversion it has not defined.
+
+`std::optional<LengthPercentage>` remains appropriate for temporary arithmetic that can
+fail, such as adding incompatible unit systems. It is not the storage representation for
+an SVG field. This keeps `Length`, `Percentage`, and `Unset` distinct throughout Model,
+Protocol, Editor, FileSystem, and Ui rather than collapsing them into a nullable union.
 
 ## The canvas, and the checkpoints
 
@@ -170,9 +195,9 @@ own subtree, and an update cannot change whether a node holds children.
 A `set` is the smallest write: one changed virtual id, one new `Node` version, one
 row-version node and one commit diff. Nothing scales with the number of fields in the
 record or with the old diff-hive's parallel tables. The record itself is the unit of
-copying, though: `Node` is 416 bytes with the current MinGW/libstdc++ layout, mostly
-`Text`'s optional values and the strings, so a one-field edit still constructs a
-416-byte version. If that becomes the hot path, the lever is the record layout rather
+copying, though: `Node` is 432 bytes with the current Clang/libstdc++ layout, mostly
+`Text`'s length fields and the strings, so a one-field edit still constructs a
+432-byte version. If that becomes the hot path, the lever is the record layout rather
 than another hive.
 
 Current-view reads resolve a virtual id to one target, O(1), and then pay for the payload
@@ -186,10 +211,10 @@ for the copy.
 History is the other axis. MVCCHive 2.2.0 keeps commit records and diffs in fixed-size
 blocked vectors, so appending a commit no longer copies the retained commit log. The
 remaining history cost is block reclamation: `VersionStore::drain_retirements()` calls `release_empty_blocks()`,
-which scans every owned version block on every commit. With a 416-byte `Node` that is one
-block per 32 versions, so per-edit latency still rises with retained history even though
-each edit writes one version. Tracking only the blocks a retirement actually empties, or
-putting a cap on retained history, is the next step before very long sessions.
+which scans every owned version block on every commit. With a 432-byte `Node`, version
+blocks hold fewer records, so per-edit latency still rises with retained history even
+though each edit writes one version. Tracking only the blocks a retirement actually
+empties, or putting a cap on retained history, is the next step before very long sessions.
 
 On this machine (MinGW GCC 14.2, Release), a `set` at 50k history entries costs about
 5.1 us (195k sets/s), reading one node about 0.49 us, and `show #handle` about 0.95 us.
