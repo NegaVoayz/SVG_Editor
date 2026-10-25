@@ -305,7 +305,7 @@ std::optional<std::vector<Shape::Point>> parse_points(std::string_view text) {
         }
         if (start != index) values.push_back(text.substr(start, index - start));
     }
-    if (values.size() % 2 != 0) return std::nullopt;
+    if (values.size() < 6 || values.size() % 2 != 0) return std::nullopt;
 
     std::vector<Shape::Point> points;
     points.reserve(values.size() / 2);

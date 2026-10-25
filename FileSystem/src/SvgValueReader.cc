@@ -329,7 +329,7 @@ std::optional<Text::Anchor> text_anchor(std::string_view text) {
 
 std::optional<std::vector<Shape::Point>> points(std::string_view text) {
     const std::vector<std::string_view> values = values_of(text);
-    if (values.size() % 2 != 0) return std::nullopt;
+    if (values.size() < 6 || values.size() % 2 != 0) return std::nullopt;
 
     std::vector<Shape::Point> result;
     result.reserve(values.size() / 2);

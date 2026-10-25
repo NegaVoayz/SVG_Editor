@@ -404,6 +404,8 @@ int main() {
         R"(<svg viewBox="0 0 -10 10"/>)",
         R"(<svg><rect style="fill:red"/></svg>)",
         R"(<svg><polygon points="0,0 10"/></svg>)",
+        R"(<svg><polygon points="0,0"/></svg>)",
+        R"(<svg><polygon points="0,0 10,0"/></svg>)",
         R"(<svg><rect width="1" height="1" opacity="1.5"/></svg>)",
         R"(<svg><rect width="wide" height="2"/></svg>)",
         R"(<svg><g>words</g></svg>)",

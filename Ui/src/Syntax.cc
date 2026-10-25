@@ -18,7 +18,7 @@ constexpr std::string_view color_syntax =
     "a fill is #rgb, #rrggbb, rgb(r,g,b), a named or system colour, none or currentColor";
 constexpr std::string_view factor_syntax = "a scale is a finite plain number greater than zero";
 constexpr std::string_view points_syntax =
-    "points are coordinate pairs separated by spaces or commas";
+    "a polygon needs at least three coordinate pairs, separated by spaces or commas";
 
 }  // namespace
 

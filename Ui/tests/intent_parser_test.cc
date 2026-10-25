@@ -270,6 +270,8 @@ int main() {
     const Request set_points = parse("set p points \"0,0 10,0 5,10\"");
     CHECK(holds<SetPoints>(set_points));
     if (holds<SetPoints>(set_points)) CHECK(as<SetPoints>(set_points).value.size() == 3);
+    CHECK(refuses(parse("set p points \"0,0\"")));
+    CHECK(refuses(parse("set p points \"0,0 10,0\"")));
 
     const Request set_opacity = parse("set p opacity 0.5");
     CHECK(holds<SetOpacity>(set_opacity));

@@ -61,6 +61,18 @@ add_test(NAME cli_polygon_invalid
 set_tests_properties(cli_polygon_invalid PROPERTIES PASS_REGULAR_EXPRESSION
     "a polygon needs at least three coordinate pairs")
 
+add_test(NAME cli_polygon_set_invalid
+    COMMAND $<TARGET_FILE:Cli>
+        "init; create polygon tri \"0,0 10,0 5,10\"; set tri points \"0,0\"; show tri")
+set_tests_properties(cli_polygon_set_invalid PROPERTIES
+    PASS_REGULAR_EXPRESSION "a polygon needs at least three coordinate pairs"
+    FAIL_REGULAR_EXPRESSION "updated: points|points=\"0,0\"")
+
+add_test(NAME cli_polygon_read_invalid
+    COMMAND $<TARGET_FILE:Cli> "read ${CMAKE_SOURCE_DIR}/tests/fixtures/two-point-polygon.svg")
+set_tests_properties(cli_polygon_read_invalid PROPERTIES PASS_REGULAR_EXPRESSION
+    "invalid value \"0,0 10,0\" for points on <polygon>")
+
 add_test(NAME cli_polygon_roundtrip
     COMMAND $<TARGET_FILE:Cli>
         "init; create polygon tri \"0,0 10,0 5,10\" blue; save ${CMAKE_CURRENT_BINARY_DIR}/polygon.svg; read ${CMAKE_CURRENT_BINARY_DIR}/polygon.svg; show tri")
