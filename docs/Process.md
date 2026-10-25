@@ -3,7 +3,10 @@
 This record describes how the SVG editor was specified, changed and checked. It is part of
 the submission, not a tutorial: [README.md](README.md) explains how to use the program,
 [QualityAssurance.md](QualityAssurance.md) records the verification strategy, and
-[Consistency.md](Consistency.md) describes the automated self-check.
+[Consistency.md](Consistency.md) describes the automated self-check. The
+[AI-assisted iteration review](Process.md#ai-assisted-iteration-review) records
+representative problems found in AI-produced advice, documents and code and the evidence
+used to correct them.
 
 ## Scope and baseline
 
@@ -33,6 +36,21 @@ Each issue followed the same loop:
 6. Commit one coherent change with the `Type: concise description` message convention.
 
 This kept fixes reviewable and made regressions attributable to a single decision.
+
+## AI-assisted iteration review
+
+The following episodes are representative of the review loop. Each row records the faulty
+artefact, the evidence that exposed it and the durable correction; commit hashes identify
+the exact changes, while the quoted commands and output make the discovery reviewable.
+
+| proposal or artefact | what was wrong | how it was confirmed | how it was corrected | how it is prevented from recurring |
+| --- | --- | --- | --- | --- |
+| The storage chapter claimed that a quoted run could not contain a quote. | Quote and backslash escaping were already implemented and tested. | `build/ninja-local-dep/Ui/svg-editor.exe 'init; create text t 0 0 "a\"b"; show t'` printed `text="a\"b"`. | The obsolete claim was removed in `0f8a329`. | The parser and rendering tests retain escaped-input coverage, and `consistency` executes the quoted-text transcript. |
+| An AI-proposed refactor put `element_name` over a nested `of()` table. | A comment claimed a missing element mapping was a compile error, but ordinary overload resolution could report only that no implementation existed; the detail template was not the public failure point. | <code>git show --format= --unified=0 d754d9e -- Model/include/ElementName.hh</code> showed <code>-constexpr ... of()</code> and <code>-namespace element_name_detail</code> replaced by <code>+constexpr ... element_name(const T&amp;)</code> with <code>static_assert(always_false&lt;T&gt;, ...)</code>. | `d754d9e` made the public primary template the single checked mapping and removed the extra detail layer. | Adding an alternative without an element specialization now fails in that primary template, rather than producing an unrelated overload error. |
+| An AI issue report said the three-point polygon rule held at every entry point. | It held for `create`, but both the UI `set points` parser and the FileSystem SVG reader still accepted fewer than three points. | <code>git show --format= --unified=0 35f88af -- Ui/src/SvgValue.cc FileSystem/src/SvgValueReader.cc</code> showed both <code>-if (values.size() % 2 != 0)</code> checks becoming <code>+if (values.size() &lt; 6 &#124;&#124; values.size() % 2 != 0)</code>. | The invariant moved into both value parsers in `35f88af`, with `set` and `read` refusal tests. | `consistency` executes both refusal paths, and parser-level tests reject short lists before an edit transaction or file replacement. |
+| AI-produced history outcomes used nullable shared ownership for values copied from the replay log. | A copied undo/redo outcome needed one owner for one event, not shared storage; `std::shared_ptr` obscured that lifetime and left stale snapshot handling around live history. | <code>git grep -n shared_ptr ea0ae42^ -- Protocol Editor</code> reported the pointers in both the history implementation and undo/redo events; <code>git show --format= --unified=0 ea0ae42 -- Protocol/include/Event.hh</code> showed both fields changing to <code>std::optional&lt;EditEvent&gt;</code>. | `f49e009` made history views read the live replay log and cursor, and `ea0ae42` stored the selected edit outcome by value. | History entries retain values, the view refers to the current deque and its parameters, and rendering resolves an entry only when the view is used. |
+| The self-check reported `CLI transcript 'polygon' does not match`. | The CLI binary could not start because its runtime directory was absent from `PATH`; the transcript was never produced. | <code>cmake "-DSOURCE_DIR=$PWD" "-DBINARY_DIR=$PWD/build/ninja-local-dep" -DCTEST_COMMAND=ctest -DCLI=missing-cli -P cmake/CheckDocumentation.cmake</code> prints <code>cannot run CLI transcript 'polygon' (status no such file or directory)</code>, while running the generated command by hand succeeds. | `13ad4ad` classified launch failures separately from transcript mismatches. | The checker validates launch status before comparing output while preserving intentional nonzero command results. |
+| `docs/Consistency.md` told readers to use `build/ninja-clang-local-dep`. | No committed preset created that build directory, so the self-check's own command was not reproducible from the repository. | <code>git grep -n ninja-clang-local-dep 13ad4ad -- docs/Consistency.md</code> printed the old command; <code>CMakePresets.json</code> defines only <code>default</code>, <code>release</code> and <code>local-dep</code>. The replacement <code>ctest --preset local-dep -R '^consistency$' --output-on-failure</code> passes. | `b399ccd` changed the instruction to the committed preset. | The documented command names a preset rather than duplicating a local build directory. |
 
 ## A-08 through A-13 record
 

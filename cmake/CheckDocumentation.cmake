@@ -216,6 +216,15 @@ expect_cli("zoom"
 expect_cli("missing box label"
     "read ${SOURCE_DIR}/tests/fixtures/box-without-label.svg; set b content \"x\""
     "error: composite g#b has no label child")
+expect_cli("escaped text"
+    "init; create text t 0 0 \"a\\\"b\"; show t"
+    "text=\"a\\\"b\"")
+expect_cli("short polygon set"
+    "init; create polygon tri \"0,0 10,0 5,10\"; set tri points \"0,0\""
+    "a polygon needs at least three coordinate pairs")
+expect_cli("short polygon read"
+    "read ${SOURCE_DIR}/tests/fixtures/two-point-polygon.svg"
+    "invalid value \"0,0 10,0\" for points on <polygon>")
 
 execute_process(
     COMMAND git -C "${SOURCE_DIR}" rev-list --count HEAD
