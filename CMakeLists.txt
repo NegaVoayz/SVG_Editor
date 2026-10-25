@@ -16,6 +16,11 @@ if(MSVC)
     target_compile_options(SvgEditorWarnings INTERFACE /W4 /permissive- /WX)
 else()
     target_compile_options(SvgEditorWarnings INTERFACE -Wall -Wextra -Wpedantic -Werror)
+    if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # Planner's exhaustive visits instantiate a large amount of template code. MinGW's
+        # COFF assembler otherwise rejects the resulting object as having too many sections.
+        target_compile_options(SvgEditorWarnings INTERFACE -Wa,-mbig-obj)
+    endif()
 endif()
 
 # The tree of targets, bottom up:
