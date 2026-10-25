@@ -14,9 +14,10 @@ foreach(document IN LISTS required)
     endif()
 endforeach()
 
-file(GLOB markdown_files "${docs_dir}/*.md")
-foreach(document IN LISTS markdown_files)
-    file(READ "${document}" text)
+# Only registered submission chapters are checked. Untracked working notes are local
+# evidence, and a stale path in one must not turn the deliverable's self-check red.
+foreach(document IN LISTS required)
+    file(READ "${docs_dir}/${document}" text)
     # A C++ snippet can contain `](...)` as a lambda call. Markdown links and repository
     # references are claims in prose, so remove fenced code before scanning them.
     string(REGEX REPLACE "```[^`]*```" "" prose "${text}")
