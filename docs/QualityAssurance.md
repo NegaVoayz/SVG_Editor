@@ -23,7 +23,7 @@ checkout, and save/read round trips.
 
 | metric | recorded value |
 | --- | ---: |
-| Source commits at the validated snapshot | 168 |
+| Source commits at the validated snapshot | 169 |
 | CTest registrations | 128 |
 | static_assert occurrences | 67 |
 | source files containing static_assert | 21 |
@@ -77,4 +77,5 @@ appropriate. Review therefore also checks:
 - vocabulary and command routing in [Pipeline.md](Pipeline.md);
 - storage and cost claims in [Model.md](Model.md);
 - development history and decisions in [Process.md](Process.md);
-- the self-check coverage and limits in [Consistency.md](Consistency.md).
+- the self-check coverage and limits in [Consistency.md](Consistency.md);
+- the moving-tag refresh and archive checks in [Submission.md](Submission.md).

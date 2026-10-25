@@ -7,7 +7,8 @@ design is split by role: [Structure.md](Structure.md) is the overview and depend
 [Pipeline.md](Pipeline.md) covers the vocabulary and command path, and
 [Model.md](Model.md) covers the tree, history and storage costs. The submission record is
 split across [Process.md](Process.md), [QualityAssurance.md](QualityAssurance.md), and
-[Consistency.md](Consistency.md).
+[Consistency.md](Consistency.md); [Submission.md](Submission.md) defines how the tagged
+archive is published and built.
 
 ## Requirements
 

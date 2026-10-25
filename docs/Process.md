@@ -6,7 +6,8 @@ the submission, not a tutorial: [README.md](README.md) explains how to use the p
 [Consistency.md](Consistency.md) describes the automated self-check. The
 [AI-assisted iteration review](Process.md#ai-assisted-iteration-review) records
 representative problems found in AI-produced advice, documents and code and the evidence
-used to correct them.
+used to correct them. [Submission.md](Submission.md) records how the tagged archive is
+retargeted, refreshed and built.
 
 ## Scope and baseline
 

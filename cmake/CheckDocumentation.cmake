@@ -6,7 +6,8 @@ set(required
     Model.md
     Process.md
     QualityAssurance.md
-    Consistency.md)
+    Consistency.md
+    Submission.md)
 
 foreach(document IN LISTS required)
     if(NOT EXISTS "${docs_dir}/${document}")
